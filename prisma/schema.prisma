@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  admin
+  inventario
+  embalador
+  vendedora_online
+  vendedora_tienda
+}
+
+enum MovementType {
+  entrada
+  salida_venta
+  ajuste
+  devolucion
+}
+
+enum MovementChannel {
+  online
+  tienda
+  total
+}
+
+enum OrderChannel {
+  online
+  tienda
+}
+
+enum OrderStatus {
+  pendiente_pago
+  pago_parcial
+  pago_verificado
+  en_embalaje
+  enviada
+  completada
+  cancelada
+}
+
+enum PaymentType {
+  efectivo
+  transferencia
+  zelle
+  pago_movil
+  usdt
+}
+
+enum PaymentStatus {
+  pendiente
+  verificado
+  rechazado
+}
+
+enum ReceivableStatus {
+  pendiente
+  cobrado_parcial
+  cobrado
+  vencido
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          UserRole
+  is_active     Boolean  @default(true)
+  created_by    String?
+  created_at    DateTime @default(now())
+
+  creator User? @relation("UserCreatedBy", fields: [created_by], references: [id])
+  created_users User[] @relation("UserCreatedBy")
+
+  products             Product[]
+  inventory_movements  InventoryMovement[]
+  orders_created       Order[]             @relation("OrderCreatedBy")
+  partial_agreed_orders Order[]            @relation("OrderPartialAgreedBy")
+  payments_verified    OrderPayment[]
+  shipments_packed     OrderShipment[]
+  exchange_rates       ExchangeRate[]
+  expenses             Expense[]
+  receivables          AccountReceivable[]
+  payrolls_created     Payroll[]           @relation("PayrollCreatedBy")
+  payroll_employee     Payroll[]           @relation("PayrollEmployee")
+  payroll_records      PayrollRecord[]
+  accounts_payable     AccountPayable[]
+  audit_logs           AuditLog[]
+
+  @@map("users")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  color       String?
+  description String?
+  photos      String[]
+  is_active   Boolean  @default(true)
+  created_by  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  creator  User             @relation(fields: [created_by], references: [id])
+  variants ProductVariant[]
+
+  @@index([color])
+  @@map("products")
+}
+
+model ProductVariant {
+  id           String   @id @default(uuid())
+  product_id   String
+  size         String
+  sku          String   @unique
+  stock_total  Int      @default(0)
+  stock_online Int      @default(0)
+  stock_store  Int      @default(0)
+  price_usd    Decimal  @db.Decimal(10, 2)
+  is_active    Boolean  @default(true)
+  updated_at   DateTime @updatedAt
+
+  product             Product             @relation(fields: [product_id], references: [id])
+  inventory_movements InventoryMovement[]
+  order_items         OrderItem[]
+
+  @@map("product_variants")
+}
+
+model InventoryMovement {
+  id         String          @id @default(uuid())
+  variant_id String
+  type       MovementType
+  channel    MovementChannel
+  qty_before Int
+  qty_change Int
+  qty_after  Int
+  reason     String?
+  order_id   String?
+  created_by String
+  created_at DateTime        @default(now())
+
+  variant    ProductVariant @relation(fields: [variant_id], references: [id])
+  order      Order?         @relation(fields: [order_id], references: [id])
+  created_by_user User     @relation(fields: [created_by], references: [id])
+
+  @@map("inventory_movements")
+}
+
+model Order {
+  id                  String      @id @default(uuid())
+  order_number        String      @unique
+  channel             OrderChannel
+  status              OrderStatus @default(pendiente_pago)
+  customer_name       String
+  customer_lastname   String
+  customer_id_doc     String
+  address             String?
+  shipping_company    String?
+  total_usd           Decimal     @db.Decimal(10, 2)
+  is_partial_agreed   Boolean     @default(false)
+  partial_agreed_by   String?
+  notes               String?
+  created_by          String
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+
+  creator              User                @relation("OrderCreatedBy", fields: [created_by], references: [id])
+  partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
+  items                OrderItem[]
+  payments             OrderPayment[]
+  shipment             OrderShipment?
+  inventory_movements  InventoryMovement[]
+  receivables          AccountReceivable[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id              String  @id @default(uuid())
+  order_id        String
+  variant_id      String
+  quantity        Int
+  unit_price_usd  Decimal @db.Decimal(10, 2)
+  subtotal_usd    Decimal @db.Decimal(10, 2)
+  variant_snapshot Json
+
+  order   Order          @relation(fields: [order_id], references: [id])
+  variant ProductVariant @relation(fields: [variant_id], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderPayment {
+  id               String        @id @default(uuid())
+  order_id         String
+  payment_type     PaymentType
+  amount_usd       Decimal       @db.Decimal(10, 2)
+  amount_ves       Decimal?      @db.Decimal(14, 2)
+  exchange_rate_id String?
+  is_partial       Boolean       @default(false)
+  payment_date     DateTime      @db.Date
+  payment_time     String?
+  reference        String
+  reference_hash   String?
+  payment_photo    String?
+  status           PaymentStatus @default(pendiente)
+  rejection_reason String?
+  verified_by      String?
+  verified_at      DateTime?
+  created_at       DateTime      @default(now())
+
+  order         Order         @relation(fields: [order_id], references: [id])
+  exchange_rate ExchangeRate? @relation(fields: [exchange_rate_id], references: [id])
+  verifier      User?         @relation(fields: [verified_by], references: [id])
+
+  @@map("order_payments")
+}
+
+model OrderShipment {
+  id              String   @id @default(uuid())
+  order_id        String   @unique
+  packed_by       String
+  packed_at       DateTime
+  shipped_at      DateTime?
+  tracking_number String?
+  photo_package   String
+  photo_receipt   String?
+  notes           String?
+
+  order  Order @relation(fields: [order_id], references: [id])
+  packer User  @relation(fields: [packed_by], references: [id])
+
+  @@map("order_shipments")
+}
+
+model ExchangeRate {
+  id          String   @id @default(uuid())
+  rate_date   DateTime @unique @db.Date
+  usd_to_ves  Decimal  @db.Decimal(14, 4)
+  source      String
+  created_by  String
+  created_at  DateTime @default(now())
+
+  creator  User           @relation(fields: [created_by], references: [id])
+  payments OrderPayment[]
+  expenses Expense[]
+  payrolls Payroll[]
+
+  @@map("exchange_rates")
+}
+
+model Expense {
+  id               String   @id @default(uuid())
+  category         String
+  description      String
+  amount_usd       Decimal  @db.Decimal(10, 2)
+  amount_ves       Decimal? @db.Decimal(14, 2)
+  exchange_rate_id String?
+  expense_date     DateTime @db.Date
+  receipt_photo    String?
+  notas            String?
+  created_by       String
+  created_at       DateTime @default(now())
+
+  exchange_rate ExchangeRate? @relation(fields: [exchange_rate_id], references: [id])
+  creator       User          @relation(fields: [created_by], references: [id])
+
+  @@map("expenses")
+}
+
+model AccountReceivable {
+  id             String           @id @default(uuid())
+  description    String
+  debtor_name    String
+  amount_usd     Decimal          @db.Decimal(10, 2)
+  amount_paid_usd Decimal         @default(0) @db.Decimal(10, 2)
+  due_date       DateTime         @db.Date
+  status         ReceivableStatus @default(pendiente)
+  order_id       String?
+  created_by     String
+  created_at     DateTime         @default(now())
+
+  order   Order? @relation(fields: [order_id], references: [id])
+  creator User   @relation(fields: [created_by], references: [id])
+
+  @@map("accounts_receivable")
+}
+
+model Payroll {
+  id               String   @id @default(uuid())
+  employee_id      String
+  period_start     DateTime @db.Date
+  period_end       DateTime @db.Date
+  base_salary_usd  Decimal  @db.Decimal(10, 2)
+  commission_usd   Decimal  @db.Decimal(10, 2)
+  bonuses_usd      Decimal  @db.Decimal(10, 2)
+  deductions_usd   Decimal  @db.Decimal(10, 2)
+  total_usd        Decimal  @db.Decimal(10, 2)
+  exchange_rate_id String
+  paid_at          DateTime?
+  sales_summary    Json
+  created_by       String
+
+  employee      User         @relation("PayrollEmployee", fields: [employee_id], references: [id])
+  exchange_rate ExchangeRate @relation(fields: [exchange_rate_id], references: [id])
+  creator       User         @relation("PayrollCreatedBy", fields: [created_by], references: [id])
+
+  @@map("payroll")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  user_id     String
+  action      String
+  entity_type String
+  entity_id   String
+  data_before Json?
+  data_after  Json?
+  ip_address  String?
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
+}
+
+model PayrollRecord {
+  id           String    @id @default(uuid())
+  userId       String
+  mes          Int
+  anio         Int
+  total_ventas Decimal   @db.Decimal(10, 2)
+  comision     Decimal   @default(0) @db.Decimal(10, 2)
+  status       String    @default("pendiente")
+  paid_at      DateTime?
+  created_at   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, mes, anio])
+  @@map("payroll_records")
+}
+
+model AccountPayable {
+  id                String    @id @default(uuid())
+  proveedor         String
+  descripcion       String
+  monto             Decimal   @db.Decimal(10, 2)
+  fecha_vencimiento DateTime?
+  status            String    @default("pendiente")
+  paid_at           DateTime?
+  created_by        String
+  created_at        DateTime  @default(now())
+
+  creator User @relation(fields: [created_by], references: [id])
+
+  @@map("accounts_payable")
+}

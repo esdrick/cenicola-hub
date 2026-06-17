@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: cenicola_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cenicola_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - cenicola_db_data:/var/lib/postgresql/data
+
+volumes:
+  cenicola_db_data:
