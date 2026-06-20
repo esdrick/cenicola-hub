@@ -46,6 +46,26 @@ export type {
   ReceivableStatus,
 };
 
+// DocumentType is not re-exported via the /client barrel due to generator version;
+// defined here as the canonical project type.
+export type DocumentType = "V" | "P" | "J" | "E";
+
+export type CartStatus = "active" | "converting";
+
+// ─── Customer ────────────────────────────────────────────────────────────────
+
+export type CustomerJSON = {
+  id: string;
+  doc_type: "V" | "P" | "J" | "E";
+  doc_number: string;
+  name: string;
+  lastname: string;
+  address: string | null;
+  created_at: string;
+  updated_at: string;
+  _count?: { orders: number };
+};
+
 // ─── Utility types ───────────────────────────────────────────────────────────
 
 export type PaginatedResponse<T> = {
@@ -229,6 +249,38 @@ export type OrderWithDetails = Order & {
   creator: Pick<User, "id" | "name">;
 };
 
+// ─── Inventory stock view ────────────────────────────────────────────────────
+
+export type StockVariantJSON = {
+  id: string;
+  product_id: string;
+  sku: string;
+  size: string;
+  stock_total: number;
+  stock_online: number;
+  stock_store: number;
+  price_usd: number;
+  product: {
+    id: string;
+    name: string;
+    type: string;
+    color: string | null;
+  };
+};
+
+// ─── User JSON-safe type ──────────────────────────────────────────────────────
+
+export type UserJSON = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  creator?: { id: string; name: string } | null;
+};
+
 // ─── Dashboard stats ─────────────────────────────────────────────────────────
 
 export type DashboardStats = {
@@ -303,6 +355,46 @@ export type EmbalajeOrdenJSON = {
   creator: { id: string; name: string };
   items_summary: string;
   shipment: EmbalajeShipmentJSON | null;
+};
+
+// ─── Cart JSON-safe types ─────────────────────────────────────────────────────
+
+export type CartItemJSON = {
+  id: string;
+  cart_id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price_usd: number;
+  created_at: string;
+  stock_warning: boolean;
+  stock_available: number;
+  variant: {
+    id: string;
+    size: string;
+    sku: string;
+    stock_online: number;
+    stock_store: number;
+    product: {
+      id: string;
+      name: string;
+      color: string | null;
+      photos: string[];
+    };
+  };
+};
+
+export type CartJSON = {
+  id: string;
+  vendor_id: string;
+  channel: OrderChannel;
+  note: string | null;
+  status: CartStatus;
+  created_at: string;
+  updated_at: string;
+  vendor: { id: string; name: string };
+  items: CartItemJSON[];
+  total_usd: number;
+  has_stock_issues: boolean;
 };
 
 export type EmbalajeOrdenDetailJSON = {

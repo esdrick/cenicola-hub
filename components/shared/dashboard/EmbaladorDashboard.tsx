@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { shortOrderNumber } from "@/lib/order-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -155,7 +156,7 @@ export async function EmbaladorDashboard() {
               {colaEmbalaje.map((o) => (
                 <TableRow key={o.id} className="hover:bg-gray-50">
                   <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    #{o.order_number}
+                    {shortOrderNumber(o.order_number)}
                   </TableCell>
                   <TableCell className="text-sm font-medium">
                     {o.customer_name} {o.customer_lastname}

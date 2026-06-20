@@ -14,7 +14,7 @@ export async function POST(
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { payment_type, amount_usd, payment_date, payment_time, reference, payment_photo } = body;
+  const { payment_type, amount_usd, payment_date, payment_time, reference, payment_photo, exchange_rate_id } = body;
 
   if (!payment_type) return NextResponse.json({ error: "Tipo de pago requerido" }, { status: 400 });
   const amt = parseFloat(amount_usd);
@@ -83,20 +83,99 @@ export async function POST(
       }
 
       const today = new Date().toISOString().slice(0, 10);
+
+      // Cash is immediately verified — no admin confirmation needed
+      const paymentStatus = isEfectivo ? "verificado" : "pendiente";
+
+      // Resolve exchange rate: prefer client-supplied ID, fall back to today's in DB
+      let resolvedRateId: string | null = exchange_rate_id ?? null;
+      let amountVes: number | null = null;
+
+      if (!resolvedRateId) {
+        const todayRate = await tx.exchangeRate.findFirst({
+          where: { rate_date: new Date(`${today}T00:00:00.000Z`) },
+          select: { id: true, usd_to_ves: true },
+        });
+        if (todayRate) resolvedRateId = todayRate.id;
+      }
+
+      if (resolvedRateId) {
+        const rateRecord = await tx.exchangeRate.findUnique({
+          where: { id: resolvedRateId },
+          select: { usd_to_ves: true },
+        });
+        if (rateRecord) {
+          amountVes = parseFloat((amt * Number(rateRecord.usd_to_ves)).toFixed(2));
+        }
+      }
+
       await tx.orderPayment.create({
         data: {
           order_id: order.id,
           payment_type: payment_type as PaymentType,
           amount_usd: parseFloat(amt.toFixed(2)),
+          amount_ves: amountVes,
+          exchange_rate_id: resolvedRateId,
           is_partial: false,
           payment_date: new Date(payment_date || today),
           payment_time: payment_time || null,
           reference: isEfectivo ? "EFECTIVO" : (reference?.trim() ?? ""),
           reference_hash: hash,
           payment_photo: payment_photo?.trim() || null,
-          status: "pendiente",
+          status: paymentStatus,
         },
       });
+
+      // For cash payments, auto-update order status based on new paid total
+      if (isEfectivo) {
+        const newPaidTotal = currentPaid + amt;
+        const isFullyPaid = newPaidTotal >= orderTotal - 0.005;
+        let newOrderStatus: string | null = null;
+
+        if (isFullyPaid) {
+          // Tienda is direct sale → completada immediately
+          // Online still needs shipping → pago_verificado
+          newOrderStatus = order.channel === "tienda" ? "completada" : "pago_verificado";
+        } else if (order.status === "pendiente_pago") {
+          newOrderStatus = "pago_parcial";
+        }
+
+        if (newOrderStatus) {
+          await tx.order.update({
+            where: { id: order.id },
+            data: { status: newOrderStatus as never },
+          });
+        }
+
+        // When going to pago_parcial, create/update AccountReceivable
+        if (newOrderStatus === "pago_parcial") {
+          const remainingDebt = parseFloat((orderTotal - (currentPaid + amt)).toFixed(2));
+          if (remainingDebt > 0) {
+            const existing = await tx.accountReceivable.findFirst({
+              where: { order_id: order.id },
+            });
+            if (existing) {
+              await tx.accountReceivable.update({
+                where: { id: existing.id },
+                data: { amount_usd: remainingDebt, status: "pendiente" },
+              });
+            } else {
+              await tx.accountReceivable.create({
+                data: {
+                  description: `Saldo pendiente - Orden ${order.order_number}`,
+                  debtor_name: `${order.customer_name} ${order.customer_lastname}`,
+                  amount_usd: remainingDebt,
+                  amount_paid_usd: 0,
+                  due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                  status: "pendiente",
+                  order_id: order.id,
+                  created_by: auth.session.id,
+                },
+              });
+            }
+          }
+        }
+      }
 
       await tx.auditLog.create({
         data: {
@@ -109,11 +188,12 @@ export async function POST(
             payment_type,
             amount_usd: amt,
             reference: isEfectivo ? "EFECTIVO" : reference,
+            auto_verified: isEfectivo,
           },
           ip_address: ip,
         },
       });
-    });
+    }, { isolationLevel: "Serializable" });
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (err) {

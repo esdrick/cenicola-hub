@@ -42,7 +42,7 @@ export function Sidebar({ session }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-0.5">
           {navItems.map((item) => {
-            const active = isNavActive(pathname, item.href);
+            const active = isNavActive(pathname, item.href, navItems);
             const Icon = item.icon;
             return (
               <li key={item.href + item.label}>

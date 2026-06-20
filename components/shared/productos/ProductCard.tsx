@@ -15,7 +15,13 @@ export function ProductCard({ product }: Props) {
   return (
     <Link
       href={`/dashboard/productos/${product.id}`}
-      className="group block rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md"
+      className={`group block rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
+        outOfStock
+          ? "border-red-300 bg-red-50"
+          : product.hasLowStock
+          ? "border-amber-300 bg-amber-50"
+          : "border-gray-200 bg-white"
+      }`}
     >
       {/* Foto */}
       <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-100">

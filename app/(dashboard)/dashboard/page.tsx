@@ -7,6 +7,10 @@ import { AdminDashboard } from "@/components/shared/dashboard/AdminDashboard";
 import { InventarioDashboard } from "@/components/shared/dashboard/InventarioDashboard";
 import { VendedoraDashboard } from "@/components/shared/dashboard/VendedoraDashboard";
 import { EmbaladorDashboard } from "@/components/shared/dashboard/EmbaladorDashboard";
+import { TasaCambioWidget } from "@/components/shared/dashboard/TasaCambioWidget";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { PlusCircle } from "lucide-react";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -30,6 +34,12 @@ export default async function DashboardPage() {
             </span>
           </p>
         </div>
+        {(session.role === "vendedora_online" || session.role === "vendedora_tienda") && (
+          <Link href="/dashboard/ordenes/nueva" className={buttonVariants()}>
+            <PlusCircle size={16} className="mr-2" />
+            Nueva orden
+          </Link>
+        )}
       </div>
 
       {/* Dashboard por rol */}
@@ -39,6 +49,9 @@ export default async function DashboardPage() {
         <VendedoraDashboard session={session} />
       )}
       {session.role === "embalador" && <EmbaladorDashboard />}
+
+      {/* Tasa de cambio — visible para todos los roles */}
+      <TasaCambioWidget userId={session.id} />
     </div>
   );
 }

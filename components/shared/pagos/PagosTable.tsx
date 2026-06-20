@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { shortOrderNumber } from "@/lib/order-utils";
 import { useTransition, useState } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -8,8 +9,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Search, X, Loader2 } from "lucide-react";
+import { Pagination } from "@/components/shared/Pagination";
 import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -40,6 +42,8 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, start] = useTransition();
+
+  const today = new Date().toISOString().split("T")[0];
 
   const [q,      setQ]      = useState(sp.get("q") ?? "");
   const [metodo, setMetodo] = useState(sp.get("metodo") ?? "");
@@ -91,7 +95,9 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
 
         <Select value={metodo || "all"} onValueChange={(v) => setMetodo(v === "all" ? "" : (v ?? ""))}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Método de pago" />
+            <span data-slot="select-value" className="flex-1 text-left">
+              {metodo ? (METODO_LABELS[metodo as PaymentType] ?? metodo) : "Todos los métodos"}
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los métodos</SelectItem>
@@ -103,21 +109,17 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
           </SelectContent>
         </Select>
 
-        <Input
-          type="date"
-          value={desde}
-          onChange={(e) => setDesde(e.target.value)}
-          className="w-36"
-        />
-        <Input
-          type="date"
-          value={hasta}
-          onChange={(e) => setHasta(e.target.value)}
-          className="w-36"
-        />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] text-gray-400">Desde</span>
+          <Input type="date" value={desde} max={today} onChange={(e) => setDesde(e.target.value)} className="w-36" />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] text-gray-400">Hasta</span>
+          <Input type="date" value={hasta} max={today} onChange={(e) => setHasta(e.target.value)} className="w-36" />
+        </div>
 
-        <Button size="sm" onClick={apply} disabled={isPending}>
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : "Filtrar"}
+        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
+          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} />Filtrar</>}
         </Button>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
@@ -130,7 +132,7 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
       <div className="overflow-x-auto rounded-xl border bg-white">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow>
               <TableHead className="whitespace-nowrap"># Orden</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Canal</TableHead>
@@ -162,10 +164,13 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                   <TableRow
                     key={o.id}
                     className="cursor-pointer hover:bg-gray-50/50"
-                    onClick={() => router.push(`/dashboard/pagos/${o.id}`)}
+                    onClick={() => {
+                      const qs = sp.toString();
+                      router.push(`/dashboard/pagos/${o.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
+                    }}
                   >
                     <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                      {o.order_number}
+                      {shortOrderNumber(o.order_number)}
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">
@@ -244,31 +249,16 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>
-            {total} orden{total !== 1 ? "es" : ""} · página {page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1 || isPending}
-              onClick={() => start(() => router.push(buildUrl({ page: page - 1 })))}
-            >
-              <ChevronLeft size={15} />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages || isPending}
-              onClick={() => start(() => router.push(buildUrl({ page: page + 1 })))}
-            >
-              <ChevronRight size={15} />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        noun="orden"
+        nounPlural="órdenes"
+        isPending={isPending}
+        onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
+        onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
+      />
     </div>
   );
 }

@@ -62,8 +62,8 @@ export function ProductFilters() {
         className="w-32"
       />
 
-      <Button onClick={apply} disabled={isPending} size="sm">
-        {isPending ? <Loader2 size={14} className="animate-spin" /> : "Buscar"}
+      <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
+        {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} className="mr-1" />Filtrar</>}
       </Button>
 
       {hasFilters && (

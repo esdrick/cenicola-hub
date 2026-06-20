@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getProduct } from "@/lib/product-queries";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -12,30 +13,11 @@ import { ProductDetailGallery } from "@/components/shared/productos/ProductDetai
 import { VariantActions } from "@/components/shared/productos/VariantActions";
 import { ColorSelector } from "@/components/shared/productos/ColorSelector";
 import { SizeSelector } from "@/components/shared/productos/SizeSelector";
+import { AddToCartButton } from "@/components/shared/productos/AddToCartButton";
 import { ChevronLeft, Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ProductJSON } from "@/types";
+import type { ProductJSON, CartJSON, CartItemJSON } from "@/types";
 
-async function getProduct(id: string): Promise<ProductJSON | null> {
-  const p = await prisma.product.findUnique({
-    where: { id },
-    include: {
-      variants: { orderBy: { size: "asc" } },
-      creator: { select: { id: true, name: true } },
-    },
-  });
-  if (!p) return null;
-  return {
-    ...p,
-    created_at: p.created_at.toISOString(),
-    updated_at: p.updated_at.toISOString(),
-    variants: p.variants.map((v) => ({
-      ...v,
-      price_usd: Number(v.price_usd),
-      updated_at: v.updated_at.toISOString(),
-    })),
-  };
-}
 
 async function getSiblings(name: string) {
   const siblings = await prisma.product.findMany({
@@ -44,7 +26,7 @@ async function getSiblings(name: string) {
       is_active: true,
     },
     select: { id: true, color: true },
-    orderBy: { color: "asc" },
+    orderBy: { name: "asc" },
   });
   return siblings;
 }
@@ -57,10 +39,8 @@ export default async function ProductoDetailPage({
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [product, siblingsRaw] = await Promise.all([
+  const [product] = await Promise.all([
     getProduct(params.id),
-    // getSiblings needs product name — fetch product first then siblings below
-    Promise.resolve(null),
   ]);
 
   if (!product) notFound();
@@ -68,6 +48,79 @@ export default async function ProductoDetailPage({
   const siblings = await getSiblings(product.name);
 
   const canEdit = session.role === "admin" || session.role === "inventario";
+  const isVendor = session.role === "vendedora_online" || session.role === "vendedora_tienda";
+  const canUseCarts = isVendor || session.role === "admin";
+  const channel: "online" | "tienda" =
+    session.role === "vendedora_online" ? "online" : "tienda";
+
+  // Fetch active carts for the order selector
+  let activeCarts: CartJSON[] = [];
+  if (canUseCarts) {
+    const rawCarts = await prisma.cart.findMany({
+      where: {
+        vendor_id: session.id,
+        status: "active",
+      },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { id: true, name: true, color: true, photos: true } },
+              },
+            },
+          },
+          orderBy: { created_at: "asc" },
+        },
+      },
+      orderBy: { updated_at: "desc" },
+    });
+
+    activeCarts = rawCarts.map((cart) => {
+      const ch = cart.channel;
+      const items: CartItemJSON[] = cart.items.map((item) => {
+        const stock = ch === "online" ? item.variant.stock_online : item.variant.stock_store;
+        return {
+          id: item.id,
+          cart_id: item.cart_id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+          unit_price_usd: Number(item.unit_price_usd),
+          created_at: item.created_at.toISOString(),
+          stock_warning: stock < item.quantity,
+          stock_available: stock,
+          variant: {
+            id: item.variant.id,
+            size: item.variant.size,
+            sku: item.variant.sku,
+            stock_online: item.variant.stock_online,
+            stock_store: item.variant.stock_store,
+            product: {
+              id: item.variant.product.id,
+              name: item.variant.product.name,
+              color: item.variant.product.color,
+              photos: item.variant.product.photos,
+            },
+          },
+        };
+      });
+      return {
+        id: cart.id,
+        vendor_id: cart.vendor_id,
+        channel: cart.channel,
+        note: cart.note,
+        status: cart.status,
+        created_at: cart.created_at.toISOString(),
+        updated_at: cart.updated_at.toISOString(),
+        vendor: cart.vendor,
+        items,
+        total_usd: items.reduce((s, i) => s + i.unit_price_usd * i.quantity, 0),
+        has_stock_issues: items.some((i) => i.stock_warning),
+      };
+    });
+  }
+
   const activeVariants = product.variants.filter((v) => v.is_active);
   const price = activeVariants[0]?.price_usd;
 
@@ -106,10 +159,20 @@ export default async function ProductoDetailPage({
         {/* Info */}
         <div className="space-y-5">
           <div>
-            <div className="flex flex-wrap gap-2">
-              <Badge>{product.type}</Badge>
-              {!product.is_active && (
-                <Badge variant="destructive">Inactivo</Badge>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge>{product.type}</Badge>
+                {!product.is_active && (
+                  <Badge variant="destructive">Inactivo</Badge>
+                )}
+              </div>
+              {canUseCarts && product.is_active && (
+                <AddToCartButton
+                  product={product}
+                  channel={channel}
+                  initialCarts={activeCarts}
+                  inline
+                />
               )}
             </div>
             <h1 className="mt-2 text-2xl font-bold text-gray-900">{product.name}</h1>

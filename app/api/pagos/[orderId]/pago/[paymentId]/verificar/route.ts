@@ -76,31 +76,15 @@ export async function POST(
         });
 
 
-        // Create/update account receivable if partial
-        if (!isFullyPaid) {
-          const debtUsd = parseFloat((totalUsd - totalVerified).toFixed(2));
-          const existing = await tx.accountReceivable.findFirst({
-            where: { order_id: params.orderId },
+        // Order fully paid — close any open receivable
+        const existingReceivable = await tx.accountReceivable.findFirst({
+          where: { order_id: params.orderId },
+        });
+        if (existingReceivable && existingReceivable.status !== "cobrado") {
+          await tx.accountReceivable.update({
+            where: { id: existingReceivable.id },
+            data: { amount_paid_usd: existingReceivable.amount_usd, status: "cobrado" },
           });
-          if (existing) {
-            await tx.accountReceivable.update({
-              where: { id: existing.id },
-              data: { amount_usd: debtUsd, status: "pendiente" },
-            });
-          } else {
-            await tx.accountReceivable.create({
-              data: {
-                description: `Saldo pendiente - Orden ${payment.order.order_number}`,
-                debtor_name: `${payment.order.customer_name} ${payment.order.customer_lastname}`,
-                amount_usd: debtUsd,
-                amount_paid_usd: 0,
-                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-                status: "pendiente",
-                order_id: params.orderId,
-                created_by: auth.session.id,
-              },
-            });
-          }
         }
 
         return { advanced: true, finalStatus };

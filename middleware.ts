@@ -5,9 +5,9 @@ const SESSION_COOKIE = "cenicola_session";
 const PUBLIC_PATHS = ["/login", "/api/auth"];
 
 function getSecret() {
-  return new TextEncoder().encode(
-    process.env.NEXTAUTH_SECRET ?? "dev-secret-please-set-NEXTAUTH_SECRET"
-  );
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("NEXTAUTH_SECRET env var is required but not set");
+  return new TextEncoder().encode(secret);
 }
 
 type UserRole =
@@ -29,20 +29,22 @@ const ALLOWED_PATHS: Record<UserRole, string[]> = {
   admin:             ["/dashboard"],
   inventario:        ["/dashboard"],
   embalador:         ["/dashboard/embalaje"],
-  vendedora_online:  ["/dashboard/ordenes", "/dashboard/productos"],
-  vendedora_tienda:  ["/dashboard/ordenes", "/dashboard/productos"],
+  vendedora_online:  ["/dashboard", "/dashboard/ordenes", "/dashboard/productos", "/dashboard/carritos"],
+  vendedora_tienda:  ["/dashboard", "/dashboard/ordenes", "/dashboard/productos", "/dashboard/carritos"],
 };
 
 const DEFAULT_REDIRECT: Record<UserRole, string> = {
   admin:             "/dashboard",
   inventario:        "/dashboard",
   embalador:         "/dashboard/embalaje",
-  vendedora_online:  "/dashboard/ordenes",
-  vendedora_tienda:  "/dashboard/ordenes",
+  vendedora_online:  "/dashboard",
+  vendedora_tienda:  "/dashboard",
 };
 
+// Exact match OR the path is a sub-route (starts with allowed + "/")
+// This prevents "/dashboard" from granting access to "/dashboard/embalaje"
 function canAccess(role: UserRole, path: string): boolean {
-  return ALLOWED_PATHS[role]?.some((p) => path.startsWith(p)) ?? false;
+  return ALLOWED_PATHS[role]?.some((p) => path === p || path.startsWith(p + "/")) ?? false;
 }
 
 export async function middleware(request: NextRequest) {

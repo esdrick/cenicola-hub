@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { shortOrderNumber } from "@/lib/order-utils";
 import { useTransition, useState } from "react";
-import Link from "next/link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { OrderStatusBadge } from "@/components/shared/ordenes/OrderStatusBadge";
-import { Search, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Search, X, Loader2 } from "lucide-react";
+import { Pagination } from "@/components/shared/Pagination";
 import type { OrderJSON } from "@/types";
 
 type Seller = { id: string; name: string };
@@ -23,10 +24,22 @@ type Props = {
   isAdmin: boolean;
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  pendiente_pago:  "Pendiente pago",
+  pago_parcial:    "Pago parcial",
+  pago_verificado: "Pago verificado",
+  en_embalaje:     "En embalaje",
+  enviada:         "Enviada",
+  completada:      "Completada",
+  cancelada:       "Cancelada",
+};
+
 export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, start] = useTransition();
+
+  const today = new Date().toISOString().split("T")[0];
 
   const [q,        setQ]        = useState(sp.get("q") ?? "");
   const [status,   setStatus]   = useState<string>(sp.get("status") ?? "");
@@ -62,7 +75,11 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
         </div>
 
         <Select value={status || "all"} onValueChange={(v) => setStatus(v === "all" ? "" : (v ?? ""))}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
+          <SelectTrigger className="w-44">
+            <span data-slot="select-value" className="flex-1 text-left">
+              {STATUS_LABELS[status] ?? "Todos los estados"}
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="pendiente_pago">Pendiente pago</SelectItem>
@@ -76,7 +93,11 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
         </Select>
 
         <Select value={channel || "all"} onValueChange={(v) => setChannel(v === "all" ? "" : (v ?? ""))}>
-          <SelectTrigger className="w-32"><SelectValue placeholder="Canal" /></SelectTrigger>
+          <SelectTrigger className="w-32">
+            <span data-slot="select-value" className="flex-1 text-left">
+              {channel === "online" ? "Online" : channel === "tienda" ? "Tienda" : "Todos"}
+            </span>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="online">Online</SelectItem>
@@ -86,7 +107,11 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
 
         {isAdmin && sellers.length > 0 && (
           <Select value={seller || "all"} onValueChange={(v) => setSeller(v === "all" ? "" : (v ?? ""))}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Vendedora" /></SelectTrigger>
+            <SelectTrigger className="w-44">
+              <span data-slot="select-value" className="flex-1 text-left">
+                {seller ? (sellers.find((s) => s.id === seller)?.name ?? "Todas") : "Todas"}
+              </span>
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               {sellers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -94,11 +119,17 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
           </Select>
         )}
 
-        <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-36" />
-        <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-36" />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] text-gray-400">Desde</span>
+          <Input type="date" value={desde} max={today} onChange={(e) => setDesde(e.target.value)} className="w-36" />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] text-gray-400">Hasta</span>
+          <Input type="date" value={hasta} max={today} onChange={(e) => setHasta(e.target.value)} className="w-36" />
+        </div>
 
-        <Button size="sm" onClick={apply} disabled={isPending}>
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : "Filtrar"}
+        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
+          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} />Filtrar</>}
         </Button>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
@@ -111,7 +142,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
       <div className="overflow-x-auto rounded-xl border bg-white">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow>
               <TableHead className="whitespace-nowrap"># Orden</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Canal</TableHead>
@@ -133,7 +164,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
                 <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
                   onClick={() => router.push(`/dashboard/ordenes/${o.id}`)}>
                   <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    {o.order_number}
+                    {shortOrderNumber(o.order_number)}
                   </TableCell>
                   <TableCell>
                     <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
@@ -157,21 +188,16 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>{total} orden{total !== 1 ? "es" : ""} · página {page} de {totalPages}</span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1 || isPending}
-              onClick={() => start(() => router.push(buildUrl({ page: page - 1 })))}>
-              <ChevronLeft size={15} />
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages || isPending}
-              onClick={() => start(() => router.push(buildUrl({ page: page + 1 })))}>
-              <ChevronRight size={15} />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        noun="orden"
+        nounPlural="órdenes"
+        isPending={isPending}
+        onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
+        onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
+      />
     </div>
   );
 }

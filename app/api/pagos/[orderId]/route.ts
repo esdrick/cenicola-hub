@@ -26,7 +26,7 @@ export async function GET(
         include: {
           exchange_rate: { select: { rate_date: true, usd_to_ves: true } },
         },
-        orderBy: { created_at: "asc" },
+        orderBy: { created_at: "desc" },
       },
     },
   });

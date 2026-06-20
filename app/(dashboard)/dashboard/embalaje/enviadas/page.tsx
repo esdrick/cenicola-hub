@@ -10,9 +10,14 @@ export default async function EnviadasPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!["admin", "embalador"].includes(session.role)) redirect("/dashboard");
+  if (session.role === "admin") redirect("/dashboard/embalaje?tab=historial");
+
+  const isEmbalador = session.role === "embalador";
 
   const orders = await prisma.order.findMany({
-    where: { status: "enviada" },
+    where: isEmbalador
+      ? { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } }
+      : { status: { in: ["enviada", "completada"] } },
     include: {
       creator: { select: { id: true, name: true } },
       items: {
@@ -36,11 +41,11 @@ export default async function EnviadasPage() {
   const data: EmbalajeOrdenJSON[] = orders.map((o) => {
     const items_summary = o.items
       .map((item) => {
-        const snap = item.variant_snapshot as Record<string, string> | null;
+        const snap = item.variant_snapshot as Record<string, unknown> | null;
         const productName = item.variant?.product?.name ?? snap?.product_name ?? "Producto";
-        const color = item.variant?.product?.color ?? snap?.color ?? null;
+        const colorStr = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
         const size = item.variant?.size ?? snap?.size ?? "";
-        const label = [productName, color].filter(Boolean).join(" ");
+        const label = [productName, colorStr].filter(Boolean).join(" ");
         return `${label} T-${size} ×${item.quantity}`;
       })
       .join(", ");
@@ -79,15 +84,18 @@ export default async function EnviadasPage() {
     };
   });
 
+  const title = isEmbalador ? "Mi Historial de Envíos" : "Historial de Envíos";
+  const subtitle = isEmbalador
+    ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
+    : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`;
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Órdenes Enviadas</h1>
-        <p className="mt-0.5 text-sm text-gray-500">
-          {data.length} orden{data.length !== 1 ? "es" : ""} enviada{data.length !== 1 ? "s" : ""}
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
       </div>
-      <EnviadasTable initialOrders={data} />
+      <EnviadasTable initialOrders={data} role={session.role} />
     </div>
   );
 }

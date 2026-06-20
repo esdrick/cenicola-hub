@@ -6,9 +6,10 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { buttonVariants } from "@/components/ui/button";
 import { OrdersTable } from "@/components/shared/ordenes/OrdersTable";
+import { CartsSection } from "@/components/shared/carritos/CartsSection";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { OrderJSON } from "@/types";
+import type { OrderJSON, CartJSON, CartItemJSON } from "@/types";
 import type { OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -30,6 +31,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
 
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const canSeeAll    = !isRestricted;
+  const canUseCarts  = isRestricted || session.role === "admin";
 
   const where = {
     ...(isRestricted && { created_by: session.id }),
@@ -49,7 +51,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
     }),
   };
 
-  const [orders, total, sellers] = await Promise.all([
+  const [orders, total, sellers, rawCarts] = await Promise.all([
     prisma.order.findMany({
       where,
       include: { creator: { select: { id: true, name: true } } },
@@ -68,6 +70,28 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
+    canUseCarts
+      ? prisma.cart.findMany({
+          where: {
+            vendor_id: session.id,
+            status: "active",
+          },
+          include: {
+            vendor: { select: { id: true, name: true } },
+            items: {
+              include: {
+                variant: {
+                  include: {
+                    product: { select: { id: true, name: true, color: true, photos: true } },
+                  },
+                },
+              },
+              orderBy: { created_at: "asc" },
+            },
+          },
+          orderBy: { updated_at: "desc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   const data: OrderJSON[] = orders.map((o) => ({
@@ -76,6 +100,49 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
     created_at: o.created_at.toISOString(),
     updated_at: o.updated_at.toISOString(),
   }));
+
+  const carts: CartJSON[] = rawCarts.map((cart) => {
+    const ch = cart.channel;
+    const items: CartItemJSON[] = cart.items.map((item) => {
+      const stock = ch === "online" ? item.variant.stock_online : item.variant.stock_store;
+      return {
+        id: item.id,
+        cart_id: item.cart_id,
+        variant_id: item.variant_id,
+        quantity: item.quantity,
+        unit_price_usd: Number(item.unit_price_usd),
+        created_at: item.created_at.toISOString(),
+        stock_warning: stock < item.quantity,
+        stock_available: stock,
+        variant: {
+          id: item.variant.id,
+          size: item.variant.size,
+          sku: item.variant.sku,
+          stock_online: item.variant.stock_online,
+          stock_store: item.variant.stock_store,
+          product: {
+            id: item.variant.product.id,
+            name: item.variant.product.name,
+            color: item.variant.product.color,
+            photos: item.variant.product.photos,
+          },
+        },
+      };
+    });
+    return {
+      id: cart.id,
+      vendor_id: cart.vendor_id,
+      channel: cart.channel,
+      note: cart.note,
+      status: cart.status,
+      created_at: cart.created_at.toISOString(),
+      updated_at: cart.updated_at.toISOString(),
+      vendor: cart.vendor,
+      items,
+      total_usd: items.reduce((s, i) => s + i.unit_price_usd * i.quantity, 0),
+      has_stock_issues: items.some((i) => i.stock_warning),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -86,11 +153,15 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
             {total} orden{total !== 1 ? "es" : ""}
           </p>
         </div>
-        <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
-          <Plus size={16} className="mr-2" />
-          Nueva orden
-        </Link>
+        {canUseCarts && (
+          <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
+            <Plus size={16} className="mr-2" />
+            Nueva orden
+          </Link>
+        )}
       </div>
+
+      {carts.length > 0 && <CartsSection initialCarts={carts} />}
 
       <OrdersTable
         orders={data}

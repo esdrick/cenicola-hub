@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { Trash2, Plus, Loader2 } from "lucide-react";
+import { Trash2, Plus, Loader2, Search, X } from "lucide-react";
 
 type GastoJSON = {
   id: string;
@@ -222,8 +222,12 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
           <Label className="text-xs text-gray-500">Hasta</Label>
           <Input type="date" value={filterH} onChange={(e) => setFilterHasta(e.target.value)} className="w-36 text-sm" />
         </div>
-        <Button size="sm" onClick={applyFilters}>Filtrar</Button>
-        <Button size="sm" variant="outline" onClick={resetFilters}>Limpiar</Button>
+        <Button variant="outline" onClick={applyFilters} className="rounded-full px-4">
+          <Search size={13} className="mr-1" />Filtrar
+        </Button>
+        <Button variant="ghost" size="sm" onClick={resetFilters}>
+          <X size={14} className="mr-1" />Limpiar
+        </Button>
       </div>
 
       {/* Table */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -49,6 +49,7 @@ type Props = { order: PagoOrdenDetailJSON };
 
 export function PagoDetailClient({ order }: Props) {
   const router = useRouter();
+  const sp = useSearchParams();
   const [isPending, start] = useTransition();
 
   // Global dialogs
@@ -76,11 +77,11 @@ export function PagoDetailClient({ order }: Props) {
   const debtUsd     = Math.max(0, totalUsd - paidUsd);
   const isFullyPaid = paidUsd >= totalUsd - 0.01;
 
-  // Global verify: all pending payments together cover the remaining balance
-  const canVerifyAll = (isFullyPaid || order.is_partial_agreed) && pendingPayments.length > 0;
+  // Only orders actively awaiting payment allow verify/reject actions
+  const isActionable = order.status === "pendiente_pago" || order.status === "pago_parcial";
 
-  // Per-payment verify: whether a specific payment can individually tip the order over
-  // (not enforced in UI — admin decides, API validates)
+  // Global verify: all pending payments together cover the remaining balance
+  const canVerifyAll = isActionable && (isFullyPaid || order.is_partial_agreed) && pendingPayments.length > 0;
 
   const hasDuplicates = order.payments.some((p) => p.duplicate_order_number !== null);
 
@@ -220,7 +221,7 @@ export function PagoDetailClient({ order }: Props) {
       {/* Back + header */}
       <div>
         <Link
-          href="/dashboard/pagos"
+          href={sp.get("from") ?? (isActionable ? "/dashboard/pagos" : "/dashboard/pagos?tab=verificados")}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 w-fit"
         >
           <ArrowLeft size={15} />
@@ -234,11 +235,23 @@ export function PagoDetailClient({ order }: Props) {
           <p className="mt-0.5 font-mono text-sm text-gray-500">{order.order_number}</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-sm font-medium ${
-          order.status === "pago_parcial"
-            ? "bg-orange-100 text-orange-800"
-            : "bg-yellow-100 text-yellow-800"
+          order.status === "pago_parcial"    ? "bg-orange-100 text-orange-800"  :
+          order.status === "pendiente_pago"  ? "bg-yellow-100 text-yellow-800"  :
+          order.status === "completada"      ? "bg-emerald-100 text-emerald-800" :
+          order.status === "en_embalaje"     ? "bg-blue-100 text-blue-800"      :
+          order.status === "enviada"         ? "bg-indigo-100 text-indigo-800"  :
+          order.status === "cancelada"       ? "bg-red-100 text-red-700"        :
+                                               "bg-gray-100 text-gray-700"
         }`}>
-          {order.status === "pago_parcial" ? "Pago parcial" : "Pendiente pago"}
+          {{
+            pendiente_pago:  "Pendiente pago",
+            pago_parcial:    "Pago parcial",
+            pago_verificado: "Pago verificado",
+            en_embalaje:     "En embalaje",
+            enviada:         "Enviada",
+            completada:      "Completada",
+            cancelada:       "Cancelada",
+          }[order.status] ?? order.status}
         </span>
       </div>
 
@@ -260,8 +273,8 @@ export function PagoDetailClient({ order }: Props) {
         </Alert>
       )}
 
-      {/* Partial payment alerts */}
-      {!isFullyPaid && order.is_partial_agreed && (
+      {/* Partial payment alerts — only shown while the order is still awaiting payment */}
+      {isActionable && !isFullyPaid && order.is_partial_agreed && (
         <Alert className="border-orange-300 bg-orange-50">
           <AlertTriangle size={16} className="text-orange-600" />
           <AlertDescription className="text-orange-800">
@@ -269,7 +282,7 @@ export function PagoDetailClient({ order }: Props) {
           </AlertDescription>
         </Alert>
       )}
-      {!isFullyPaid && !order.is_partial_agreed && pendingUsd < totalUsd - paidUsd + pendingUsd - 0.01 && (
+      {isActionable && !isFullyPaid && !order.is_partial_agreed && pendingUsd < totalUsd - paidUsd + pendingUsd - 0.01 && (
         <Alert className="border-red-300 bg-red-50">
           <XCircle size={16} className="text-red-600" />
           <AlertDescription className="text-red-800">
@@ -339,10 +352,10 @@ export function PagoDetailClient({ order }: Props) {
               </TableHeader>
               <TableBody>
                 {order.items.map((item) => {
-                  const snap = item.variant_snapshot as Record<string, string> | null;
-                  const name  = item.variant?.product?.name ?? snap?.product_name ?? "—";
-                  const color = item.variant?.product?.color ?? snap?.color ?? null;
-                  const size  = item.variant?.size ?? snap?.size ?? "—";
+                  const snap = item.variant_snapshot as Record<string, unknown> | null;
+                  const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
+                  const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
+                  const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
                   return (
                     <TableRow key={item.id}>
                       <TableCell>
@@ -365,9 +378,11 @@ export function PagoDetailClient({ order }: Props) {
             <div className="border-b px-5 py-3">
               <h2 className="font-semibold text-gray-900">
                 Pagos registrados
-                <span className="ml-2 text-sm font-normal text-gray-500">
-                  — verifica o rechaza cada pago individualmente
-                </span>
+                {isActionable && (
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    — verifica o rechaza cada pago individualmente
+                  </span>
+                )}
               </h2>
             </div>
             <Table>
@@ -456,9 +471,9 @@ export function PagoDetailClient({ order }: Props) {
                         )}
                       </TableCell>
 
-                      {/* Per-payment action buttons */}
+                      {/* Per-payment action buttons — only while order is awaiting payment */}
                       <TableCell className="text-center">
-                        {p.status === "pendiente" && (
+                        {isActionable && p.status === "pendiente" && (
                           <div className="flex items-center justify-center gap-1">
                             {isProcessingThis ? (
                               <Loader2 size={14} className="animate-spin text-gray-400" />
@@ -529,31 +544,34 @@ export function PagoDetailClient({ order }: Props) {
               </div>
             </div>
 
-            <Separator className="my-4" />
-
-            <div className="space-y-2">
-              <p className="text-xs text-gray-500">Acciones globales (todos los pendientes)</p>
-              <Button
-                className="w-full"
-                disabled={!canVerifyAll || isProcessing}
-                onClick={() => openGlobal("verify-all")}
-              >
-                {isPending && globalDialog === "verify-all"
-                  ? <Loader2 size={15} className="mr-2 animate-spin" />
-                  : <CheckCircle2 size={15} className="mr-2" />
-                }
-                Verificar todos
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full text-red-600 hover:bg-red-50 hover:text-red-700"
-                disabled={pendingPayments.length === 0 || isProcessing}
-                onClick={() => openGlobal("reject-all")}
-              >
-                <XCircle size={15} className="mr-2" />
-                Rechazar todos
-              </Button>
-            </div>
+            {isActionable && (
+              <>
+                <Separator className="my-4" />
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500">Acciones globales (todos los pendientes)</p>
+                  <Button
+                    className="w-full"
+                    disabled={!canVerifyAll || isProcessing}
+                    onClick={() => openGlobal("verify-all")}
+                  >
+                    {isPending && globalDialog === "verify-all"
+                      ? <Loader2 size={15} className="mr-2 animate-spin" />
+                      : <CheckCircle2 size={15} className="mr-2" />
+                    }
+                    Verificar todos
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full text-red-600 hover:bg-red-50 hover:text-red-700"
+                    disabled={pendingPayments.length === 0 || isProcessing}
+                    onClick={() => openGlobal("reject-all")}
+                  >
+                    <XCircle size={15} className="mr-2" />
+                    Rechazar todos
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -14,17 +14,44 @@ import {
   Receipt,
   DollarSign,
   FileText,
+  ShoppingBag,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 
+type IngresoMetodo = {
+  metodo: string;
+  total: number;
+  count: number;
+};
+
 type Resumen = {
   ventas: number;
+  ordenes_completadas: number;
   gastos: number;
   cobrar: number;
   pagar: number;
+  pagos_pendientes: number;
+  ingresos_por_metodo: IngresoMetodo[];
 };
 
 type Preset = "mes" | "semana" | "custom";
+
+const METODO_LABELS: Record<string, string> = {
+  efectivo:      "Efectivo",
+  transferencia: "Transferencia",
+  zelle:         "Zelle",
+  pago_movil:    "Pago Móvil",
+  usdt:          "USDT",
+};
+
+const METODO_COLORS: Record<string, string> = {
+  efectivo:      "bg-emerald-100 text-emerald-800",
+  transferencia: "bg-blue-100 text-blue-800",
+  zelle:         "bg-violet-100 text-violet-800",
+  pago_movil:    "bg-orange-100 text-orange-800",
+  usdt:          "bg-yellow-100 text-yellow-800",
+};
 
 function localDateStr(d: Date) {
   const y = d.getFullYear();
@@ -42,7 +69,7 @@ function getMonthRange() {
 
 function getWeekRange() {
   const now = new Date();
-  const day = now.getDay(); // 0 = domingo
+  const day = now.getDay();
   const monday = new Date(now);
   monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
   const sunday = new Date(monday);
@@ -53,11 +80,8 @@ function getWeekRange() {
 const MONTH = getMonthRange();
 
 export function ResumenClient() {
-  // Input state — lo que el usuario ve en los campos
   const [desde, setDesde] = useState(MONTH.desde);
   const [hasta, setHasta] = useState(MONTH.hasta);
-
-  // Applied state — lo que realmente se consulta
   const [appliedDesde, setAppliedDesde] = useState(MONTH.desde);
   const [appliedHasta, setAppliedHasta] = useState(MONTH.hasta);
   const [activePreset, setActivePreset] = useState<Preset>("mes");
@@ -87,14 +111,12 @@ export function ResumenClient() {
     fetchResumen();
   }, [fetchResumen]);
 
-  // Aplica los valores de los inputs al filtro
   function applyCustom() {
     setAppliedDesde(desde);
     setAppliedHasta(hasta);
     setActivePreset("custom");
   }
 
-  // Shortcuts — actualiza inputs Y el filtro aplicado de inmediato
   function applyPreset(preset: Preset) {
     const range = preset === "semana" ? getWeekRange() : getMonthRange();
     setDesde(range.desde);
@@ -117,7 +139,7 @@ export function ResumenClient() {
           icon: TrendingUp,
           color: "text-emerald-600",
           bg: "bg-emerald-50",
-          desc: "Órdenes completadas",
+          desc: `${data.ordenes_completadas} órdenes completadas`,
         },
         {
           label: "Total gastos",
@@ -133,7 +155,7 @@ export function ResumenClient() {
           icon: Clock,
           color: "text-amber-600",
           bg: "bg-amber-50",
-          desc: "Pendientes de cobro",
+          desc: "Saldo pendiente de cobro",
         },
         {
           label: "Cuentas por pagar",
@@ -147,27 +169,26 @@ export function ResumenClient() {
     : [];
 
   const LINKS = [
-    { href: "/dashboard/finanzas/nominas",      label: "Nóminas",             icon: DollarSign, desc: "Comisiones y pagos por vendedora" },
-    { href: "/dashboard/finanzas/gastos",        label: "Gastos",              icon: Receipt,    desc: "Registro de gastos operativos" },
-    { href: "/dashboard/finanzas/cuentas-cobrar",label: "Cuentas por cobrar",  icon: BarChart3,  desc: "Abonos y deudas de clientes" },
-    { href: "/dashboard/finanzas/cuentas-pagar", label: "Cuentas por pagar",   icon: FileText,   desc: "Deudas a proveedores" },
+    { href: "/dashboard/finanzas/nominas",       label: "Nóminas",            icon: DollarSign, desc: "Comisiones y pagos por vendedora" },
+    { href: "/dashboard/finanzas/gastos",         label: "Gastos",             icon: Receipt,    desc: "Registro de gastos operativos" },
+    { href: "/dashboard/finanzas/cuentas-cobrar", label: "Cuentas por cobrar", icon: BarChart3,   desc: "Abonos y deudas de clientes" },
+    { href: "/dashboard/finanzas/cuentas-pagar",  label: "Cuentas por pagar",  icon: FileText,   desc: "Deudas a proveedores" },
   ];
+
+  const totalIngresosMetodo = data?.ingresos_por_metodo.reduce((s, m) => s + m.total, 0) ?? 0;
 
   return (
     <div className="space-y-6">
       {/* Filtros */}
       <div className="rounded-xl border bg-white p-4 space-y-3">
-        {/* Shortcuts */}
         <div className="flex flex-wrap gap-2">
           <Button
-            size="sm"
             variant={activePreset === "mes" ? "default" : "outline"}
             onClick={() => applyPreset("mes")}
           >
             Este mes
           </Button>
           <Button
-            size="sm"
             variant={activePreset === "semana" ? "default" : "outline"}
             onClick={() => applyPreset("semana")}
           >
@@ -175,17 +196,13 @@ export function ResumenClient() {
           </Button>
         </div>
 
-        {/* Separador visual */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
             <Label className="text-xs text-gray-500">Desde</Label>
             <Input
               type="date"
               value={desde}
-              onChange={(e) => {
-                setDesde(e.target.value);
-                setActivePreset("custom");
-              }}
+              onChange={(e) => { setDesde(e.target.value); setActivePreset("custom"); }}
               className="w-40 text-sm"
             />
           </div>
@@ -194,24 +211,20 @@ export function ResumenClient() {
             <Input
               type="date"
               value={hasta}
-              onChange={(e) => {
-                setHasta(e.target.value);
-                setActivePreset("custom");
-              }}
+              onChange={(e) => { setHasta(e.target.value); setActivePreset("custom"); }}
               className="w-40 text-sm"
             />
           </div>
           <Button
-            size="sm"
             onClick={applyCustom}
             disabled={loading || (!desde && !hasta)}
             variant={activePreset === "custom" ? "default" : "outline"}
+            className="rounded-full px-4"
           >
             {loading ? "Cargando..." : "Aplicar filtro"}
           </Button>
         </div>
 
-        {/* Período activo */}
         <p className="text-xs text-gray-400">
           Mostrando: <span className="font-medium text-gray-600">{periodLabel}</span>
         </p>
@@ -257,6 +270,79 @@ export function ResumenClient() {
               </Card>
             ))}
       </div>
+
+      {/* Ingresos por método de pago */}
+      {!loading && data && (
+        <div className="rounded-xl border bg-white">
+          <div className="flex items-center justify-between border-b px-5 py-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Ingresos por método de pago</h2>
+              <p className="text-xs text-gray-500">Pagos verificados en el período seleccionado</p>
+            </div>
+            <span className="text-sm font-semibold text-emerald-700">
+              Total: ${totalIngresosMetodo.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {data.ingresos_por_metodo.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-400">
+              No hay pagos verificados en este período
+            </div>
+          ) : (
+            <div className="divide-y">
+              {data.ingresos_por_metodo
+                .sort((a, b) => b.total - a.total)
+                .map((m) => {
+                  const pct = totalIngresosMetodo > 0 ? (m.total / totalIngresosMetodo) * 100 : 0;
+                  return (
+                    <div key={m.metodo} className="flex items-center gap-4 px-5 py-3">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${METODO_COLORS[m.metodo] ?? "bg-gray-100 text-gray-700"}`}>
+                        {METODO_LABELS[m.metodo] ?? m.metodo}
+                      </span>
+                      <div className="flex-1">
+                        <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-emerald-500"
+                            style={{ width: `${pct.toFixed(1)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <span className="w-12 text-right text-xs text-gray-500">
+                        {pct.toFixed(0)}%
+                      </span>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">
+                          ${m.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {m.count} pago{m.count !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Alerta pagos pendientes de verificación */}
+      {!loading && data && data.pagos_pendientes > 0 && (
+        <Link
+          href="/dashboard/pagos"
+          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 transition hover:border-amber-300 hover:bg-amber-100"
+        >
+          <div className="rounded-lg bg-amber-100 p-2">
+            <AlertTriangle size={16} className="text-amber-700" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-900">
+              {data.pagos_pendientes} orden{data.pagos_pendientes !== 1 ? "es" : ""} pendiente{data.pagos_pendientes !== 1 ? "s" : ""} de verificación de pago
+            </p>
+            <p className="text-xs text-amber-700">Ver en pantalla de pagos →</p>
+          </div>
+        </Link>
+      )}
 
       {/* Accesos rápidos */}
       <div>

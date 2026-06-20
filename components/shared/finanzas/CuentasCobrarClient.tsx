@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { shortOrderNumber } from "@/lib/order-utils";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -23,7 +24,13 @@ type CuentaJSON = {
   amount_pending: number;
   due_date: string;
   status: string;
-  order: { id: string; order_number: string } | null;
+  order: {
+    id: string;
+    order_number: string;
+    customer_name: string;
+    customer_lastname: string;
+    manager: { id: string; name: string };
+  } | null;
   creator: { id: string; name: string };
   created_at: string;
 };
@@ -33,26 +40,25 @@ type Props = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pendiente: "Pendiente",
+  pendiente:       "Pendiente",
   cobrado_parcial: "Parcial",
-  cobrado: "Cobrado",
-  vencido: "Vencido",
+  cobrado:         "Cobrado",
+  vencido:         "Vencido",
 };
 
 const STATUS_CLASSES: Record<string, string> = {
-  pendiente: "bg-yellow-100 text-yellow-800",
+  pendiente:       "bg-yellow-100 text-yellow-800",
   cobrado_parcial: "bg-orange-100 text-orange-800",
-  cobrado: "bg-emerald-100 text-emerald-800",
-  vencido: "bg-red-100 text-red-800",
+  cobrado:         "bg-emerald-100 text-emerald-800",
+  vencido:         "bg-red-100 text-red-800",
 };
 
-const METODOS = [
-  "Efectivo",
-  "Transferencia",
-  "Zelle",
-  "Pago Móvil",
-  "USDT",
-  "Otro",
+const METODOS: { value: string; label: string }[] = [
+  { value: "efectivo",     label: "Efectivo" },
+  { value: "transferencia", label: "Transferencia" },
+  { value: "zelle",        label: "Zelle" },
+  { value: "pago_movil",   label: "Pago Móvil" },
+  { value: "usdt",         label: "USDT" },
 ];
 
 export function CuentasCobrarClient({ data }: Props) {
@@ -60,15 +66,15 @@ export function CuentasCobrarClient({ data }: Props) {
   const [isPending, start] = useTransition();
 
   const [abonoTarget, setAbonoTarget] = useState<CuentaJSON | null>(null);
-  const [monto, setMonto] = useState("");
-  const [metodo, setMetodo] = useState("Transferencia");
-  const [referencia, setReferencia] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [monto,       setMonto]       = useState("");
+  const [metodo,      setMetodo]      = useState("transferencia");
+  const [referencia,  setReferencia]  = useState("");
+  const [formError,   setFormError]   = useState<string | null>(null);
 
   function openAbono(cuenta: CuentaJSON) {
     setAbonoTarget(cuenta);
     setMonto("");
-    setMetodo("Transferencia");
+    setMetodo("transferencia");
     setReferencia("");
     setFormError(null);
   }
@@ -83,6 +89,10 @@ export function CuentasCobrarClient({ data }: Props) {
     }
     if (Number(monto) > abonoTarget.amount_pending) {
       setFormError(`El abono no puede ser mayor al pendiente ($${abonoTarget.amount_pending.toFixed(2)})`);
+      return;
+    }
+    if (metodo !== "efectivo" && !referencia.trim()) {
+      setFormError("La referencia es requerida para este método de pago");
       return;
     }
 
@@ -127,7 +137,7 @@ export function CuentasCobrarClient({ data }: Props) {
             </span>
           </h2>
           <span className="text-sm font-semibold text-amber-600">
-            Por cobrar: ${totalPendiente.toFixed(2)}
+            Saldo pendiente: ${totalPendiente.toFixed(2)}
           </span>
         </div>
 
@@ -139,11 +149,12 @@ export function CuentasCobrarClient({ data }: Props) {
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
-                <TableHead>Cliente</TableHead>
+                <TableHead>Cliente / Deudor</TableHead>
                 <TableHead>Orden</TableHead>
+                <TableHead>Gestionó</TableHead>
                 <TableHead className="text-right">Monto total</TableHead>
                 <TableHead className="text-right">Abonado</TableHead>
-                <TableHead className="text-right">Pendiente</TableHead>
+                <TableHead className="text-right">Saldo pendiente</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Creado</TableHead>
                 <TableHead className="text-center">Acción</TableHead>
@@ -154,14 +165,24 @@ export function CuentasCobrarClient({ data }: Props) {
                 <TableRow key={c.id}>
                   <TableCell>
                     <p className="text-sm font-medium">{c.debtor_name}</p>
+                    {c.order && (
+                      <p className="text-xs text-gray-400">
+                        {c.order.customer_name} {c.order.customer_lastname}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-400">{c.description}</p>
                   </TableCell>
                   <TableCell>
                     {c.order ? (
                       <span className="font-mono text-xs text-blue-600">
-                        #{c.order.order_number}
+                        {shortOrderNumber(c.order.order_number)}
                       </span>
                     ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-700">
+                    {c.order?.manager.name ?? (
                       <span className="text-xs text-gray-400">—</span>
                     )}
                   </TableCell>
@@ -208,7 +229,7 @@ export function CuentasCobrarClient({ data }: Props) {
             <DialogDescription>
               Cliente: <strong>{abonoTarget?.debtor_name}</strong>
               <br />
-              Pendiente:{" "}
+              Saldo pendiente:{" "}
               <strong className="text-amber-700">
                 ${abonoTarget?.amount_pending.toFixed(2)}
               </strong>
@@ -216,18 +237,34 @@ export function CuentasCobrarClient({ data }: Props) {
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label>Monto del abono (USD) *</Label>
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-                placeholder="0.00"
-                disabled={isPending}
-              />
-            </div>
+            {(() => {
+              const num = Number(monto);
+              const montoError =
+                monto && (isNaN(num) || num <= 0)
+                  ? "Ingresa un monto válido"
+                  : monto && abonoTarget && num > abonoTarget.amount_pending
+                  ? `No puede superar el saldo pendiente ($${abonoTarget.amount_pending.toFixed(2)})`
+                  : null;
+              return (
+                <div className="space-y-1">
+                  <Label>Monto del abono (USD) *</Label>
+                  <Input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    max={abonoTarget?.amount_pending}
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                    placeholder="0.00"
+                    disabled={isPending}
+                    className={montoError ? "border-red-400 focus-visible:ring-red-400" : ""}
+                  />
+                  {montoError && (
+                    <p className="text-xs text-red-600">{montoError}</p>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-1">
               <Label>Método de pago *</Label>
               <select
@@ -237,12 +274,12 @@ export function CuentasCobrarClient({ data }: Props) {
                 disabled={isPending}
               >
                 {METODOS.map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-1">
-              <Label>Referencia (opcional)</Label>
+              <Label>Referencia {metodo !== "efectivo" ? "*" : "(opcional)"}</Label>
               <Input
                 value={referencia}
                 onChange={(e) => setReferencia(e.target.value)}
@@ -260,7 +297,16 @@ export function CuentasCobrarClient({ data }: Props) {
             <Button variant="outline" onClick={() => setAbonoTarget(null)} disabled={isPending}>
               Cancelar
             </Button>
-            <Button onClick={handleAbono} disabled={isPending}>
+            <Button
+              onClick={handleAbono}
+              disabled={
+                isPending ||
+                !monto ||
+                isNaN(Number(monto)) ||
+                Number(monto) <= 0 ||
+                (abonoTarget !== null && Number(monto) > abonoTarget.amount_pending)
+              }
+            >
               {isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
               Registrar abono
             </Button>

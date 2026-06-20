@@ -84,13 +84,21 @@ export async function POST(
         },
       });
 
-      // If partial payment, create or update accounts_receivable
-      if (!isFullyPaid) {
-        const debtUsd = parseFloat((totalUsd - paidUsd).toFixed(2));
-        const existing = await tx.accountReceivable.findFirst({
-          where: { order_id: order.id },
-        });
+      // Sync AccountReceivable with verified payment state
+      const existing = await tx.accountReceivable.findFirst({
+        where: { order_id: order.id },
+      });
 
+      if (isFullyPaid) {
+        // Close any open receivable — debt is settled
+        if (existing && existing.status !== "cobrado") {
+          await tx.accountReceivable.update({
+            where: { id: existing.id },
+            data: { amount_paid_usd: existing.amount_usd, status: "cobrado" },
+          });
+        }
+      } else {
+        const debtUsd = parseFloat((totalUsd - paidUsd).toFixed(2));
         if (existing) {
           await tx.accountReceivable.update({
             where: { id: existing.id },

@@ -15,7 +15,15 @@ export default async function CuentasCobrarPage() {
   const cuentas = await prisma.accountReceivable.findMany({
     where: { status: { in: ["pendiente", "cobrado_parcial"] } },
     include: {
-      order: { select: { id: true, order_number: true } },
+      order: {
+        select: {
+          id: true,
+          order_number: true,
+          customer_name: true,
+          customer_lastname: true,
+          creator: { select: { id: true, name: true } },
+        },
+      },
       creator: { select: { id: true, name: true } },
     },
     orderBy: { created_at: "asc" },
@@ -30,7 +38,15 @@ export default async function CuentasCobrarPage() {
     amount_pending: Number(c.amount_usd) - Number(c.amount_paid_usd),
     due_date: c.due_date.toISOString().slice(0, 10),
     status: c.status as string,
-    order: c.order,
+    order: c.order
+      ? {
+          id: c.order.id,
+          order_number: c.order.order_number,
+          customer_name: c.order.customer_name,
+          customer_lastname: c.order.customer_lastname,
+          manager: c.order.creator,
+        }
+      : null,
     creator: c.creator,
     created_at: c.created_at.toISOString(),
   }));

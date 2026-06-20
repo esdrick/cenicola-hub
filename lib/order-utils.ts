@@ -1,3 +1,9 @@
+/** Returns a short display reference like #190-001 from ORD-20240619-0001 */
+export function shortOrderNumber(orderNumber: string): string {
+  const digits = orderNumber.replace(/\D/g, "").slice(-6).padStart(6, "0");
+  return `#${digits.slice(0, 3)}-${digits.slice(3)}`;
+}
+
 export function normalizeReference(ref: string): string {
   return ref.toUpperCase().replace(/[\s\-]/g, "");
 }

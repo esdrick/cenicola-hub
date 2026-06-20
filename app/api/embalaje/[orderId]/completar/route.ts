@@ -7,7 +7,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { orderId: string } }
 ) {
-  const auth = await withRole(["admin", "inventario", "embalador"]);
+  const auth = await withRole(["admin", "inventario"]);
   if (!auth.ok) return auth.response;
 
   const { orderId } = params;

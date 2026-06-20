@@ -92,11 +92,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Re-check duplicate inside serializable transaction to prevent TOCTOU race
+      // (the pre-transaction check above handles the common case; this catches concurrent races)
+      const concurrentDup = await tx.product.findFirst({
+        where: {
+          name: { equals: name.trim(), mode: "insensitive" },
+          color: normalizedColor ? { equals: normalizedColor, mode: "insensitive" } : null,
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      if (concurrentDup) throw new Error(`DUP:${concurrentDup.id}`);
+
       const product = await tx.product.create({
         data: {
           name: name.trim(),
           type: type.trim(),
-          color: color?.trim() || null,
+          color: normalizedColor,
           description: description?.trim() || null,
           photos: photos.filter(Boolean),
           created_by: auth.session.id,
@@ -150,10 +162,18 @@ export async function POST(request: NextRequest) {
       });
 
       return product;
-    });
+    }, { isolationLevel: "Serializable" });
 
     return NextResponse.json({ id: result.id }, { status: 201 });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.startsWith("DUP:")) {
+      const existingId = msg.replace("DUP:", "");
+      return NextResponse.json(
+        { error: "Ya existe un producto con ese nombre y color", existingId },
+        { status: 409 }
+      );
+    }
     console.error("POST /api/products:", err);
     return NextResponse.json({ error: "Error al crear el producto" }, { status: 500 });
   }

@@ -8,8 +8,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Search, X, Loader2 } from "lucide-react";
+import { Pagination } from "@/components/shared/Pagination";
 import type { MovementJSON, MovementType, MovementChannel } from "@/types";
 
 type Props = {
@@ -17,6 +18,7 @@ type Props = {
   total: number;
   page: number;
   totalPages: number;
+  tallas: string[];
 };
 
 const TYPE_LABELS: Record<MovementType, string> = {
@@ -39,12 +41,15 @@ const CHANNEL_LABELS: Record<MovementChannel, string> = {
   total: "Total",
 };
 
-export function MovimientosTable({ movements, total, page, totalPages }: Props) {
+export function MovimientosTable({ movements, total, page, totalPages, tallas }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
+  const today = new Date().toISOString().split("T")[0];
+
   const [q, setQ] = useState(sp.get("q") ?? "");
+  const [talla, setTalla] = useState(sp.get("talla") ?? "");
   const [tipo, setTipo] = useState<string>(sp.get("tipo") ?? "");
   const [canal, setCanal] = useState<string>(sp.get("canal") ?? "");
   const [desde, setDesde] = useState<string>(sp.get("desde") ?? "");
@@ -52,7 +57,7 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
 
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
-    const vals = { q, tipo, canal, desde, hasta, page: String(page), ...Object.fromEntries(
+    const vals = { tab: "movimientos", q, talla, tipo, canal, desde, hasta, page: String(page), ...Object.fromEntries(
       Object.entries(overrides).map(([k, v]) => [k, String(v)])
     )};
     Object.entries(vals).forEach(([k, v]) => { if (v && v !== "0") params.set(k, v); });
@@ -64,11 +69,11 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
   }
 
   function clear() {
-    setQ(""); setTipo(""); setCanal(""); setDesde(""); setHasta("");
-    startTransition(() => router.push("/dashboard/inventario"));
+    setQ(""); setTalla(""); setTipo(""); setCanal(""); setDesde(""); setHasta("");
+    startTransition(() => router.push("/dashboard/inventario?tab=movimientos"));
   }
 
-  const hasFilters = !!(sp.get("q") || sp.get("tipo") || sp.get("canal") || sp.get("desde") || sp.get("hasta"));
+  const hasFilters = !!(sp.get("q") || sp.get("talla") || sp.get("tipo") || sp.get("canal") || sp.get("desde") || sp.get("hasta"));
 
   return (
     <div className="space-y-4">
@@ -78,12 +83,26 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <Input value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && apply()}
-            placeholder="Buscar producto…" className="pl-8" />
+            placeholder="Buscar por nombre o talla…" className="pl-8" />
         </div>
+
+        <Select value={talla || "all"} onValueChange={(v) => setTalla(v == null || v === "all" ? "" : v)}>
+          <SelectTrigger className="w-28">
+            <span data-slot="select-value" className="flex-1 text-left">
+              {talla || "Talla"}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            {tallas.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
 
         <Select value={tipo || "all"} onValueChange={(v) => { setTipo(v === "all" ? "" : (v ?? "")); }}>
           <SelectTrigger className="w-36">
-            <SelectValue placeholder="Tipo" />
+            <span data-slot="select-value" className="flex-1 text-left">
+              {tipo ? (TYPE_LABELS[tipo as MovementType] ?? tipo) : "Todos los tipos"}
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los tipos</SelectItem>
@@ -96,7 +115,9 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
 
         <Select value={canal || "all"} onValueChange={(v) => { setCanal(v === "all" ? "" : (v ?? "")); }}>
           <SelectTrigger className="w-28">
-            <SelectValue placeholder="Canal" />
+            <span data-slot="select-value" className="flex-1 text-left">
+              {canal ? (CHANNEL_LABELS[canal as MovementChannel] ?? canal) : "Todos"}
+            </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
@@ -106,11 +127,11 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
           </SelectContent>
         </Select>
 
-        <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-36" />
-        <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-36" />
+        <Input type="date" value={desde} max={today} onChange={(e) => setDesde(e.target.value)} className="w-36" />
+        <Input type="date" value={hasta} max={today} onChange={(e) => setHasta(e.target.value)} className="w-36" />
 
-        <Button size="sm" onClick={apply} disabled={isPending}>
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : "Filtrar"}
+        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
+          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} />Filtrar</>}
         </Button>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
@@ -123,7 +144,7 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
       <div className="overflow-x-auto rounded-xl border bg-white">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
+            <TableRow>
               <TableHead className="whitespace-nowrap">Fecha</TableHead>
               <TableHead>Producto</TableHead>
               <TableHead>Talla</TableHead>
@@ -189,25 +210,15 @@ export function MovimientosTable({ movements, total, page, totalPages }: Props) 
         </Table>
       </div>
 
-      {/* ── Pagination ──────────────────────────────────────── */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>
-            {total} movimiento{total !== 1 ? "s" : ""}
-            {" · "}página {page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled={page <= 1 || isPending}
-              onClick={() => startTransition(() => router.push(buildUrl({ page: page - 1 })))}>
-              <ChevronLeft size={15} />
-            </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages || isPending}
-              onClick={() => startTransition(() => router.push(buildUrl({ page: page + 1 })))}>
-              <ChevronRight size={15} />
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        noun="movimiento"
+        isPending={isPending}
+        onPrev={() => startTransition(() => router.push(buildUrl({ page: page - 1 })))}
+        onNext={() => startTransition(() => router.push(buildUrl({ page: page + 1 })))}
+      />
     </div>
   );
 }

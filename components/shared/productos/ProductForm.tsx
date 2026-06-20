@@ -13,9 +13,18 @@ import {
   Plus, Trash2, Loader2, ImageOff, X, AlertCircle, Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import type { ProductJSON, VariantInput } from "@/types";
 
 const PREDEFINED_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "UNIQUE"];
+
+export const PREDEFINED_COLORS = [
+  "Rojo", "Azul", "Amarillo", "Verde", "Blanco", "Negro", "Gris", "Naranja",
+  "Morado", "Rosa", "Marrón", "Turquesa", "Celeste", "Violeta", "Magenta",
+  "Beige", "Oliva", "Marino", "Esmeralda", "Escarlata", "Carmín", "Burdeos",
+  "Granate", "Lavanda", "Lila", "Salmón", "Coral", "Fucsia", "Índigo",
+  "Mostaza", "Ámbar", "Oro", "Caqui", "Crema", "Marfil", "Aguamarina",
+];
 
 type Props = {
   initialData?: ProductJSON;
@@ -58,7 +67,7 @@ export function ProductForm({ initialData, productId }: Props) {
 
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState(initialData?.type ?? "");
-  const [color, setColor] = useState(initialData?.color ?? "");
+  const [color, setColor] = useState<string | null>(initialData?.color ?? null);
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [priceUsd, setPriceUsd] = useState<string>(firstPrice !== "" ? String(firstPrice) : "");
   const [photos, setPhotos] = useState<string[]>(initialData?.photos ?? []);
@@ -77,14 +86,14 @@ export function ProductForm({ initialData, productId }: Props) {
   const [duplicate, setDuplicate] = useState<{ id: string; name: string; color: string | null } | null>(null);
   const dupDebounceRef = useRef<NodeJS.Timeout>();
 
-  const checkDuplicate = useCallback((n: string, c: string) => {
+  const checkDuplicate = useCallback((n: string, c: string | null) => {
     clearTimeout(dupDebounceRef.current);
     setDuplicate(null);
     if (isEdit || n.length < 2) return;
     dupDebounceRef.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams({ name: n });
-        if (c.trim()) params.set("color", c.trim());
+        if (c) params.set("color", c);
         const res = await fetch(`/api/products/check?${params}`);
         const data = await res.json();
         if (data.exists) setDuplicate(data);
@@ -115,17 +124,20 @@ export function ProductForm({ initialData, productId }: Props) {
   async function uploadFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const validationError = validateImageFile(file, { maxMb: 20 });
+    if (validationError) { setPhotoError(validationError); return; }
     setUploading(true);
     setPhotoError("");
     try {
+      const optimized = await optimizeImage(file);
       const form = new FormData();
-      form.append("file", file);
+      form.append("file", optimized);
       const res = await fetch("/api/upload", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) { setPhotoError(data.error ?? "Error al subir"); return; }
       setPhotos((prev) => [...prev, data.url]);
     } catch {
-      setPhotoError("Error de conexión al subir la imagen");
+      setPhotoError("Error al procesar o subir la imagen. Intenta de nuevo.");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -179,7 +191,6 @@ export function ProductForm({ initialData, productId }: Props) {
   function removeCustomVariant(index: number) {
     const v = variants[index];
     if (v.id) {
-      // exists in DB → soft-deactivate
       setVariants((prev) => prev.map((x, i) => i === index ? { ...x, is_active: false } : x));
     } else {
       setVariants((prev) => prev.filter((_, i) => i !== index));
@@ -196,7 +207,6 @@ export function ProductForm({ initialData, productId }: Props) {
     if (!priceUsd || Number(priceUsd) <= 0) { setError("El precio debe ser mayor a 0"); return; }
     if (photos.length === 0) { setError("Agrega al menos una foto"); return; }
 
-    // Exclude predefined sizes that were never enabled (is_active=false AND isNew=true)
     const variantsToSend = variants.filter((v) => !(v.is_active === false && v.isNew));
     const activeVariants = variantsToSend.filter((v) => v.is_active);
 
@@ -305,9 +315,16 @@ export function ProductForm({ initialData, productId }: Props) {
 
           <div className="space-y-1.5">
             <Label htmlFor="color">Color</Label>
-            <Input id="color" value={color}
-              onChange={(e) => { setColor(e.target.value); checkDuplicate(name, e.target.value); }}
-              placeholder="Ej: Rojo, Negro" disabled={loading} />
+            <select
+              id="color"
+              value={color ?? ""}
+              onChange={(e) => { const v = e.target.value; setColor(v || null); checkDuplicate(name, v || null); }}
+              disabled={loading}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+            >
+              <option value="">Sin color</option>
+              {PREDEFINED_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -396,7 +413,6 @@ export function ProductForm({ initialData, productId }: Props) {
           Tallas y Stock
         </h2>
 
-        {/* Header de columnas */}
         <div className="grid grid-cols-[2rem_3rem_1fr_1fr_2.5rem] items-center gap-3 px-1">
           <span />
           <span className="text-center text-xs text-gray-400">Talla</span>
@@ -405,7 +421,6 @@ export function ProductForm({ initialData, productId }: Props) {
           <span />
         </div>
 
-        {/* Tallas predefinidas */}
         <div className="space-y-2">
           {predefinedVariants.map((v, i) => (
             <div
@@ -415,7 +430,6 @@ export function ProductForm({ initialData, productId }: Props) {
                 v.is_active ? "bg-white" : "bg-gray-50 opacity-60"
               )}
             >
-              {/* Toggle */}
               <button
                 type="button"
                 onClick={() => toggleSize(i)}
@@ -435,34 +449,22 @@ export function ProductForm({ initialData, productId }: Props) {
                 )}
               </button>
 
-              {/* Talla badge */}
               <div className="flex justify-center">
                 <Badge variant={v.is_active ? "secondary" : "outline"} className="text-xs">
                   {v.size}
                 </Badge>
               </div>
 
-              {/* Online */}
               <Input
-                type="number"
-                min="0"
-                value={v.stock_online}
+                type="number" min="0" value={v.stock_online}
                 onChange={(e) => updateVariant(i, "stock_online", parseInt(e.target.value) || 0)}
-                disabled={loading || !v.is_active}
-                className="h-8 text-center"
+                disabled={loading || !v.is_active} className="h-8 text-center"
               />
-
-              {/* Tienda */}
               <Input
-                type="number"
-                min="0"
-                value={v.stock_store}
+                type="number" min="0" value={v.stock_store}
                 onChange={(e) => updateVariant(i, "stock_store", parseInt(e.target.value) || 0)}
-                disabled={loading || !v.is_active}
-                className="h-8 text-center"
+                disabled={loading || !v.is_active} className="h-8 text-center"
               />
-
-              {/* Total */}
               <span className={cn(
                 "text-center text-sm font-semibold",
                 !v.is_active ? "text-gray-300" : v.stock_online + v.stock_store < 3 ? "text-amber-600" : "text-gray-700"
@@ -473,7 +475,6 @@ export function ProductForm({ initialData, productId }: Props) {
           ))}
         </div>
 
-        {/* Tallas personalizadas */}
         {customVariants.length > 0 && (
           <div className="space-y-2 border-t pt-3">
             <p className="text-xs text-gray-400">Tallas personalizadas</p>
@@ -515,7 +516,6 @@ export function ProductForm({ initialData, productId }: Props) {
           </div>
         )}
 
-        {/* Agregar talla personalizada */}
         {showCustomInput ? (
           <div className="flex items-center gap-2 pt-1">
             <Input

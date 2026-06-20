@@ -66,6 +66,18 @@ enum ReceivableStatus {
   vencido
 }
 
+enum CartStatus {
+  active
+  converting
+}
+
+enum DocumentType {
+  V
+  P
+  J
+  E
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -95,6 +107,7 @@ model User {
   payroll_records      PayrollRecord[]
   accounts_payable     AccountPayable[]
   audit_logs           AuditLog[]
+  carts                Cart[]
 
   @@map("users")
 }
@@ -133,6 +146,7 @@ model ProductVariant {
   product             Product             @relation(fields: [product_id], references: [id])
   inventory_movements InventoryMovement[]
   order_items         OrderItem[]
+  cart_items          CartItem[]
 
   @@map("product_variants")
 }
@@ -157,11 +171,28 @@ model InventoryMovement {
   @@map("inventory_movements")
 }
 
+model Customer {
+  id         String       @id @default(uuid())
+  doc_type   DocumentType
+  doc_number String
+  name       String
+  lastname   String
+  address    String?
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  orders     Order[]
+
+  @@unique([doc_type, doc_number])
+  @@map("customers")
+}
+
 model Order {
   id                  String      @id @default(uuid())
   order_number        String      @unique
   channel             OrderChannel
   status              OrderStatus @default(pendiente_pago)
+  customer_id         String?
   customer_name       String
   customer_lastname   String
   customer_id_doc     String
@@ -175,6 +206,7 @@ model Order {
   created_at          DateTime    @default(now())
   updated_at          DateTime    @updatedAt
 
+  customer             Customer?           @relation(fields: [customer_id], references: [id])
   creator              User                @relation("OrderCreatedBy", fields: [created_by], references: [id])
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
   items                OrderItem[]
@@ -245,12 +277,15 @@ model OrderShipment {
 }
 
 model ExchangeRate {
-  id          String   @id @default(uuid())
-  rate_date   DateTime @unique @db.Date
-  usd_to_ves  Decimal  @db.Decimal(14, 4)
-  source      String
-  created_by  String
-  created_at  DateTime @default(now())
+  id              String   @id @default(uuid())
+  rate_date       DateTime @unique @db.Date
+  usd_to_ves      Decimal  @db.Decimal(14, 4)
+  eur_to_ves      Decimal? @db.Decimal(14, 4)
+  paralelo_to_ves Decimal? @db.Decimal(14, 4)
+  btc_usd         Decimal? @db.Decimal(14, 2)
+  source          String
+  created_by      String
+  created_at      DateTime @default(now())
 
   creator  User           @relation(fields: [created_by], references: [id])
   payments OrderPayment[]
@@ -366,4 +401,42 @@ model AccountPayable {
   creator User @relation(fields: [created_by], references: [id])
 
   @@map("accounts_payable")
+}
+
+model Cart {
+  id         String      @id @default(uuid())
+  vendor_id  String
+  channel    OrderChannel
+  note       String?
+  status     CartStatus  @default(active)
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+
+  vendor User       @relation(fields: [vendor_id], references: [id])
+  items  CartItem[]
+
+  @@map("carts")
+}
+
+model SystemSetting {
+  key        String   @id
+  value      String
+  updated_by String?
+  updated_at DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model CartItem {
+  id             String   @id @default(uuid())
+  cart_id        String
+  variant_id     String
+  quantity       Int
+  unit_price_usd Decimal  @db.Decimal(10, 2)
+  created_at     DateTime @default(now())
+
+  cart    Cart           @relation(fields: [cart_id], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variant_id], references: [id])
+
+  @@map("cart_items")
 }

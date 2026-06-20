@@ -23,14 +23,15 @@ export async function POST(request: NextRequest) {
   if (newOnline < 0 || newStore < 0)
     return NextResponse.json({ error: "El stock no puede ser negativo" }, { status: 400 });
 
-  const variant = await prisma.productVariant.findUnique({ where: { id: variant_id } });
-  if (!variant) return NextResponse.json({ error: "Variante no encontrada" }, { status: 404 });
-
   const ip = getClientIp(request);
   const newTotal = newOnline + newStore;
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Read inside transaction so qty_before reflects the committed state at lock time
+      const variant = await tx.productVariant.findUnique({ where: { id: variant_id } });
+      if (!variant) throw new Error("NOT_FOUND");
+
       await tx.productVariant.update({
         where: { id: variant_id },
         data: { stock_online: newOnline, stock_store: newStore, stock_total: newTotal },
@@ -86,6 +87,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, stock_total: newTotal });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg === "NOT_FOUND")
+      return NextResponse.json({ error: "Variante no encontrada" }, { status: 404 });
     console.error("POST /api/inventory/adjust:", err);
     return NextResponse.json({ error: "Error al ajustar el stock" }, { status: 500 });
   }

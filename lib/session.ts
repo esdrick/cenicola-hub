@@ -6,9 +6,9 @@ export const SESSION_COOKIE = "cenicola_session";
 const SESSION_DURATION_SECONDS = 60 * 60 * 8; // 8 horas
 
 function getSecret() {
-  return new TextEncoder().encode(
-    process.env.NEXTAUTH_SECRET ?? "dev-secret-please-set-NEXTAUTH_SECRET"
-  );
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) throw new Error("NEXTAUTH_SECRET env var is required but not set");
+  return new TextEncoder().encode(secret);
 }
 
 export async function createSession(user: SessionUser): Promise<string> {

@@ -6,36 +6,29 @@ import bcrypt from "bcryptjs";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
-const USERS = [
-  { name: "Admin Cenicola",      email: "admin@cenicola.com",      password: "Admin1234",  role: "admin"             },
-  { name: "Laura Inventario",    email: "inventario@cenicola.com", password: "Test1234",   role: "inventario"        },
-  { name: "Carlos Embalador",    email: "embalador@cenicola.com",  password: "Test1234",   role: "embalador"         },
-  { name: "María Online",        email: "online@cenicola.com",     password: "Test1234",   role: "vendedora_online"  },
-  { name: "Sofía Tienda",        email: "tienda@cenicola.com",     password: "Test1234",   role: "vendedora_tienda"  },
-] as const;
-
 async function main() {
-  console.log("🌱 Seeding usuarios de prueba...\n");
+  const email    = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  const name     = process.env.ADMIN_NAME ?? "Admin";
 
-  for (const u of USERS) {
-    const hash = await bcrypt.hash(u.password, 12);
-
-    const user = await prisma.user.upsert({
-      where:  { email: u.email },
-      update: { name: u.name, role: u.role, is_active: true },
-      create: {
-        name:          u.name,
-        email:         u.email,
-        password_hash: hash,
-        role:          u.role,
-        is_active:     true,
-      },
-    });
-
-    console.log(`✅  [${u.role.padEnd(17)}]  ${user.email}  /  contraseña: ${u.password}`);
+  if (!email || !password) {
+    throw new Error("Define ADMIN_EMAIL y ADMIN_PASSWORD en tu .env antes de ejecutar el seed.");
   }
 
-  console.log("\n✔ Seed completo.");
+  if (password.length < 8) {
+    throw new Error("ADMIN_PASSWORD debe tener al menos 8 caracteres.");
+  }
+
+  const hash = await bcrypt.hash(password, 12);
+
+  const user = await prisma.user.upsert({
+    where:  { email },
+    update: { name, is_active: true },
+    create: { name, email, password_hash: hash, role: "admin", is_active: true },
+  });
+
+  console.log(`✅  Admin creado: ${user.email}`);
+  console.log("\n✔ Seed completo. Crea los demás usuarios desde la UI con el rol admin.");
 }
 
 main()

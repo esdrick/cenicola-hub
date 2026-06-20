@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ImageIcon, Loader2 } from "lucide-react";
+import { shortOrderNumber } from "@/lib/order-utils";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,14 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { EmbalajeOrdenJSON } from "@/types";
+import type { EmbalajeOrdenJSON, UserRole } from "@/types";
 
 interface EnviadasTableProps {
   initialOrders: EmbalajeOrdenJSON[];
+  role: UserRole;
 }
 
-export function EnviadasTable({ initialOrders }: EnviadasTableProps) {
+export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
   const router = useRouter();
+  const isEmbalador = role === "embalador";
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<EmbalajeOrdenJSON | null>(null);
@@ -87,18 +90,19 @@ export function EnviadasTable({ initialOrders }: EnviadasTableProps) {
               <TableHead>Orden</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Cliente</TableHead>
+              {!isEmbalador && <TableHead>Embalado por</TableHead>}
               <TableHead>Empresa envío</TableHead>
               <TableHead>Tracking</TableHead>
               <TableHead>Fotos</TableHead>
               <TableHead>Fecha envío</TableHead>
-              <TableHead className="text-right">Acción</TableHead>
+              {!isEmbalador && <TableHead className="text-right">Acción</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                  No hay órdenes enviadas
+                <TableCell colSpan={isEmbalador ? 7 : 9} className="text-center py-8 text-gray-500">
+                  {isEmbalador ? "No tienes órdenes enviadas aún" : "No hay órdenes en el historial"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -109,16 +113,27 @@ export function EnviadasTable({ initialOrders }: EnviadasTableProps) {
                   onClick={() => setSelectedOrder(o)}
                 >
                   <TableCell>
-                    <span className="font-mono text-sm font-medium">{o.order_number}</span>
+                    <span className="font-mono text-sm font-medium">{shortOrderNumber(o.order_number)}</span>
                   </TableCell>
                   <TableCell>
-                    <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                      Enviada
-                    </Badge>
+                    {o.status === "completada" ? (
+                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                        Completada
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                        Enviada
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {o.customer_name} {o.customer_lastname}
                   </TableCell>
+                  {!isEmbalador && (
+                    <TableCell className="text-sm text-gray-600">
+                      {o.shipment?.packer?.name ?? "—"}
+                    </TableCell>
+                  )}
                   <TableCell>{o.shipping_company ?? "—"}</TableCell>
                   <TableCell>
                     <span className="font-mono text-sm">
@@ -140,23 +155,27 @@ export function EnviadasTable({ initialOrders }: EnviadasTableProps) {
                   <TableCell>
                     {new Date(o.updated_at).toLocaleDateString("es-VE")}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={completingId === o.id}
-                      onClick={(e) => handleCompletar(e, o.id)}
-                    >
-                      {completingId === o.id ? (
-                        <>
-                          <Loader2 size={14} className="mr-1 animate-spin" />
-                          Procesando...
-                        </>
-                      ) : (
-                        "Marcar como completada"
+                  {!isEmbalador && (
+                    <TableCell className="text-right">
+                      {o.status === "enviada" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={completingId === o.id}
+                          onClick={(e) => handleCompletar(e, o.id)}
+                        >
+                          {completingId === o.id ? (
+                            <>
+                              <Loader2 size={14} className="mr-1 animate-spin" />
+                              Procesando...
+                            </>
+                          ) : (
+                            "Marcar como completada"
+                          )}
+                        </Button>
                       )}
-                    </Button>
-                  </TableCell>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

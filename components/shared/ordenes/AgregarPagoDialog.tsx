@@ -13,9 +13,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Loader2, Upload, AlertCircle } from "lucide-react";
+import { Plus, Loader2, Upload, AlertCircle, AlertTriangle } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import type { PaymentType } from "@/app/generated/prisma/client";
+
+type TasaInfo = {
+  id: string;
+  rate: number;
+  date: string;
+  stale: boolean;
+};
 
 type Props = {
   orderId: string;
@@ -24,12 +32,21 @@ type Props = {
   paidUsd: number;
 };
 
+function fmtBs(n: number) {
+  return new Intl.NumberFormat("es-VE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [tasa, setTasa] = useState<TasaInfo | null>(null);
+  const [tasaLoading, setTasaLoading] = useState(false);
   const photoRef = useRef<HTMLInputElement | null>(null);
 
   const remaining = Math.max(0, totalUsd - paidUsd);
@@ -45,23 +62,41 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
 
   const [form, setForm] = useState(makeEmpty);
 
-  function handleOpen() {
+  async function handleOpen() {
     setForm(makeEmpty());
     setError(null);
     setOpen(true);
+
+    setTasaLoading(true);
+    try {
+      const res = await fetch("/api/tasa");
+      if (res.ok) {
+        const data = await res.json();
+        setTasa(data);
+      } else {
+        setTasa(null);
+      }
+    } catch {
+      setTasa(null);
+    } finally {
+      setTasaLoading(false);
+    }
   }
 
   async function uploadPhoto(file: File) {
+    const validationError = validateImageFile(file, { maxMb: 20 });
+    if (validationError) { setError(validationError); return; }
     setUploading(true);
     try {
+      const optimized = await optimizeImage(file);
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", optimized);
       const r = await fetch("/api/upload", { method: "POST", body: fd });
       const j = await r.json();
       if (r.ok) setForm((p) => ({ ...p, payment_photo: j.url }));
       else setError(j.error ?? "Error al subir el comprobante");
     } catch {
-      setError("Error de conexión al subir el comprobante");
+      setError("Error al procesar o subir el comprobante. Intenta de nuevo.");
     } finally {
       setUploading(false);
     }
@@ -92,6 +127,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
             payment_time: form.payment_time || null,
             reference: form.reference,
             payment_photo: form.payment_photo || null,
+            exchange_rate_id: tasa?.id ?? null,
           }),
         });
         const json = await res.json();
@@ -108,6 +144,10 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
   }
 
   const isEfectivo = form.payment_type === "efectivo";
+  const amountNum = parseFloat(form.amount_usd);
+  const amountBs = tasa && !isNaN(amountNum) && amountNum > 0
+    ? amountNum * tasa.rate
+    : null;
 
   return (
     <>
@@ -159,14 +199,58 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
 
               <div className="space-y-1.5">
                 <Label>Monto USD *</Label>
-                <Input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={form.amount_usd}
-                  onChange={(e) => setForm((p) => ({ ...p, amount_usd: e.target.value }))}
-                  placeholder="0.00"
-                />
+                {(() => {
+                  const num = parseFloat(form.amount_usd);
+                  const montoError =
+                    form.amount_usd && (isNaN(num) || num <= 0)
+                      ? "Monto inválido"
+                      : form.amount_usd && num > remaining + 0.005
+                      ? `Máximo $${remaining.toFixed(2)}`
+                      : null;
+                  return (
+                    <div className="space-y-1">
+                      <Input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        max={remaining}
+                        value={form.amount_usd}
+                        onChange={(e) => setForm((p) => ({ ...p, amount_usd: e.target.value }))}
+                        placeholder="0.00"
+                        className={montoError ? "border-red-400 focus-visible:ring-red-400" : ""}
+                      />
+                      {montoError && (
+                        <p className="text-xs text-red-600">{montoError}</p>
+                      )}
+                      {/* Conversión a Bs en tiempo real */}
+                      {tasaLoading && (
+                        <p className="text-xs text-gray-400 flex items-center gap-1">
+                          <Loader2 size={10} className="animate-spin" />
+                          Cargando tasa…
+                        </p>
+                      )}
+                      {!tasaLoading && tasa && amountBs !== null && (
+                        <div className="rounded-md bg-emerald-50 border border-emerald-100 px-2.5 py-1.5">
+                          <p className="text-xs text-emerald-700 font-medium">
+                            ≈ Bs. {fmtBs(amountBs)}
+                          </p>
+                          <p className="text-[10px] text-emerald-500 mt-0.5">
+                            Tasa: Bs. {fmtBs(tasa.rate)} × $1
+                            {tasa.stale && (
+                              <span className="ml-1 inline-flex items-center gap-0.5 text-amber-600">
+                                <AlertTriangle size={9} />
+                                desactualizada
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {!tasaLoading && !tasa && (
+                        <p className="text-xs text-gray-400">Sin tasa disponible</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -212,7 +296,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                     <input
                       ref={photoRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       className="hidden"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
@@ -262,7 +346,14 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isPending || uploading || !form.amount_usd}
+                disabled={
+                  isPending ||
+                  uploading ||
+                  !form.amount_usd ||
+                  isNaN(parseFloat(form.amount_usd)) ||
+                  parseFloat(form.amount_usd) <= 0 ||
+                  parseFloat(form.amount_usd) > remaining + 0.005
+                }
               >
                 {isPending
                   ? <Loader2 size={14} className="animate-spin mr-2" />

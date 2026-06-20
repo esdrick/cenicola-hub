@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Upload, X, AlertCircle, Loader2 } from "lucide-react";
+import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,30 +54,50 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
     };
   }, [foto1Preview, foto2Preview]);
 
-  function handleFoto1Change(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFoto1Change(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("La foto del paquete no puede superar 5MB");
+    const typeError = validateImageFile(file, { validTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"] });
+    if (typeError) { setError(typeError); return; }
+    if (file.size > 20 * 1024 * 1024) {
+      setError("La foto del paquete no puede superar 20MB");
       return;
     }
     if (foto1Preview) URL.revokeObjectURL(foto1Preview);
-    setFoto1(file);
-    setFoto1Preview(URL.createObjectURL(file));
     setError(null);
+    try {
+      const optimized = await optimizeImage(file);
+      setFoto1(optimized);
+      setFoto1Preview(URL.createObjectURL(optimized));
+    } catch {
+      setError("No se pudo comprimir la imagen. Intenta con otro archivo.");
+      setFoto1(null);
+      setFoto1Preview(null);
+      if (foto1InputRef.current) foto1InputRef.current.value = "";
+    }
   }
 
-  function handleFoto2Change(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFoto2Change(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("La foto del recibo no puede superar 5MB");
+    const typeError = validateImageFile(file, { validTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"] });
+    if (typeError) { setError(typeError); return; }
+    if (file.size > 20 * 1024 * 1024) {
+      setError("La foto del recibo no puede superar 20MB");
       return;
     }
     if (foto2Preview) URL.revokeObjectURL(foto2Preview);
-    setFoto2(file);
-    setFoto2Preview(URL.createObjectURL(file));
     setError(null);
+    try {
+      const optimized = await optimizeImage(file);
+      setFoto2(optimized);
+      setFoto2Preview(URL.createObjectURL(optimized));
+    } catch {
+      setError("No se pudo comprimir la imagen. Intenta con otro archivo.");
+      setFoto2(null);
+      setFoto2Preview(null);
+      if (foto2InputRef.current) foto2InputRef.current.value = "";
+    }
   }
 
   function removeFoto1() {
@@ -233,10 +254,10 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                 </TableHeader>
                 <TableBody>
                   {order.items.map((item) => {
-                    const snap = item.variant_snapshot as Record<string, string> | null;
-                    const productName = item.variant?.product?.name ?? snap?.product_name ?? "—";
-                    const color = item.variant?.product?.color ?? snap?.color ?? "—";
-                    const size = item.variant?.size ?? snap?.size ?? "—";
+                    const snap = item.variant_snapshot as Record<string, unknown> | null;
+                    const productName = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
+                    const color = (item.variant?.product?.color ?? (snap?.color as string | undefined)) ?? "—";
+                    const size = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{productName}</TableCell>
@@ -291,7 +312,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                     >
                       Seleccionar foto
                     </Button>
-                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx 5MB</p>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx 20MB</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -346,7 +367,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                     >
                       Seleccionar foto
                     </Button>
-                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx 5MB</p>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx 20MB</p>
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -4,38 +4,136 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { EmbalajeTable } from "@/components/shared/embalaje/EmbalajeTable";
-import type { EmbalajeOrdenJSON } from "@/types";
+import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
+import { EmbalajeAdminTabs } from "@/components/shared/embalaje/EmbalajeAdminTabs";
+import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 
-export default async function EmbalajeListPage() {
+type SP = { [key: string]: string | string[] | undefined };
+
+export default async function EmbalajeListPage({ searchParams }: { searchParams: SP }) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!["admin", "embalador"].includes(session.role)) redirect("/dashboard");
 
-  const orders = await prisma.order.findMany({
-    where: { status: "en_embalaje" },
-    include: {
-      creator: { select: { id: true, name: true } },
-      items: {
+  const isAdmin = session.role === "admin";
+  const tab = isAdmin && searchParams.tab === "historial" ? "historial" : "embalaje";
+
+  // ── Historial de Envíos (solo admin, tab=historial) ───────────────────────
+  if (isAdmin && tab === "historial") {
+    const [orders, pendingCount] = await Promise.all([
+      prisma.order.findMany({
+        where: { status: { in: ["enviada", "completada"] } },
         include: {
-          variant: {
+          creator: { select: { id: true, name: true } },
+          items: {
             include: {
-              product: { select: { id: true, name: true, color: true } },
+              variant: {
+                include: {
+                  product: { select: { id: true, name: true, color: true } },
+                },
+              },
+            },
+          },
+          shipment: {
+            include: {
+              packer: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { updated_at: "desc" },
+      }),
+      prisma.order.count({ where: { status: "en_embalaje" } }),
+    ]);
+
+    const data: EmbalajeOrdenJSON[] = orders.map((o) => {
+      const items_summary = o.items
+        .map((item) => {
+          const snap = item.variant_snapshot as Record<string, unknown> | null;
+          const productName = item.variant?.product?.name ?? snap?.product_name ?? "Producto";
+          const colorStr = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
+          const size = item.variant?.size ?? snap?.size ?? "";
+          const label = [productName, colorStr].filter(Boolean).join(" ");
+          return `${label} T-${size} ×${item.quantity}`;
+        })
+        .join(", ");
+
+      let shipment: EmbalajeShipmentJSON | null = null;
+      if (o.shipment) {
+        shipment = {
+          id: o.shipment.id,
+          packed_by: o.shipment.packed_by,
+          packed_at: o.shipment.packed_at.toISOString(),
+          shipped_at: o.shipment.shipped_at?.toISOString() ?? null,
+          tracking_number: o.shipment.tracking_number,
+          photo_package: o.shipment.photo_package,
+          photo_receipt: o.shipment.photo_receipt,
+          notes: o.shipment.notes,
+          packer: o.shipment.packer,
+        };
+      }
+
+      return {
+        id: o.id,
+        order_number: o.order_number,
+        channel: o.channel,
+        status: o.status,
+        customer_name: o.customer_name,
+        customer_lastname: o.customer_lastname,
+        address: o.address,
+        shipping_company: o.shipping_company,
+        total_usd: Number(o.total_usd),
+        notes: o.notes,
+        created_at: o.created_at.toISOString(),
+        updated_at: o.updated_at.toISOString(),
+        creator: o.creator,
+        items_summary,
+        shipment,
+      };
+    });
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {data.length} orden{data.length !== 1 ? "es" : ""} enviada{data.length !== 1 ? "s" : ""} o completada{data.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <EmbalajeAdminTabs active="historial" pendingCount={pendingCount} />
+        <EnviadasTable initialOrders={data} role={session.role} />
+      </div>
+    );
+  }
+
+  // ── En embalaje (default) ──────────────────────────────────────────────────
+  const [orders, pendingCount] = await Promise.all([
+    prisma.order.findMany({
+      where: { status: "en_embalaje" },
+      include: {
+        creator: { select: { id: true, name: true } },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { id: true, name: true, color: true } },
+              },
             },
           },
         },
       },
-    },
-    orderBy: { updated_at: "asc" },
-  });
+      orderBy: { updated_at: "asc" },
+    }),
+    prisma.order.count({ where: { status: "en_embalaje" } }),
+  ]);
 
   const data: EmbalajeOrdenJSON[] = orders.map((o) => {
     const items_summary = o.items
       .map((item) => {
-        const snap = item.variant_snapshot as Record<string, string> | null;
+        const snap = item.variant_snapshot as Record<string, unknown> | null;
         const productName = item.variant?.product?.name ?? snap?.product_name ?? "Producto";
-        const color = item.variant?.product?.color ?? snap?.color ?? null;
+        const colorStr = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
         const size = item.variant?.size ?? snap?.size ?? "";
-        const label = [productName, color].filter(Boolean).join(" ");
+        const label = [productName, colorStr].filter(Boolean).join(" ");
         return `${label} T-${size} ×${item.quantity}`;
       })
       .join(", ");
@@ -67,6 +165,7 @@ export default async function EmbalajeListPage() {
           {data.length} orden{data.length !== 1 ? "es" : ""} pendiente{data.length !== 1 ? "s" : ""} de embalaje
         </p>
       </div>
+      {isAdmin && <EmbalajeAdminTabs active="embalaje" pendingCount={pendingCount} />}
       <EmbalajeTable initialOrders={data} />
     </div>
   );

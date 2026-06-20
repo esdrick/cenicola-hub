@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { shortOrderNumber } from "@/lib/order-utils";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -74,7 +75,7 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
                   onClick={() => router.push(`/dashboard/embalaje/${o.id}`)}
                 >
                   <TableCell>
-                    <span className="font-mono text-sm font-medium">{o.order_number}</span>
+                    <span className="font-mono text-sm font-medium">{shortOrderNumber(o.order_number)}</span>
                   </TableCell>
                   <TableCell>
                     <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">

@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { shortOrderNumber } from "@/lib/order-utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ShoppingBag, TrendingUp, Clock, PlusCircle } from "lucide-react";
+import { ShoppingBag, TrendingUp, Clock, ShoppingCart } from "lucide-react";
 import Link from "next/link";
 import type { SessionUser } from "@/types";
 
@@ -44,7 +44,7 @@ export async function VendedoraDashboard({ session }: Props) {
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [ordenesHoy, vendidoMes, ordenesActivas, misUltimasOrdenes] = await Promise.all([
+  const [ordenesHoy, vendidoMes, ordenesActivas, ordenesEnProceso, misUltimasOrdenes] = await Promise.all([
     prisma.order.count({
       where: {
         created_by: session.id,
@@ -63,6 +63,12 @@ export async function VendedoraDashboard({ session }: Props) {
       where: {
         created_by: session.id,
         status: { notIn: ["completada", "cancelada"] },
+      },
+    }),
+    prisma.cart.count({
+      where: {
+        vendor_id: session.id,
+        status: "active",
       },
     }),
     prisma.order.findMany({
@@ -89,6 +95,7 @@ export async function VendedoraDashboard({ session }: Props) {
       icon: ShoppingBag,
       color: "text-blue-600",
       bg: "bg-blue-50",
+      href: "/dashboard/ordenes",
     },
     {
       label: "Vendido este mes",
@@ -97,6 +104,7 @@ export async function VendedoraDashboard({ session }: Props) {
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
+      href: null,
     },
     {
       label: "Órdenes activas",
@@ -105,35 +113,44 @@ export async function VendedoraDashboard({ session }: Props) {
       icon: Clock,
       color: "text-amber-600",
       bg: "bg-amber-50",
+      href: "/dashboard/ordenes",
+    },
+    {
+      label: "En proceso",
+      value: String(ordenesEnProceso),
+      desc: "Preórdenes sin confirmar",
+      icon: ShoppingCart,
+      color: "text-violet-600",
+      bg: "bg-violet-50",
+      href: "/dashboard/ordenes",
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Acceso rápido */}
-      <Link href="/dashboard/ordenes/nueva">
-        <Button size="lg" className="gap-2">
-          <PlusCircle size={18} />
-          Nueva orden
-        </Button>
-      </Link>
-
       {/* Tarjetas */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {CARDS.map((c) => (
-          <Card key={c.label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
-              <div className={`rounded-lg p-2 ${c.bg}`}>
-                <c.icon size={18} className={c.color} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-gray-900">{c.value}</p>
-              <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {CARDS.map((c) => {
+          const inner = (
+            <Card key={c.label} className={c.href ? "cursor-pointer hover:border-gray-300 transition-colors" : ""}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
+                <div className={`rounded-lg p-2 ${c.bg}`}>
+                  <c.icon size={18} className={c.color} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-gray-900">{c.value}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
+              </CardContent>
+            </Card>
+          );
+          return c.href ? (
+            <Link key={c.label} href={c.href}>{inner}</Link>
+          ) : (
+            <div key={c.label}>{inner}</div>
+          );
+        })}
       </div>
 
       {/* Mis últimas órdenes */}
@@ -161,9 +178,11 @@ export async function VendedoraDashboard({ session }: Props) {
             </TableHeader>
             <TableBody>
               {misUltimasOrdenes.map((o) => (
-                <TableRow key={o.id}>
+                <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50">
                   <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    #{o.order_number}
+                    <Link href={`/dashboard/ordenes/${o.id}`} className="hover:underline">
+                      {shortOrderNumber(o.order_number)}
+                    </Link>
                   </TableCell>
                   <TableCell className="text-sm">
                     {o.customer_name} {o.customer_lastname}

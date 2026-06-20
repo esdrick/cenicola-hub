@@ -15,15 +15,12 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink } from "lucide-react";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
-const TIMELINE_STEPS = [
-  "pendiente_pago",
-  "pago_verificado",
-  "en_embalaje",
-  "enviada",
-  "completada",
-] as const;
+const TIMELINE_ONLINE = ["pendiente_pago", "pago_verificado", "en_embalaje", "enviada", "completada"] as const;
+const TIMELINE_TIENDA = ["pendiente_pago", "pago_verificado", "completada"] as const;
 
-function StatusTimeline({ status }: { status: string }) {
+type TimelineStep = typeof TIMELINE_ONLINE[number] | typeof TIMELINE_TIENDA[number];
+
+function StatusTimeline({ status, channel }: { status: string; channel: string }) {
   if (status === "cancelada") {
     return (
       <div className="flex items-center gap-2 rounded-xl border bg-red-50 px-5 py-3">
@@ -33,16 +30,17 @@ function StatusTimeline({ status }: { status: string }) {
     );
   }
 
-  const currentIdx = TIMELINE_STEPS.indexOf(status as typeof TIMELINE_STEPS[number]);
+  const steps = channel === "tienda" ? TIMELINE_TIENDA : TIMELINE_ONLINE;
+  // pago_parcial sits at the pago_verificado position visually
   const effectiveStatus = status === "pago_parcial" ? "pago_verificado" : status;
-  const effectiveIdx = TIMELINE_STEPS.indexOf(effectiveStatus as typeof TIMELINE_STEPS[number]);
+  const effectiveIdx = (steps as readonly string[]).indexOf(effectiveStatus);
 
   return (
     <div className="rounded-xl border bg-white px-5 py-4">
       <div className="flex items-center">
-        {TIMELINE_STEPS.map((s, i) => {
-          const past    = i < (currentIdx === -1 ? effectiveIdx : currentIdx);
-          const current = s === status || (status === "pago_parcial" && s === "pago_verificado");
+        {steps.map((s, i) => {
+          const past    = effectiveIdx > i;
+          const current = s === effectiveStatus;
           const label   = s === "pago_verificado" && status === "pago_parcial"
             ? STATUS_LABELS["pago_parcial"]
             : STATUS_LABELS[s];
@@ -62,7 +60,7 @@ function StatusTimeline({ status }: { status: string }) {
                   current ? "font-semibold text-gray-900" : "text-gray-400"
                 )}>{label}</span>
               </div>
-              {i < TIMELINE_STEPS.length - 1 && (
+              {i < steps.length - 1 && (
                 <div className={cn(
                   "mx-1 mb-4 h-0.5 flex-1",
                   past ? "bg-emerald-400" : "bg-gray-200"
@@ -128,16 +126,15 @@ export default async function OrderDetailPage({
     .filter((p) => p.status !== "rechazado")
     .reduce((s, p) => s + Number(p.amount_usd), 0);
 
-  // Sum of payments currently awaiting verification
-  const pendingTotal = order.payments
-    .filter((p) => p.status === "pendiente")
-    .reduce((s, p) => s + Number(p.amount_usd), 0);
+  // Balance not yet covered by any non-rejected payment (verified or pending)
+  const remainingBalance = totalUsd - paidTotal;
 
-  // Show "add payment" only when pending payments don't yet cover the order total
+  // Show "add payment" only when there's still uncovered balance
+  // (pending payments awaiting confirmation count — only rejected ones don't)
   const canAddPayment =
     (order.status === "pendiente_pago" || order.status === "pago_parcial") &&
     (session.role === "admin" || session.role === "inventario" || order.created_by === session.id) &&
-    pendingTotal < totalUsd - 0.01;
+    remainingBalance > 0.01;
   const createdAt  = order.created_at.toLocaleString("es-VE", {
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -183,7 +180,7 @@ export default async function OrderDetailPage({
       </div>
 
       {/* Timeline */}
-      <StatusTimeline status={order.status} />
+      <StatusTimeline status={order.status} channel={order.channel} />
 
       {/* Body */}
       <div className="grid gap-5 lg:grid-cols-3">
@@ -208,7 +205,7 @@ export default async function OrderDetailPage({
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm">{item.variant.product.name}</p>
                     <p className="text-xs text-gray-400">
-                      {[item.variant.product.color, item.variant.size, item.variant.sku].filter(Boolean).join(" · ")}
+                      {[item.variant.product.color ?? null, item.variant.size, item.variant.sku].filter(Boolean).join(" · ")}
                     </p>
                   </div>
                   <div className="text-right">
