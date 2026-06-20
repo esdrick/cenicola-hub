@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getSetting, SETTING_DEFAULTS } from "@/lib/settings";
+import { getSetting } from "@/lib/settings";
 
 export async function GET() {
   const session = await getSession();

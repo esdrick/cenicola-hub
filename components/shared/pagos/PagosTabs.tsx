@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Clock, CheckCircle2 } from "lucide-react";
 
 type Props = {
@@ -10,8 +9,6 @@ type Props = {
 };
 
 export function PagosTabs({ active, pendingCount }: Props) {
-  const sp = useSearchParams();
-
   function tabHref(tab: string) {
     const params = new URLSearchParams();
     params.set("tab", tab);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth, withRole } from "@/lib/api-auth";
+import { withRole } from "@/lib/api-auth";
 
 const DOC_TYPES = ["V", "P", "J", "E"] as const;
 

@@ -19,7 +19,7 @@ export default async function LoginPage() {
             <span className="text-lg font-bold text-white">C</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-            Cenicola's hub
+            Cenicola&apos;s hub
           </h1>
           <p className="mt-1 text-sm text-gray-500">Sistema de Gestión</p>
         </div>

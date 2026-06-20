@@ -16,7 +16,7 @@ import { SizeSelector } from "@/components/shared/productos/SizeSelector";
 import { AddToCartButton } from "@/components/shared/productos/AddToCartButton";
 import { ChevronLeft, Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ProductJSON, CartJSON, CartItemJSON } from "@/types";
+import type { CartJSON, CartItemJSON } from "@/types";
 
 
 async function getSiblings(name: string) {

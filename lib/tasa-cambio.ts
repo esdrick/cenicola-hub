@@ -95,8 +95,11 @@ export async function getTasa(createdBy?: string): Promise<TasaResult | null> {
       if (btc != null) patch.btc_usd = btc;
       if (Object.keys(patch).length > 0) {
         await prisma.exchangeRate.update({ where: { id: todayRecord.id }, data: patch });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (eur != null) (todayRecord as any).eur_to_ves = { toNumber: () => eur };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (paralelo != null) (todayRecord as any).paralelo_to_ves = { toNumber: () => paralelo };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (btc != null) (todayRecord as any).btc_usd = { toNumber: () => btc };
       }
     }

@@ -18,7 +18,6 @@ import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Packa
 const TIMELINE_ONLINE = ["pendiente_pago", "pago_verificado", "en_embalaje", "enviada", "completada"] as const;
 const TIMELINE_TIENDA = ["pendiente_pago", "pago_verificado", "completada"] as const;
 
-type TimelineStep = typeof TIMELINE_ONLINE[number] | typeof TIMELINE_TIENDA[number];
 
 function StatusTimeline({ status, channel }: { status: string; channel: string }) {
   if (status === "cancelada") {

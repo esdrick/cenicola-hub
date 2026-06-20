@@ -35,7 +35,7 @@ export function Sidebar({ session }: SidebarProps) {
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900">
           <span className="text-xs font-bold text-white">C</span>
         </div>
-        <span className="font-semibold text-gray-900">Cenicola's hub</span>
+        <span className="font-semibold text-gray-900">Cenicola&apos;s hub</span>
       </div>
 
       {/* Nav */}
@@ -107,7 +107,7 @@ export function Sidebar({ session }: SidebarProps) {
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gray-900">
             <span className="text-[10px] font-bold text-white">C</span>
           </div>
-          <span className="font-semibold text-gray-900">Cenicola's hub</span>
+          <span className="font-semibold text-gray-900">Cenicola&apos;s hub</span>
         </div>
       </div>
 
