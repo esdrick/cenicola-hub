@@ -46,3 +46,6 @@ next-env.d.ts
 /public/workbox-*.js.map
 
 /app/generated/prisma
+
+# uploads de desarrollo (van a Cloudinary en producción)
+/public/uploads/

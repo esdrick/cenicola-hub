@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { withRole } from "@/lib/api-auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
 const VALID_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-
-function mimeToExt(mime: string): string {
-  if (mime === "image/jpeg" || mime === "image/jpg") return ".jpg";
-  if (mime === "image/png") return ".png";
-  if (mime === "image/webp") return ".webp";
-  return ".jpg";
-}
+const MAX_SIZE = 5 * 1024 * 1024;
 
 // POST /api/embalaje/[orderId]/fotos — upload package photos
 export async function POST(
@@ -37,7 +29,6 @@ export async function POST(
     return NextResponse.json({ error: "La foto del paquete es requerida" }, { status: 400 });
   }
 
-  // Validate foto1
   if (!VALID_TYPES.includes(foto1.type as (typeof VALID_TYPES)[number])) {
     return NextResponse.json(
       { error: "Tipo de archivo inválido para foto1. Solo JPG, PNG, WEBP." },
@@ -48,7 +39,6 @@ export async function POST(
     return NextResponse.json({ error: "La foto del paquete no puede superar 5MB" }, { status: 400 });
   }
 
-  // Validate foto2 if present
   if (foto2 && foto2.size > 0) {
     if (!VALID_TYPES.includes(foto2.type as (typeof VALID_TYPES)[number])) {
       return NextResponse.json(
@@ -61,26 +51,12 @@ export async function POST(
     }
   }
 
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "envios", orderId);
-  await mkdir(uploadDir, { recursive: true });
+  const folder = `cenicola/envios/${orderId}`;
+  const foto1Url = await uploadToCloudinary(foto1, folder);
 
-  // Save foto1
-  const ext1 = mimeToExt(foto1.type);
-  const foto1Filename = `foto1${ext1}`;
-  const foto1Path = path.join(uploadDir, foto1Filename);
-  const foto1Bytes = await foto1.arrayBuffer();
-  await writeFile(foto1Path, Buffer.from(foto1Bytes));
-  const foto1Url = `/uploads/envios/${orderId}/${foto1Filename}`;
-
-  // Save foto2 if present
   let foto2Url: string | null = null;
   if (foto2 && foto2.size > 0) {
-    const ext2 = mimeToExt(foto2.type);
-    const foto2Filename = `foto2${ext2}`;
-    const foto2Path = path.join(uploadDir, foto2Filename);
-    const foto2Bytes = await foto2.arrayBuffer();
-    await writeFile(foto2Path, Buffer.from(foto2Bytes));
-    foto2Url = `/uploads/envios/${orderId}/${foto2Filename}`;
+    foto2Url = await uploadToCloudinary(foto2, folder);
   }
 
   return NextResponse.json({ foto1Url, foto2Url });

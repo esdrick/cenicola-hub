@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
 import { withAuth } from "@/lib/api-auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 
 export async function POST(request: NextRequest) {
   const auth = await withAuth();
@@ -18,18 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Solo se permiten imágenes (JPG, PNG, WEBP, GIF)" }, { status: 400 });
   }
 
-  const maxMb = 5;
-  if (file.size > maxMb * 1024 * 1024) {
-    return NextResponse.json({ error: `El archivo no puede superar ${maxMb}MB` }, { status: 400 });
+  if (file.size > 5 * 1024 * 1024) {
+    return NextResponse.json({ error: "El archivo no puede superar 5MB" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const filename = `${randomUUID()}.${ext}`;
-  const uploadDir = join(process.cwd(), "public", "uploads");
-  const filePath = join(uploadDir, filename);
-
-  const bytes = await file.arrayBuffer();
-  await writeFile(filePath, Buffer.from(bytes));
-
-  return NextResponse.json({ url: `/uploads/${filename}` });
+  const url = await uploadToCloudinary(file, "cenicola/pagos");
+  return NextResponse.json({ url });
 }
