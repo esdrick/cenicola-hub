@@ -4,7 +4,7 @@ import { getSession } from "@/lib/session";
 import { ProductForm } from "@/components/shared/productos/ProductForm";
 import { ChevronLeft } from "lucide-react";
 
-export const metadata = { title: "Nuevo producto — Cenicola Hub" };
+export const metadata = { title: "Nuevo producto — Cenicola's hub" };
 
 export default async function NuevoProductoPage() {
   const session = await getSession();

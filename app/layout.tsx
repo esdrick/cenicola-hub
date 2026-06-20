@@ -14,13 +14,13 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Cenicola Hub",
+  title: "Cenicola's hub",
   description: "Sistema de Gestión — Cenicola",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Cenicola Hub",
+    title: "Cenicola's hub",
   },
   formatDetection: {
     telephone: false,

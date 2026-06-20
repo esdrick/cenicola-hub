@@ -4,7 +4,7 @@ import { getDefaultRedirect } from "@/lib/auth";
 import { LoginForm } from "@/components/shared/LoginForm";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-export const metadata = { title: "Iniciar sesión — Cenicola Hub" };
+export const metadata = { title: "Iniciar sesión — Cenicola's hub" };
 
 export default async function LoginPage() {
   const session = await getSession();
@@ -19,7 +19,7 @@ export default async function LoginPage() {
             <span className="text-lg font-bold text-white">C</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-            Cenicola Hub
+            Cenicola's hub
           </h1>
           <p className="mt-1 text-sm text-gray-500">Sistema de Gestión</p>
         </div>
