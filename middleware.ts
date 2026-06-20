@@ -47,8 +47,14 @@ function canAccess(role: UserRole, path: string): boolean {
   return ALLOWED_PATHS[role]?.some((p) => path === p || path.startsWith(p + "/")) ?? false;
 }
 
+const STATIC_PATTERNS = [/^\/sw\.js$/, /^\/swe-worker-.*\.js$/, /^\/workbox-.*\.js$/, /^\/manifest\.json$/];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (STATIC_PATTERNS.some((p) => p.test(pathname))) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
