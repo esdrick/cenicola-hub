@@ -73,12 +73,6 @@ export function StockTable({ variants, total, page, totalPages, lowStockThreshol
     startTransition(() => router.push(buildUrl({ page: 1 })));
   }
 
-  function clear() {
-    setQ(""); setTalla(""); setTipo(""); setStockStatus("");
-    startTransition(() => router.push("/dashboard/inventario?tab=stock"));
-  }
-
-  const hasFilters = !!(sp.get("q") || sp.get("talla") || sp.get("tipo") || sp.get("stock_status"));
   const activeFilterCount = [sp.get("talla"), sp.get("tipo"), sp.get("stock_status")].filter(Boolean).length;
 
   useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
