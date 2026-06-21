@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       ? { lte: new Date(hasta) }
       : undefined;
 
-  const [ventas, gastos, cobrar, pagar, pagosPendientes, ingresosPorMetodo] =
+  const [ventas, gastos, cobrar, pagar, pagosPendientes, ingresosPorMetodo, montoPorConfirmar] =
     await Promise.all([
       prisma.order.aggregate({
         where: {
@@ -64,6 +64,11 @@ export async function GET(request: NextRequest) {
         _sum: { amount_usd: true },
         _count: { id: true },
       }),
+      prisma.orderPayment.aggregate({
+        where: { status: "pendiente" },
+        _sum: { amount_usd: true },
+        _count: { id: true },
+      }),
     ]);
 
   const totalCobrar = cobrar.reduce(
@@ -79,6 +84,8 @@ export async function GET(request: NextRequest) {
     cobrar: totalCobrar,
     pagar: totalPagar,
     pagos_pendientes: pagosPendientes,
+    monto_por_confirmar: Number(montoPorConfirmar._sum.amount_usd ?? 0),
+    pagos_por_confirmar_count: montoPorConfirmar._count.id,
     ingresos_por_metodo: ingresosPorMetodo.map((m) => ({
       metodo: m.payment_type,
       total: Number(m._sum.amount_usd ?? 0),

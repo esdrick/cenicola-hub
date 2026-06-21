@@ -229,12 +229,12 @@ export function PagoDetailClient({ order }: Props) {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Verificación de pago</h1>
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Verificación de pago</h1>
           <p className="mt-0.5 font-mono text-sm text-gray-500">{order.order_number}</p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-medium ${
+        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-sm font-medium ${
           order.status === "pago_parcial"    ? "bg-orange-100 text-orange-800"  :
           order.status === "pendiente_pago"  ? "bg-yellow-100 text-yellow-800"  :
           order.status === "completada"      ? "bg-emerald-100 text-emerald-800" :
@@ -336,7 +336,7 @@ export function PagoDetailClient({ order }: Props) {
           </div>
 
           {/* Products */}
-          <div className="rounded-xl border bg-white">
+          <div className="rounded-xl border bg-white overflow-x-auto">
             <div className="border-b px-5 py-3">
               <h2 className="font-semibold text-gray-900">Productos</h2>
             </div>
@@ -373,138 +373,237 @@ export function PagoDetailClient({ order }: Props) {
             </Table>
           </div>
 
-          {/* Payments table — with per-row actions */}
+          {/* Payments — cards on mobile, table on sm+ */}
           <div className="rounded-xl border bg-white">
-            <div className="border-b px-5 py-3">
+            <div className="border-b px-4 sm:px-5 py-3">
               <h2 className="font-semibold text-gray-900">
                 Pagos registrados
                 {isActionable && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
+                  <span className="ml-2 hidden sm:inline text-sm font-normal text-gray-500">
                     — verifica o rechaza cada pago individualmente
                   </span>
                 )}
               </h2>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Método</TableHead>
-                  <TableHead>Referencia</TableHead>
-                  <TableHead className="text-right">Monto USD</TableHead>
-                  <TableHead>Tasa BCV</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Comprobante</TableHead>
-                  <TableHead className="text-center">Acción</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.payments.map((p) => {
-                  const isProcessingThis = processingId === p.id;
-                  const rowBg =
-                    p.status === "rechazado" ? "bg-red-50/70"
-                    : p.status === "verificado" ? "bg-emerald-50/50"
-                    : "";
 
-                  return (
-                    <TableRow key={p.id} className={rowBg}>
-                      <TableCell>
-                        <Badge
-                          className={`text-xs ${METODO_CLASSES[p.payment_type]}`}
-                          variant="outline"
-                        >
+            {/* Mobile: card list */}
+            <div className="sm:hidden divide-y">
+              {order.payments.map((p) => {
+                const isProcessingThis = processingId === p.id;
+                const cardBg =
+                  p.status === "rechazado"  ? "bg-red-50/70"
+                  : p.status === "verificado" ? "bg-emerald-50/50"
+                  : "";
+                return (
+                  <div key={p.id} className={`px-4 py-3 space-y-2 ${cardBg}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <Badge className={`text-xs ${METODO_CLASSES[p.payment_type]}`} variant="outline">
                           {METODO_LABELS[p.payment_type]}
                         </Badge>
-                        <div className="mt-0.5">
+                        <div className="text-[10px] font-medium">
                           {p.status === "verificado" && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700">
+                            <span className="inline-flex items-center gap-0.5 text-emerald-700">
                               <Check size={10} /> Verificado
                             </span>
                           )}
                           {p.status === "rechazado" && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-red-600">
+                            <span className="inline-flex items-center gap-0.5 text-red-600">
                               <X size={10} /> Rechazado
                             </span>
                           )}
                           {p.status === "pendiente" && (
-                            <span className="text-[10px] font-medium text-yellow-700">Pendiente</span>
+                            <span className="text-yellow-700">Pendiente</span>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-mono text-xs">{p.reference}</span>
-                          {p.duplicate_order_number && (
-                            <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
-                              ⚠ Duplicado en #{p.duplicate_order_number}
-                            </span>
-                          )}
-                          {p.status === "rechazado" && p.rejection_reason && (
-                            <span className="mt-0.5 rounded bg-red-50 px-1.5 py-1 text-xs text-red-700 border border-red-200">
-                              <strong>Motivo:</strong> {p.rejection_reason}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        <span className={p.status === "rechazado" ? "line-through text-gray-400" : ""}>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm font-semibold ${p.status === "rechazado" ? "line-through text-gray-400" : ""}`}>
                           ${p.amount_usd.toFixed(2)}
-                        </span>
+                        </p>
                         {p.amount_ves && (
-                          <p className="text-xs font-normal text-gray-500">Bs {p.amount_ves.toFixed(2)}</p>
+                          <p className="text-xs text-gray-500">Bs {p.amount_ves.toFixed(2)}</p>
                         )}
-                      </TableCell>
-                      <TableCell className="text-xs text-gray-500">
-                        {p.exchange_rate ? `Bs ${p.exchange_rate.usd_to_ves.toFixed(2)}` : "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs text-gray-600">
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5 text-xs text-gray-500">
+                      {p.reference && p.reference !== "EFECTIVO" && (
+                        <p className="font-mono text-gray-700">{p.reference}</p>
+                      )}
+                      {p.duplicate_order_number && (
+                        <span className="inline-block rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+                          ⚠ Duplicado en #{p.duplicate_order_number}
+                        </span>
+                      )}
+                      <p>
                         {p.payment_date}
                         {p.payment_time && <span className="ml-1 text-gray-400">{p.payment_time}</span>}
-                      </TableCell>
-                      <TableCell>
-                        {p.payment_photo ? (
-                          <a href={p.payment_photo} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                            <ExternalLink size={12} /> Ver
-                          </a>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </TableCell>
+                        {p.exchange_rate && <span className="ml-2">· BCV Bs {p.exchange_rate.usd_to_ves.toFixed(2)}</span>}
+                      </p>
+                    </div>
 
-                      {/* Per-payment action buttons — only while order is awaiting payment */}
-                      <TableCell className="text-center">
-                        {isActionable && p.status === "pendiente" && (
-                          <div className="flex items-center justify-center gap-1">
-                            {isProcessingThis ? (
-                              <Loader2 size={14} className="animate-spin text-gray-400" />
-                            ) : (
-                              <>
-                                <button
-                                  title="Verificar este pago"
-                                  disabled={isProcessing}
-                                  onClick={() => openPaymentAction("verify", p.id)}
-                                  className="rounded-md border border-emerald-300 bg-emerald-50 p-1 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
-                                >
-                                  <Check size={13} />
-                                </button>
-                                <button
-                                  title="Rechazar este pago"
-                                  disabled={isProcessing}
-                                  onClick={() => openPaymentAction("reject", p.id)}
-                                  className="rounded-md border border-red-300 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:opacity-40"
-                                >
-                                  <X size={13} />
-                                </button>
-                              </>
+                    {p.status === "rechazado" && p.rejection_reason && (
+                      <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+                        <strong>Motivo:</strong> {p.rejection_reason}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-0.5">
+                      {p.payment_photo ? (
+                        <a href={p.payment_photo} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                          <ExternalLink size={12} /> Ver comprobante
+                        </a>
+                      ) : <span />}
+                      {isActionable && p.status === "pendiente" && (
+                        <div className="flex items-center gap-1.5">
+                          {isProcessingThis ? (
+                            <Loader2 size={14} className="animate-spin text-gray-400" />
+                          ) : (
+                            <>
+                              <button
+                                disabled={isProcessing}
+                                onClick={() => openPaymentAction("verify", p.id)}
+                                className="flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
+                              >
+                                <Check size={11} /> Verificar
+                              </button>
+                              <button
+                                disabled={isProcessing}
+                                onClick={() => openPaymentAction("reject", p.id)}
+                                className="flex items-center gap-1 rounded-md border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100 disabled:opacity-40"
+                              >
+                                <X size={11} /> Rechazar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Método</TableHead>
+                    <TableHead>Referencia</TableHead>
+                    <TableHead className="text-right">Monto USD</TableHead>
+                    <TableHead>Tasa BCV</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Comprobante</TableHead>
+                    <TableHead className="text-center">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.payments.map((p) => {
+                    const isProcessingThis = processingId === p.id;
+                    const rowBg =
+                      p.status === "rechazado" ? "bg-red-50/70"
+                      : p.status === "verificado" ? "bg-emerald-50/50"
+                      : "";
+
+                    return (
+                      <TableRow key={p.id} className={rowBg}>
+                        <TableCell>
+                          <Badge className={`text-xs ${METODO_CLASSES[p.payment_type]}`} variant="outline">
+                            {METODO_LABELS[p.payment_type]}
+                          </Badge>
+                          <div className="mt-0.5">
+                            {p.status === "verificado" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700">
+                                <Check size={10} /> Verificado
+                              </span>
+                            )}
+                            {p.status === "rechazado" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-red-600">
+                                <X size={10} /> Rechazado
+                              </span>
+                            )}
+                            {p.status === "pendiente" && (
+                              <span className="text-[10px] font-medium text-yellow-700">Pendiente</span>
                             )}
                           </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-xs">{p.reference}</span>
+                            {p.duplicate_order_number && (
+                              <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700">
+                                ⚠ Duplicado en #{p.duplicate_order_number}
+                              </span>
+                            )}
+                            {p.status === "rechazado" && p.rejection_reason && (
+                              <span className="mt-0.5 rounded bg-red-50 px-1.5 py-1 text-xs text-red-700 border border-red-200">
+                                <strong>Motivo:</strong> {p.rejection_reason}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          <span className={p.status === "rechazado" ? "line-through text-gray-400" : ""}>
+                            ${p.amount_usd.toFixed(2)}
+                          </span>
+                          {p.amount_ves && (
+                            <p className="text-xs font-normal text-gray-500">Bs {p.amount_ves.toFixed(2)}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500">
+                          {p.exchange_rate ? `Bs ${p.exchange_rate.usd_to_ves.toFixed(2)}` : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-gray-600">
+                          {p.payment_date}
+                          {p.payment_time && <span className="ml-1 text-gray-400">{p.payment_time}</span>}
+                        </TableCell>
+                        <TableCell>
+                          {p.payment_photo ? (
+                            <a href={p.payment_photo} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                              <ExternalLink size={12} /> Ver
+                            </a>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {isActionable && p.status === "pendiente" && (
+                            <div className="flex items-center justify-center gap-1">
+                              {isProcessingThis ? (
+                                <Loader2 size={14} className="animate-spin text-gray-400" />
+                              ) : (
+                                <>
+                                  <button
+                                    title="Verificar este pago"
+                                    disabled={isProcessing}
+                                    onClick={() => openPaymentAction("verify", p.id)}
+                                    className="rounded-md border border-emerald-300 bg-emerald-50 p-1 text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
+                                  >
+                                    <Check size={13} />
+                                  </button>
+                                  <button
+                                    title="Rechazar este pago"
+                                    disabled={isProcessing}
+                                    onClick={() => openPaymentAction("reject", p.id)}
+                                    className="rounded-md border border-red-300 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:opacity-40"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
 

@@ -212,16 +212,14 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Ej: Pedido Ana García, ropa verano…"
-                className="h-8 text-sm"
               />
             </div>
             <Button
               variant="outline" size="sm"
               disabled={savingNote || (note === (cart?.note ?? "") && !!cartId) || (!cartId && !note.trim())}
               onClick={saveNote}
-              className="h-8"
             >
-              {savingNote ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} className="mr-1" />}
+              {savingNote ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
               Guardar
             </Button>
           </div>
@@ -338,10 +336,10 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                             const isUpdating = updating === v.id;
 
                             return (
-                              <div key={v.id} className="flex items-center gap-3 rounded-lg border bg-white px-3 py-2">
-                                <span className="w-14 text-sm font-semibold text-gray-800">{v.size}</span>
+                              <div key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-white px-3 py-2">
+                                <span className="w-12 shrink-0 text-sm font-semibold text-gray-800">{v.size}</span>
 
-                                <span className="text-xs text-gray-500 flex-1">
+                                <span className="text-xs text-gray-500 flex-1 min-w-[80px]">
                                   ${v.price_usd.toFixed(2)} · stock: {stock}
                                   {inCartItem && (
                                     <span className="ml-2 text-emerald-600 font-medium">
@@ -350,7 +348,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                                   )}
                                 </span>
 
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 ml-auto">
                                   <button
                                     type="button"
                                     onClick={() => setVariantQty((p) => ({ ...p, [v.id]: Math.max(1, (p[v.id] ?? 1) - 1) }))}
@@ -382,7 +380,6 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
 
                                 <Button
                                   size="sm"
-                                  className="h-7 px-3 text-xs"
                                   disabled={isUpdating}
                                   onClick={() => addVariant(v.id, stock)}
                                 >

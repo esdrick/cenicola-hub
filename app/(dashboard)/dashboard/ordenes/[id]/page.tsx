@@ -36,7 +36,36 @@ function StatusTimeline({ status, channel }: { status: string; channel: string }
 
   return (
     <div className="rounded-xl border bg-white px-5 py-4">
-      <div className="flex items-center">
+      {/* Mobile: vertical list */}
+      <div className="flex flex-col gap-3 sm:hidden">
+        {steps.map((s, i) => {
+          const past    = effectiveIdx > i;
+          const current = s === effectiveStatus;
+          const label   = s === "pago_verificado" && status === "pago_parcial"
+            ? STATUS_LABELS["pago_parcial"]
+            : STATUS_LABELS[s];
+          return (
+            <div key={s} className="flex items-center gap-3">
+              <div className={cn(
+                "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold",
+                past    ? "border-emerald-500 bg-emerald-500 text-white" :
+                current ? "border-gray-900 bg-gray-900 text-white" :
+                          "border-gray-200 bg-white text-gray-400"
+              )}>
+                {past ? <Check size={10} /> : i + 1}
+              </div>
+              <span className={cn(
+                "text-sm",
+                current ? "font-semibold text-gray-900" :
+                past    ? "text-emerald-600" :
+                          "text-gray-400"
+              )}>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Desktop: horizontal timeline */}
+      <div className="hidden sm:flex items-center">
         {steps.map((s, i) => {
           const past    = effectiveIdx > i;
           const current = s === effectiveStatus;
@@ -149,10 +178,10 @@ export default async function OrderDetailPage({
         >
           <ChevronLeft size={14} className="mr-1" />Órdenes
         </Link>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold font-mono text-gray-900">{order.order_number}</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold font-mono text-gray-900">{order.order_number}</h1>
               <OrderStatusBadge status={order.status} />
               <span className={cn(
                 "rounded-full px-2.5 py-0.5 text-xs font-medium",
@@ -167,14 +196,18 @@ export default async function OrderDetailPage({
               Creada por {order.creator.name} · {createdAt}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {canComplete && (
-              <CompletarOrdenButton orderId={order.id} orderNumber={order.order_number} />
-            )}
-            {canCancel && (
-              <CancelOrderButton orderId={order.id} orderNumber={order.order_number} />
-            )}
-          </div>
+          {(canComplete || canCancel) && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canComplete && (
+                <CompletarOrdenButton orderId={order.id} orderNumber={order.order_number} />
+              )}
+              {canCancel && (
+                <span className="hidden sm:block">
+                  <CancelOrderButton orderId={order.id} orderNumber={order.order_number} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -187,12 +220,12 @@ export default async function OrderDetailPage({
         <div className="space-y-5 lg:col-span-2">
           {/* Items */}
           <div className="rounded-xl border bg-white overflow-hidden">
-            <div className="border-b px-5 py-3">
+            <div className="border-b px-3 sm:px-5 py-3">
               <h2 className="text-sm font-semibold text-gray-700">Productos</h2>
             </div>
             <div className="divide-y">
               {order.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 px-5 py-3">
+                <div key={item.id} className="flex items-center gap-3 px-3 sm:px-5 py-3">
                   {item.variant.product.photos[0] && (
                     <Image
                       src={item.variant.product.photos[0]}
@@ -216,7 +249,7 @@ export default async function OrderDetailPage({
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between border-t bg-gray-50 px-5 py-3">
+            <div className="flex items-center justify-between border-t bg-gray-50 px-3 sm:px-5 py-3">
               <span className="text-sm text-gray-600">Total</span>
               <span className="text-lg font-bold">${totalUsd.toFixed(2)} USD</span>
             </div>
@@ -264,7 +297,7 @@ export default async function OrderDetailPage({
 
           {/* Payments */}
           <div className="rounded-xl border bg-white overflow-hidden">
-            <div className="border-b px-5 py-3 flex items-center justify-between gap-2">
+            <div className="border-b px-3 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-700">Pagos</h2>
               <div className="flex items-center gap-3">
                 <span className={cn(
@@ -284,7 +317,7 @@ export default async function OrderDetailPage({
               </div>
             </div>
             {order.payments.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-gray-400">Sin pagos registrados</p>
+              <p className="px-3 sm:px-5 py-4 text-sm text-gray-400">Sin pagos registrados</p>
             ) : (
               <div className="divide-y">
                 {order.payments.map((p) => {
@@ -294,7 +327,7 @@ export default async function OrderDetailPage({
                     <div
                       key={p.id}
                       className={cn(
-                        "px-5 py-3 space-y-1",
+                        "px-3 sm:px-5 py-3 space-y-1",
                         isRejected && "bg-red-50/60"
                       )}
                     >
@@ -428,6 +461,13 @@ export default async function OrderDetailPage({
           )}
         </div>
       </div>
+
+      {/* Cancel button pinned at bottom on mobile */}
+      {canCancel && (
+        <div className="sm:hidden">
+          <CancelOrderButton orderId={order.id} orderNumber={order.order_number} />
+        </div>
+      )}
     </div>
   );
 }

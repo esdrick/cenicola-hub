@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition, useState } from "react";
+import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Search, X, Loader2, Download } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Search, SlidersHorizontal, X, Loader2, Download } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
 import { cn } from "@/lib/utils";
 import type { StockVariantJSON } from "@/types";
@@ -22,6 +24,7 @@ type Props = {
   totalPages: number;
   lowStockThreshold: number;
   tallas: string[];
+  tipos: string[];
 };
 
 function rowBg(stock: number, low: number) {
@@ -36,7 +39,7 @@ function stockCell(stock: number, low: number) {
   return <span className="font-medium text-gray-900">{stock}</span>;
 }
 
-export function StockTable({ variants, total, page, totalPages, lowStockThreshold, tallas }: Props) {
+export function StockTable({ variants, total, page, totalPages, lowStockThreshold, tallas, tipos }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -46,6 +49,13 @@ export function StockTable({ variants, total, page, totalPages, lowStockThreshol
   const [tipo, setTipo] = useState(sp.get("tipo") ?? "");
   const [stockStatus, setStockStatus] = useState(sp.get("stock_status") ?? "");
   const [exporting, setExporting] = useState(false);
+
+  const [searchOpen, setSearchOpen] = useState(!!sp.get("q"));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tmpTalla, setTmpTalla] = useState("");
+  const [tmpTipo, setTmpTipo] = useState("");
+  const [tmpStockStatus, setTmpStockStatus] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
@@ -69,6 +79,41 @@ export function StockTable({ variants, total, page, totalPages, lowStockThreshol
   }
 
   const hasFilters = !!(sp.get("q") || sp.get("talla") || sp.get("tipo") || sp.get("stock_status"));
+  const activeFilterCount = [sp.get("talla"), sp.get("tipo"), sp.get("stock_status")].filter(Boolean).length;
+
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
+
+  function openFilters() {
+    setTmpTalla(talla); setTmpTipo(tipo); setTmpStockStatus(stockStatus);
+    setFiltersOpen(true);
+  }
+
+  function applyFilters() {
+    setTalla(tmpTalla); setTipo(tmpTipo); setStockStatus(tmpStockStatus);
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "stock");
+    if (q)             params.set("q", q);
+    if (tmpTalla)      params.set("talla", tmpTalla);
+    if (tmpTipo)       params.set("tipo", tmpTipo);
+    if (tmpStockStatus) params.set("stock_status", tmpStockStatus);
+    startTransition(() => router.push(`/dashboard/inventario?${params.toString()}`));
+  }
+
+  function clearFilters() {
+    setTmpTalla(""); setTmpTipo(""); setTmpStockStatus("");
+    setTalla("");    setTipo("");    setStockStatus("");
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "stock");
+    if (q) params.set("q", q);
+    startTransition(() => router.push(`/dashboard/inventario?${params.toString()}`));
+  }
+
+  function clearSearch() {
+    setQ(""); setSearchOpen(false);
+    startTransition(() => router.push(buildUrl({ q: "", page: 1 })));
+  }
 
   function handleExport() {
     const params = new URLSearchParams();
@@ -91,64 +136,159 @@ export function StockTable({ variants, total, page, totalPages, lowStockThreshol
   return (
     <div className="space-y-4">
       {/* ── Filters ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[220px] flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && apply()}
-            placeholder="Buscar por nombre, talla o color…" className="pl-8" />
-        </div>
-
-        <Select value={talla || "all"} onValueChange={(v) => setTalla(v == null || v === "all" ? "" : v)}>
-          <SelectTrigger className="w-28">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {talla || "Talla"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {tallas.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
-        <Input value={tipo} onChange={(e) => setTipo(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && apply()}
-          placeholder="Tipo (ej: Blusa)" className="w-36" />
-
-        <Select value={stockStatus || "todos"} onValueChange={(v) => setStockStatus(v === "todos" ? "" : (v ?? ""))}>
-          <SelectTrigger className="w-36">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {stockStatus === "bajo" ? "Stock bajo" : stockStatus === "sin" ? "Sin stock" : "Todos"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="bajo">Stock bajo</SelectItem>
-            <SelectItem value="sin">Sin stock</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} className="mr-1" />Filtrar</>}
-        </Button>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
-            <X size={14} className="mr-1" />Limpiar
+      <div className="flex items-center gap-2">
+        {/* Search */}
+        {searchOpen ? (
+          <div className="relative flex-1">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input
+              ref={searchRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") apply();
+                if (e.key === "Escape" && !q) setSearchOpen(false);
+              }}
+              placeholder="Buscar por nombre, talla o color…"
+              className="pl-9 pr-9"
+            />
+            <button onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSearchOpen(true)}
+            title="Buscar"
+            className={sp.get("q") ? "border-gray-900 text-gray-900" : ""}
+          >
+            <Search size={16} />
           </Button>
         )}
 
+        {/* Filters button */}
         <Button
           variant="outline"
-          onClick={handleExport}
-          disabled={exporting}
-          className="ml-auto"
+          onClick={openFilters}
+          className={cn("gap-2", activeFilterCount > 0 && "border-gray-900 text-gray-900")}
         >
-          {exporting
-            ? <Loader2 size={14} className="animate-spin mr-1" />
-            : <Download size={14} className="mr-1" />}
-          Exportar Excel
+          <SlidersHorizontal size={15} />
+          Filtros
+          {activeFilterCount > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-900 text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        {isPending && <Loader2 size={14} className="animate-spin text-gray-400" />}
+
+        {/* Export — always visible, pushed right */}
+        <Button variant="outline" onClick={handleExport} disabled={exporting} className="ml-auto gap-1.5">
+          {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          <span className="hidden sm:inline">Exportar Excel</span>
         </Button>
       </div>
+
+      {/* Filter dialog */}
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Filtros</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-1">
+            {/* Talla */}
+            {tallas.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Talla</p>
+                <div className="flex flex-wrap gap-2">
+                  {tallas.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTmpTalla(tmpTalla === t ? "" : t)}
+                      className={cn(
+                        "min-w-[2.5rem] rounded-lg border px-2.5 py-1 text-sm font-medium transition-colors",
+                        tmpTalla === t
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 text-gray-600 hover:border-gray-400"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tipo */}
+            {tipos.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Tipo</p>
+                <div className="flex flex-wrap gap-2">
+                  {tipos.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTmpTipo(tmpTipo === t ? "" : t)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-sm transition-colors",
+                        tmpTipo === t
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 text-gray-600 hover:border-gray-400"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Estado de stock */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Estado de stock</p>
+              <div className="flex gap-2">
+                {[
+                  { value: "",     label: "Todos" },
+                  { value: "bajo", label: "Stock bajo" },
+                  { value: "sin",  label: "Sin stock" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpStockStatus(tmpStockStatus === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpStockStatus === value && value !== ""
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : value === "" && tmpStockStatus === ""
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={clearFilters}
+              disabled={isPending || (!tmpTalla && !tmpTipo && !tmpStockStatus && !talla && !tipo && !stockStatus)}
+            >
+              Limpiar
+            </Button>
+            <Button onClick={applyFilters} disabled={isPending}>
+              {isPending && <Loader2 size={14} className="animate-spin" />}
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Leyenda ─────────────────────────────────────────── */}
       <div className="flex items-center gap-4 text-xs text-gray-500">

@@ -1,16 +1,20 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTransition, useState } from "react";
+import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Search, X, Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
+import { cn } from "@/lib/utils";
 import type { MovementJSON, MovementType, MovementChannel } from "@/types";
 
 type Props = {
@@ -22,44 +26,57 @@ type Props = {
 };
 
 const TYPE_LABELS: Record<MovementType, string> = {
-  entrada: "Entrada",
+  entrada:      "Entrada",
   salida_venta: "Venta",
-  ajuste: "Ajuste",
-  devolucion: "Devolución",
+  ajuste:       "Ajuste",
+  devolucion:   "Devolución",
 };
 
 const TYPE_COLORS: Record<MovementType, string> = {
-  entrada: "bg-emerald-100 text-emerald-700",
+  entrada:      "bg-emerald-100 text-emerald-700",
   salida_venta: "bg-rose-100 text-rose-700",
-  ajuste: "bg-amber-100 text-amber-700",
-  devolucion: "bg-blue-100 text-blue-700",
+  ajuste:       "bg-amber-100 text-amber-700",
+  devolucion:   "bg-blue-100 text-blue-700",
 };
 
 const CHANNEL_LABELS: Record<MovementChannel, string> = {
   online: "Online",
   tienda: "Tienda",
-  total: "Total",
+  total:  "Total",
 };
 
 export function MovimientosTable({ movements, total, page, totalPages, tallas }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [q, setQ] = useState(sp.get("q") ?? "");
+  const [q,     setQ]     = useState(sp.get("q")     ?? "");
   const [talla, setTalla] = useState(sp.get("talla") ?? "");
-  const [tipo, setTipo] = useState<string>(sp.get("tipo") ?? "");
-  const [canal, setCanal] = useState<string>(sp.get("canal") ?? "");
-  const [desde, setDesde] = useState<string>(sp.get("desde") ?? "");
-  const [hasta, setHasta] = useState<string>(sp.get("hasta") ?? "");
+  const [tipo,  setTipo]  = useState(sp.get("tipo")  ?? "");
+  const [canal, setCanal] = useState(sp.get("canal") ?? "");
+  const [desde, setDesde] = useState(sp.get("desde") ?? "");
+  const [hasta, setHasta] = useState(sp.get("hasta") ?? "");
+
+  const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tmpTalla, setTmpTalla] = useState("");
+  const [tmpTipo,  setTmpTipo]  = useState("");
+  const [tmpCanal, setTmpCanal] = useState("");
+  const [tmpDesde, setTmpDesde] = useState("");
+  const [tmpHasta, setTmpHasta] = useState("");
+
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
-    const vals = { tab: "movimientos", q, talla, tipo, canal, desde, hasta, page: String(page), ...Object.fromEntries(
-      Object.entries(overrides).map(([k, v]) => [k, String(v)])
-    )};
+    const vals = {
+      tab: "movimientos", q, talla, tipo, canal, desde, hasta,
+      page: String(page),
+      ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
+    };
     Object.entries(vals).forEach(([k, v]) => { if (v && v !== "0") params.set(k, v); });
     return `/dashboard/inventario?${params.toString()}`;
   }
@@ -68,77 +85,200 @@ export function MovimientosTable({ movements, total, page, totalPages, tallas }:
     startTransition(() => router.push(buildUrl({ page: 1 })));
   }
 
-  function clear() {
-    setQ(""); setTalla(""); setTipo(""); setCanal(""); setDesde(""); setHasta("");
-    startTransition(() => router.push("/dashboard/inventario?tab=movimientos"));
+  function clearSearch() {
+    setQ(""); setSearchOpen(false);
+    startTransition(() => router.push(buildUrl({ q: "", page: 1 })));
   }
 
-  const hasFilters = !!(sp.get("q") || sp.get("talla") || sp.get("tipo") || sp.get("canal") || sp.get("desde") || sp.get("hasta"));
+  function openFilters() {
+    setTmpTalla(talla); setTmpTipo(tipo); setTmpCanal(canal);
+    setTmpDesde(desde); setTmpHasta(hasta);
+    setFiltersOpen(true);
+  }
+
+  function applyFilters() {
+    setTalla(tmpTalla); setTipo(tmpTipo); setCanal(tmpCanal);
+    setDesde(tmpDesde); setHasta(tmpHasta);
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "movimientos");
+    if (q)        params.set("q",     q);
+    if (tmpTalla) params.set("talla", tmpTalla);
+    if (tmpTipo)  params.set("tipo",  tmpTipo);
+    if (tmpCanal) params.set("canal", tmpCanal);
+    if (tmpDesde) params.set("desde", tmpDesde);
+    if (tmpHasta) params.set("hasta", tmpHasta);
+    startTransition(() => router.push(`/dashboard/inventario?${params.toString()}`));
+  }
+
+  function clearFilters() {
+    setTmpTalla(""); setTmpTipo(""); setTmpCanal(""); setTmpDesde(""); setTmpHasta("");
+    setTalla("");    setTipo("");    setCanal("");    setDesde("");    setHasta("");
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "movimientos");
+    if (q) params.set("q", q);
+    startTransition(() => router.push(`/dashboard/inventario?${params.toString()}`));
+  }
+
+  const activeFilterCount = [
+    sp.get("talla"), sp.get("tipo"), sp.get("canal"), sp.get("desde"), sp.get("hasta"),
+  ].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
       {/* ── Filters ─────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && apply()}
-            placeholder="Buscar por nombre o talla…" className="pl-8" />
-        </div>
-
-        <Select value={talla || "all"} onValueChange={(v) => setTalla(v == null || v === "all" ? "" : v)}>
-          <SelectTrigger className="w-28">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {talla || "Talla"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {tallas.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
-        <Select value={tipo || "all"} onValueChange={(v) => { setTipo(v === "all" ? "" : (v ?? "")); }}>
-          <SelectTrigger className="w-36">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {tipo ? (TYPE_LABELS[tipo as MovementType] ?? tipo) : "Todos los tipos"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los tipos</SelectItem>
-            <SelectItem value="entrada">Entrada</SelectItem>
-            <SelectItem value="salida_venta">Venta</SelectItem>
-            <SelectItem value="ajuste">Ajuste</SelectItem>
-            <SelectItem value="devolucion">Devolución</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={canal || "all"} onValueChange={(v) => { setCanal(v === "all" ? "" : (v ?? "")); }}>
-          <SelectTrigger className="w-28">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {canal ? (CHANNEL_LABELS[canal as MovementChannel] ?? canal) : "Todos"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="online">Online</SelectItem>
-            <SelectItem value="tienda">Tienda</SelectItem>
-            <SelectItem value="total">Total</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Input type="date" value={desde} max={today} onChange={(e) => setDesde(e.target.value)} className="w-36" />
-        <Input type="date" value={hasta} max={today} onChange={(e) => setHasta(e.target.value)} className="w-36" />
-
-        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} />Filtrar</>}
-        </Button>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
-            <X size={14} className="mr-1" />Limpiar
+      <div className="flex items-center gap-2">
+        {/* Search */}
+        {searchOpen ? (
+          <div className="relative flex-1">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input
+              ref={searchRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") apply();
+                if (e.key === "Escape" && !q) setSearchOpen(false);
+              }}
+              placeholder="Buscar por nombre o talla…"
+              className="pl-9 pr-9"
+            />
+            <button onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSearchOpen(true)}
+            title="Buscar"
+            className={sp.get("q") ? "border-gray-900 text-gray-900" : ""}
+          >
+            <Search size={16} />
           </Button>
         )}
+
+        {/* Filters button */}
+        <Button
+          variant="outline"
+          onClick={openFilters}
+          className={cn("gap-2", activeFilterCount > 0 && "border-gray-900 text-gray-900")}
+        >
+          <SlidersHorizontal size={15} />
+          Filtros
+          {activeFilterCount > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-900 text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        {isPending && <Loader2 size={14} className="animate-spin text-gray-400" />}
       </div>
+
+      {/* Filter dialog */}
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Filtros</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-1">
+            {/* Talla */}
+            {tallas.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Talla</p>
+                <div className="flex flex-wrap gap-2">
+                  {tallas.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTmpTalla(tmpTalla === t ? "" : t)}
+                      className={cn(
+                        "min-w-[2.5rem] rounded-lg border px-2.5 py-1 text-sm font-medium transition-colors",
+                        tmpTalla === t
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 text-gray-600 hover:border-gray-400"
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tipo */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Tipo de movimiento</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(TYPE_LABELS) as [MovementType, string][]).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpTipo(tmpTipo === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpTipo === value
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Canal */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Canal</p>
+              <div className="flex gap-2">
+                {(Object.entries(CHANNEL_LABELS) as [MovementChannel, string][]).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpCanal(tmpCanal === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpCanal === value
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Fechas */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Desde</Label>
+                <Input type="date" value={tmpDesde} max={today} onChange={(e) => setTmpDesde(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Hasta</Label>
+                <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button
+              variant="ghost"
+              onClick={clearFilters}
+              disabled={isPending || (!tmpTalla && !tmpTipo && !tmpCanal && !tmpDesde && !tmpHasta && !talla && !tipo && !canal && !desde && !hasta)}
+            >
+              Limpiar
+            </Button>
+            <Button onClick={applyFilters} disabled={isPending}>
+              {isPending && <Loader2 size={14} className="animate-spin" />}
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Table ───────────────────────────────────────────── */}
       <div className="overflow-x-auto rounded-xl border bg-white">

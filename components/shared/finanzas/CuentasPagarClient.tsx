@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { CheckCircle2, Plus, Loader2 } from "lucide-react";
+import { DialogTrigger } from "@/components/ui/dialog";
 
 type CuentaPagarJSON = {
   id: string;
@@ -41,6 +42,9 @@ export function CuentasPagarClient({ data }: Props) {
   const [fechaVenc, setFechaVenc] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+
   // Confirm dialog
   const [confirmTarget, setConfirmTarget] = useState<CuentaPagarJSON | null>(null);
 
@@ -66,6 +70,7 @@ export function CuentasPagarClient({ data }: Props) {
         const json = await res.json();
         if (!res.ok) { setFormError(json.error ?? "Error al guardar"); return; }
         setProveedor(""); setDescripcion(""); setMonto(""); setFechaVenc("");
+        setCreateOpen(false);
         router.refresh();
       } catch {
         setFormError("Error de conexión");
@@ -100,60 +105,71 @@ export function CuentasPagarClient({ data }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Form */}
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="mb-4 font-semibold text-gray-900 flex items-center gap-2">
-          <Plus size={16} /> Registrar deuda a proveedor
-        </h2>
-        <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1">
-            <Label className="text-xs">Proveedor *</Label>
-            <Input
-              value={proveedor}
-              onChange={(e) => setProveedor(e.target.value)}
-              placeholder="Nombre del proveedor"
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1 lg:col-span-2">
-            <Label className="text-xs">Descripción *</Label>
-            <Input
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: Pago de mercancía"
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Monto (USD) *</Label>
-            <Input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              placeholder="0.00"
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Fecha de vencimiento</Label>
-            <Input
-              type="date"
-              value={fechaVenc}
-              onChange={(e) => setFechaVenc(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
-              Registrar
-            </Button>
-            {formError && <p className="text-sm text-red-600">{formError}</p>}
-          </div>
-        </form>
-      </div>
+      {/* Create dialog */}
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setFormError(null); }}>
+        <DialogTrigger render={<Button className="gap-2" />}>
+          <Plus size={15} /> Agregar cuenta
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar deuda a proveedor</DialogTitle>
+            <DialogDescription>Completa los campos para agregar una nueva cuenta por pagar.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Proveedor *</Label>
+              <Input
+                value={proveedor}
+                onChange={(e) => setProveedor(e.target.value)}
+                placeholder="Nombre del proveedor"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Descripción *</Label>
+              <Input
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Pago de mercancía"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Monto (USD) *</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                placeholder="0.00"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Fecha de vencimiento</Label>
+              <Input
+                type="date"
+                value={fechaVenc}
+                onChange={(e) => setFechaVenc(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+            {formError && (
+              <p className="sm:col-span-2 text-sm text-red-600">{formError}</p>
+            )}
+            <DialogFooter className="sm:col-span-2">
+              <Button variant="outline" type="button" onClick={() => setCreateOpen(false)} disabled={isPending}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+                Registrar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       <div className="rounded-xl border bg-white">

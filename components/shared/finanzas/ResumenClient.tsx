@@ -15,6 +15,7 @@ import {
   DollarSign,
   FileText,
   AlertTriangle,
+  Hourglass,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -31,6 +32,8 @@ type Resumen = {
   cobrar: number;
   pagar: number;
   pagos_pendientes: number;
+  monto_por_confirmar: number;
+  pagos_por_confirmar_count: number;
   ingresos_por_metodo: IngresoMetodo[];
 };
 
@@ -164,6 +167,14 @@ export function ResumenClient() {
           bg: "bg-orange-50",
           desc: "Deudas a proveedores",
         },
+        {
+          label: "Por confirmar",
+          value: data.monto_por_confirmar,
+          icon: Hourglass,
+          color: "text-violet-600",
+          bg: "bg-violet-50",
+          desc: `${data.pagos_por_confirmar_count} pago${data.pagos_por_confirmar_count !== 1 ? "s" : ""} pendiente${data.pagos_por_confirmar_count !== 1 ? "s" : ""} de verificación`,
+        },
       ]
     : [];
 
@@ -237,9 +248,9 @@ export function ResumenClient() {
       )}
 
       {/* Tarjetas de resumen */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
+          ? Array.from({ length: 5 }).map((_, i) => (
               <Card key={i} className="animate-pulse">
                 <CardContent className="p-5">
                   <div className="h-4 w-24 rounded bg-gray-100" />

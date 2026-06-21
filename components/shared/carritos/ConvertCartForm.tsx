@@ -33,12 +33,12 @@ const STEPS = ["Productos", "Cliente", "Pago"];
 
 function StepIndicator({ step, channel }: { step: number; channel: string }) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between mb-6 gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {STEPS.map((label, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i} className="flex items-center gap-1 sm:gap-2">
             <div className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold",
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
               i + 1 === step ? "bg-gray-900 text-white" :
               i + 1 < step  ? "bg-emerald-500 text-white" :
                               "bg-gray-100 text-gray-500"
@@ -46,16 +46,16 @@ function StepIndicator({ step, channel }: { step: number; channel: string }) {
               {i + 1 < step ? <Check size={12} /> : i + 1}
             </div>
             <span className={cn(
-              "text-sm",
+              "hidden sm:block text-sm",
               i + 1 === step ? "font-semibold text-gray-900" : "text-gray-400"
             )}>{label}</span>
             {i < STEPS.length - 1 && (
-              <ChevronRight size={14} className="text-gray-300 mx-1" />
+              <ChevronRight size={14} className="text-gray-300 mx-0.5 sm:mx-1" />
             )}
           </div>
         ))}
       </div>
-      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
+      <span className="shrink-0 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
         {channel}
       </span>
     </div>
@@ -722,13 +722,14 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 </div>
               </div>
               {draft.payment_type !== "efectivo" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                <div className="flex gap-3">
+                  <div className="flex-1 space-y-1.5">
                     <Label>Fecha</Label>
                     <Input type="date" value={draft.payment_date}
+                      max={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))} />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="w-32 space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))} />
@@ -751,9 +752,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         placeholder="URL de la imagen" className="flex-1" />
                       <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
                         onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
-                      <Button type="button" variant="outline" size="sm" disabled={uploading}
+                      <Button type="button" variant="outline" size="icon" disabled={uploading}
                         onClick={() => photoInputRef.current?.click()}>
-                        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
                       </Button>
                     </div>
                     {draft.payment_photo && (
@@ -767,7 +768,6 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
                   onClick={addPayment}
                   disabled={
                     !draft.amount_usd ||
@@ -777,13 +777,13 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   }
                 >
                   {editingIndex !== null
-                    ? <><Check size={14} className="mr-1.5" />Guardar cambios</>
-                    : <><Plus size={14} className="mr-1.5" />Agregar pago</>
+                    ? <><Check size={14} />Guardar cambios</>
+                    : <><Plus size={14} />Agregar pago</>
                   }
                 </Button>
                 {editingIndex !== null && (
-                  <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}>
-                    <X size={14} className="mr-1" />Cancelar
+                  <Button type="button" variant="ghost" onClick={cancelEdit}>
+                    <X size={14} />Cancelar
                   </Button>
                 )}
               </div>

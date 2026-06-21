@@ -18,17 +18,19 @@ function sp(v: string | string[] | undefined): string {
 }
 
 async function getProducts(params: SearchParams) {
-  const q = sp(params.q);
-  const tipo = sp(params.tipo);
+  const q     = sp(params.q);
+  const tipo  = sp(params.tipo);
   const color = sp(params.color);
-  const page = Math.max(1, parseInt(sp(params.page) || "1"));
+  const talla = sp(params.talla);
+  const page  = Math.max(1, parseInt(sp(params.page) || "1"));
   const pageSize = 24;
 
   const where = {
     is_active: true,
-    ...(q && { name: { contains: q, mode: "insensitive" as const } }),
-    ...(tipo && { type: { contains: tipo, mode: "insensitive" as const } }),
-    ...(color && { color: { contains: color, mode: "insensitive" as const } }),
+    ...(q     && { name:  { contains: q,     mode: "insensitive" as const } }),
+    ...(tipo  && { type:  { equals:   tipo,  mode: "insensitive" as const } }),
+    ...(color && { color: { equals:   color, mode: "insensitive" as const } }),
+    ...(talla && { variants: { some: { size: talla, is_active: true } } }),
   };
 
   const [products, total] = await Promise.all([
@@ -60,6 +62,35 @@ async function getProducts(params: SearchParams) {
   return { data, total, page, totalPages: Math.ceil(total / pageSize) };
 }
 
+async function getFilterOptions() {
+  const [tipoRows, colorRows, tallaRows] = await Promise.all([
+    prisma.product.findMany({
+      where: { is_active: true, type: { not: "" } },
+      select: { type: true },
+      distinct: ["type"],
+      orderBy: { type: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { is_active: true, color: { not: null } },
+      select: { color: true },
+      distinct: ["color"],
+      orderBy: { color: "asc" },
+    }),
+    prisma.productVariant.findMany({
+      where: { is_active: true },
+      select: { size: true },
+      distinct: ["size"],
+      orderBy: { size: "asc" },
+    }),
+  ]);
+
+  return {
+    tipos:  tipoRows.map((r) => r.type).filter(Boolean) as string[],
+    colors: colorRows.map((r) => r.color).filter(Boolean) as string[],
+    tallas: tallaRows.map((r) => r.size),
+  };
+}
+
 export default async function ProductosPage({
   searchParams,
 }: {
@@ -72,7 +103,10 @@ export default async function ProductosPage({
   const isVendor = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const channel = session.role === "vendedora_online" ? "online" : "tienda";
 
-  const { data, total, page, totalPages } = await getProducts(searchParams);
+  const [{ data, total, page, totalPages }, filterOptions] = await Promise.all([
+    getProducts(searchParams),
+    getFilterOptions(),
+  ]);
 
   // Fetch active carts for vendors (and admin) to populate the cart selector
   let activeCarts: CartJSON[] = [];
@@ -154,14 +188,14 @@ export default async function ProductosPage({
         </div>
         {canEdit && (
           <Link href="/dashboard/productos/nuevo" className={cn(buttonVariants())}>
-            <Plus size={16} className="mr-2" />
+            <Plus size={16} />
             Nuevo producto
           </Link>
         )}
       </div>
 
       {/* Filters */}
-      <ProductFilters />
+      <ProductFilters {...filterOptions} />
 
       {/* Grid */}
       {data.length === 0 ? (

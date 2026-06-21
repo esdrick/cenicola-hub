@@ -2,16 +2,20 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { shortOrderNumber } from "@/lib/order-utils";
-import { useTransition, useState } from "react";
+import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Search, X, Loader2, CheckCircle2 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Search, SlidersHorizontal, X, Loader2, CheckCircle2 } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
+import { cn } from "@/lib/utils";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 const METODO_LABELS: Record<PaymentType, string> = {
@@ -60,13 +64,22 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, start] = useTransition();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [q,      setQ]      = useState(sp.get("q") ?? "");
+  const [q,      setQ]      = useState(sp.get("q")      ?? "");
   const [metodo, setMetodo] = useState(sp.get("metodo") ?? "");
-  const [desde,  setDesde]  = useState(sp.get("desde") ?? "");
-  const [hasta,  setHasta]  = useState(sp.get("hasta") ?? "");
+  const [desde,  setDesde]  = useState(sp.get("desde")  ?? "");
+  const [hasta,  setHasta]  = useState(sp.get("hasta")  ?? "");
+
+  const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tmpMetodo, setTmpMetodo] = useState("");
+  const [tmpDesde,  setTmpDesde]  = useState("");
+  const [tmpHasta,  setTmpHasta]  = useState("");
+
+  useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
@@ -79,62 +92,137 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
   }
 
   function apply() { start(() => router.push(buildUrl({ page: 1 }))); }
-  function clear() {
-    setQ(""); setMetodo(""); setDesde(""); setHasta("");
-    start(() => router.push("/dashboard/pagos?tab=verificados"));
+
+  function clearSearch() {
+    setQ(""); setSearchOpen(false);
+    start(() => router.push(buildUrl({ q: "", page: 1 })));
   }
 
-  const hasFilters = !!(sp.get("q") || sp.get("metodo") || sp.get("desde") || sp.get("hasta"));
+  function openFilters() {
+    setTmpMetodo(metodo); setTmpDesde(desde); setTmpHasta(hasta);
+    setFiltersOpen(true);
+  }
+
+  function applyFilters() {
+    setMetodo(tmpMetodo); setDesde(tmpDesde); setHasta(tmpHasta);
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "verificados");
+    if (q)         params.set("q",      q);
+    if (tmpMetodo) params.set("metodo", tmpMetodo);
+    if (tmpDesde)  params.set("desde",  tmpDesde);
+    if (tmpHasta)  params.set("hasta",  tmpHasta);
+    start(() => router.push(`/dashboard/pagos?${params.toString()}`));
+  }
+
+  function clearFilters() {
+    setTmpMetodo(""); setTmpDesde(""); setTmpHasta("");
+    setMetodo("");    setDesde("");    setHasta("");
+    setFiltersOpen(false);
+    const params = new URLSearchParams();
+    params.set("tab", "verificados");
+    if (q) params.set("q", q);
+    start(() => router.push(`/dashboard/pagos?${params.toString()}`));
+  }
+
+  const activeFilterCount = [sp.get("metodo"), sp.get("desde"), sp.get("hasta")].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && apply()}
-            placeholder="Nombre, # de orden o referencia…"
-            className="pl-8"
-          />
-        </div>
-
-        <Select value={metodo || "all"} onValueChange={(v) => setMetodo(v === "all" ? "" : (v ?? ""))}>
-          <SelectTrigger className="w-44">
-            <span data-slot="select-value" className="flex-1 text-left">
-              {metodo ? (METODO_LABELS[metodo as PaymentType] ?? metodo) : "Todos los métodos"}
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los métodos</SelectItem>
-            <SelectItem value="efectivo">Efectivo</SelectItem>
-            <SelectItem value="transferencia">Transferencia</SelectItem>
-            <SelectItem value="zelle">Zelle</SelectItem>
-            <SelectItem value="pago_movil">Pago Móvil</SelectItem>
-            <SelectItem value="usdt">USDT</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-400">Desde</span>
-          <Input type="date" value={desde} max={today} onChange={(e) => setDesde(e.target.value)} className="w-36" />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] text-gray-400">Hasta</span>
-          <Input type="date" value={hasta} max={today} onChange={(e) => setHasta(e.target.value)} className="w-36" />
-        </div>
-
-        <Button variant="outline" onClick={apply} disabled={isPending} className="rounded-full px-4">
-          {isPending ? <Loader2 size={14} className="animate-spin" /> : <><Search size={13} className="mr-1" />Filtrar</>}
-        </Button>
-        {hasFilters && (
-          <Button variant="ghost" size="sm" onClick={clear} disabled={isPending}>
-            <X size={14} className="mr-1" />Limpiar
+      <div className="flex items-center gap-2">
+        {searchOpen ? (
+          <div className="relative flex-1">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Input
+              ref={searchRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") apply();
+                if (e.key === "Escape" && !q) setSearchOpen(false);
+              }}
+              placeholder="Nombre, # de orden o referencia…"
+              className="pl-9 pr-9"
+            />
+            <button onClick={clearSearch} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <Button
+            variant="outline" size="icon"
+            onClick={() => setSearchOpen(true)}
+            title="Buscar"
+            className={sp.get("q") ? "border-gray-900 text-gray-900" : ""}
+          >
+            <Search size={16} />
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          onClick={openFilters}
+          className={cn("gap-2", activeFilterCount > 0 && "border-gray-900 text-gray-900")}
+        >
+          <SlidersHorizontal size={15} />
+          Filtros
+          {activeFilterCount > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-900 text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        {isPending && <Loader2 size={14} className="animate-spin text-gray-400" />}
       </div>
+
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Filtros</DialogTitle></DialogHeader>
+          <div className="space-y-5 py-1">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Método de pago</p>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(METODO_LABELS) as [PaymentType, string][]).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpMetodo(tmpMetodo === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpMetodo === value
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Desde</Label>
+                <Input type="date" value={tmpDesde} max={today} onChange={(e) => setTmpDesde(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Hasta</Label>
+                <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="ghost" onClick={clearFilters}
+              disabled={isPending || (!tmpMetodo && !tmpDesde && !tmpHasta && !metodo && !desde && !hasta)}>
+              Limpiar
+            </Button>
+            <Button onClick={applyFilters} disabled={isPending}>
+              {isPending && <Loader2 size={14} className="animate-spin" />}
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border bg-white">
@@ -161,31 +249,20 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
               </TableRow>
             ) : (
               payments.map((p) => (
-                <TableRow
-                  key={p.id}
-                  className="cursor-pointer hover:bg-gray-50/50"
+                <TableRow key={p.id} className="cursor-pointer hover:bg-gray-50/50"
                   onClick={() => {
                     const qs = sp.toString();
                     router.push(`/dashboard/pagos/${p.order.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
-                  }}
-                >
+                  }}>
                   <TableCell className="font-mono text-xs font-semibold text-gray-700">
                     {shortOrderNumber(p.order.order_number)}
                   </TableCell>
                   <TableCell>
-                    <p className="text-sm font-medium">
-                      {p.order.customer_name} {p.order.customer_lastname}
-                    </p>
+                    <p className="text-sm font-medium">{p.order.customer_name} {p.order.customer_lastname}</p>
                   </TableCell>
-                  <TableCell className="text-sm text-gray-600">
-                    {p.order.creator.name}
-                  </TableCell>
+                  <TableCell className="text-sm text-gray-600">{p.order.creator.name}</TableCell>
                   <TableCell>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      p.order.channel === "online"
-                        ? "bg-blue-50 text-blue-700"
-                        : "bg-gray-100 text-gray-700"
-                    }`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.order.channel === "online" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
                       {p.order.channel === "online" ? "Online" : "Tienda"}
                     </span>
                   </TableCell>
@@ -205,25 +282,17 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
                     ${p.amount_usd.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    {p.verifier ? (
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
-                        <span className="text-sm text-gray-700">{p.verifier.name}</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
-                        <span className="text-sm text-gray-700">Venta de tienda</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
+                      <span className="text-sm text-gray-700">
+                        {p.verifier?.name ?? "Venta de tienda"}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
                     {new Date(p.verified_at ?? p.created_at).toLocaleDateString("es-VE", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
+                      day: "2-digit", month: "2-digit", year: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
                     })}
                   </TableCell>
                 </TableRow>
@@ -234,12 +303,8 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
       </div>
 
       <Pagination
-        page={page}
-        totalPages={totalPages}
-        total={total}
-        noun="pago"
-        nounPlural="pagos"
-        isPending={isPending}
+        page={page} totalPages={totalPages} total={total}
+        noun="pago" nounPlural="pagos" isPending={isPending}
         onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
         onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
       />

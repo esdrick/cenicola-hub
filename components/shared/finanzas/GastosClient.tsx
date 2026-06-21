@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Trash2, Plus, Loader2, Search, X } from "lucide-react";
+import { DialogTrigger } from "@/components/ui/dialog";
 
 type GastoJSON = {
   id: string;
@@ -65,6 +66,9 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
   const [filterD, setFilterD] = useState(filterDesde);
   const [filterH, setFilterHasta] = useState(filterHasta);
 
+  // Create dialog
+  const [createOpen, setCreateOpen] = useState(false);
+
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<GastoJSON | null>(null);
 
@@ -99,6 +103,7 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
         const json = await res.json();
         if (!res.ok) { setFormError(json.error ?? "Error al guardar"); return; }
         setDescripcion(""); setMonto(""); setCategoria("operativo"); setFecha(todayStr); setNotas("");
+        setCreateOpen(false);
         router.refresh();
       } catch {
         setFormError("Error de conexión");
@@ -129,75 +134,84 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
 
   return (
     <div className="space-y-5">
-      {/* Form */}
-      <div className="rounded-xl border bg-white p-5">
-        <h2 className="mb-4 font-semibold text-gray-900 flex items-center gap-2">
-          <Plus size={16} /> Registrar gasto
-        </h2>
-        <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="space-y-1 lg:col-span-2">
-            <Label className="text-xs">Descripción *</Label>
-            <Input
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-              placeholder="Ej: Pago de alquiler oficina"
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Monto (USD) *</Label>
-            <Input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
-              placeholder="0.00"
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Categoría *</Label>
-            <select
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
-              disabled={isPending}
-            >
-              {CATEGORIAS.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Fecha *</Label>
-            <Input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Notas</Label>
-            <Input
-              value={notas}
-              onChange={(e) => setNotas(e.target.value)}
-              placeholder="Opcional"
-              disabled={isPending}
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
-              Guardar gasto
-            </Button>
+      {/* Create dialog */}
+      <Dialog open={createOpen} onOpenChange={(o) => { setCreateOpen(o); if (!o) setFormError(null); }}>
+        <DialogTrigger render={<Button className="gap-2" />}>
+          <Plus size={15} /> Registrar gasto
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar gasto</DialogTitle>
+            <DialogDescription>Completa los campos para agregar un nuevo gasto.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-xs">Descripción *</Label>
+              <Input
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: Pago de alquiler oficina"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Monto (USD) *</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={monto}
+                onChange={(e) => setMonto(e.target.value)}
+                placeholder="0.00"
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Categoría *</Label>
+              <select
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                disabled={isPending}
+              >
+                {CATEGORIAS.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Fecha *</Label>
+              <Input
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Notas</Label>
+              <Input
+                value={notas}
+                onChange={(e) => setNotas(e.target.value)}
+                placeholder="Opcional"
+                disabled={isPending}
+              />
+            </div>
             {formError && (
-              <p className="text-sm text-red-600">{formError}</p>
+              <p className="sm:col-span-2 text-sm text-red-600">{formError}</p>
             )}
-          </div>
-        </form>
-      </div>
+            <DialogFooter className="sm:col-span-2">
+              <Button variant="outline" type="button" onClick={() => setCreateOpen(false)} disabled={isPending}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+                Guardar gasto
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters */}
       <div className="flex flex-wrap items-end gap-3 rounded-xl border bg-white p-4">

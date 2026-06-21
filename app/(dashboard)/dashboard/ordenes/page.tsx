@@ -155,7 +155,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
         </div>
         {canUseCarts && (
           <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
-            <Plus size={16} className="mr-2" />
+            <Plus size={16} />
             Nueva orden
           </Link>
         )}

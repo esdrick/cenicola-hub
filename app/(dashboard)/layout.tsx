@@ -15,7 +15,7 @@ export default async function DashboardLayout({
       <Sidebar session={session} />
 
       {/* Desktop offset — matches sidebar width */}
-      <div className="lg:pl-60">
+      <div className="lg:pl-64">
         {/* On mobile the top bar is rendered inside Sidebar */}
         <main className="p-6">{children}</main>
       </div>

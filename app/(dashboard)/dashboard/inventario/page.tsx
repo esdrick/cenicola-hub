@@ -184,11 +184,19 @@ export default async function InventarioPage({
   const lowStockThreshold = await getSetting("low_stock_threshold");
 
   const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "UNIQUE"];
-  const rawSizes = await prisma.productVariant.findMany({
-    select: { size: true },
-    distinct: ["size"],
-    orderBy: { size: "asc" },
-  });
+  const [rawSizes, rawTipos] = await Promise.all([
+    prisma.productVariant.findMany({
+      select: { size: true },
+      distinct: ["size"],
+      orderBy: { size: "asc" },
+    }),
+    prisma.product.findMany({
+      where: { is_active: true, type: { not: "" } },
+      select: { type: true },
+      distinct: ["type"],
+      orderBy: { type: "asc" },
+    }),
+  ]);
   const tallas = rawSizes
     .map((v) => v.size)
     .sort((a, b) => {
@@ -199,6 +207,7 @@ export default async function InventarioPage({
       if (ib !== -1) return 1;
       return a.localeCompare(b);
     });
+  const tipos = rawTipos.map((t) => t.type).filter(Boolean) as string[];
 
   const stockResult = tab !== "movimientos" ? await getStock(searchParams, lowStockThreshold) : null;
   const movResult = tab === "movimientos" ? await getMovements(searchParams) : null;
@@ -247,6 +256,7 @@ export default async function InventarioPage({
             totalPages={stockResult!.totalPages}
             lowStockThreshold={lowStockThreshold}
             tallas={tallas}
+            tipos={tipos}
           />
         )}
       </Suspense>
