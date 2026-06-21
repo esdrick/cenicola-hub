@@ -34,49 +34,49 @@ function CartCard({ cart, onDelete }: { cart: CartJSON; onDelete: (id: string) =
         type="button"
         onClick={handleDelete}
         disabled={deleting}
-        className="absolute right-3 top-3 text-gray-300 hover:text-red-500 transition-colors"
+        className="absolute right-3 top-3 p-1 text-gray-300 hover:text-red-500 transition-colors"
         title="Eliminar preorden"
       >
-        {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+        {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
       </button>
 
       {/* Header */}
-      <div className="pr-6">
-        <p className="text-sm font-semibold text-gray-900 truncate">{label}</p>
-        <p className="text-xs text-gray-400 mt-0.5 capitalize">
+      <div className="pr-8">
+        <p className="text-base font-semibold text-gray-900 truncate">{label}</p>
+        <p className="text-sm text-gray-400 mt-0.5 capitalize">
           {cart.channel} · {cart.items.length} producto{cart.items.length !== 1 ? "s" : ""} · ${cart.total_usd.toFixed(2)} USD
         </p>
       </div>
 
       {/* Stock warning */}
       {cart.has_stock_issues && (
-        <p className="flex items-center gap-1 text-xs text-orange-600">
-          <AlertTriangle size={11} />
+        <p className="flex items-center gap-1.5 text-sm text-orange-600">
+          <AlertTriangle size={14} />
           Stock insuficiente en algunos productos
         </p>
       )}
 
       {/* Product thumbnails */}
       {cart.items.length > 0 && (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {preview.map((item) => (
             item.variant.product.photos[0] ? (
               <Image
                 key={item.id}
                 src={item.variant.product.photos[0]}
                 alt={item.variant.product.name}
-                width={32} height={32}
-                className="h-8 w-8 rounded object-cover border"
+                width={40} height={40}
+                className="h-10 w-10 rounded-lg object-cover border"
                 title={`${item.variant.product.name} ${item.variant.size}`}
               />
             ) : (
-              <div key={item.id} className="h-8 w-8 rounded border bg-gray-100 flex items-center justify-center">
-                <ShoppingCart size={12} className="text-gray-400" />
+              <div key={item.id} className="h-10 w-10 rounded-lg border bg-gray-100 flex items-center justify-center">
+                <ShoppingCart size={14} className="text-gray-400" />
               </div>
             )
           ))}
           {extra > 0 && (
-            <span className="h-8 w-8 rounded border bg-gray-100 flex items-center justify-center text-xs text-gray-500 font-medium">
+            <span className="h-10 w-10 rounded-lg border bg-gray-100 flex items-center justify-center text-sm text-gray-500 font-medium">
               +{extra}
             </span>
           )}
@@ -87,17 +87,17 @@ function CartCard({ cart, onDelete }: { cart: CartJSON; onDelete: (id: string) =
       <div className="flex items-center gap-2 pt-1">
         <Link
           href={`/dashboard/carritos/${cart.id}`}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-xs h-7 px-2.5")}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
         >
           Editar
         </Link>
         {cart.items.length > 0 && (
           <Link
             href={`/dashboard/carritos/${cart.id}/completar`}
-            className={cn(buttonVariants({ size: "sm" }), "text-xs h-7 px-2.5")}
+            className={cn(buttonVariants({ size: "sm" }))}
           >
             Completar
-            <ChevronRight size={12} className="ml-1" />
+            <ChevronRight size={14} className="ml-1" />
           </Link>
         )}
       </div>

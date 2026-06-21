@@ -124,12 +124,10 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
 
   function addVariant(variantId: string, maxQty: number) {
     const existing = cartItems.find((i) => i.variant_id === variantId);
-    const draft = variantQty[variantId] ?? 1;
-    const newQty = existing
-      ? Math.min(existing.quantity + draft, maxQty)
-      : Math.min(draft, maxQty);
+    const draft = variantQty[variantId] ?? existing?.quantity ?? 1;
+    const newQty = Math.min(draft, maxQty);
     updateItem(variantId, newQty);
-    setVariantQty((p) => ({ ...p, [variantId]: 1 }));
+    setVariantQty((p) => { const next = { ...p }; delete next[variantId]; return next; });
   }
 
   // ─── Save note ─────────────────────────────────────────────────────────────
@@ -171,7 +169,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_400px]">
 
       {/* ── LEFT: Catalog ── */}
       <div className="space-y-4">
@@ -179,8 +177,8 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
         <div className="rounded-xl border bg-white p-4 space-y-3">
           {/* Channel selector for admin before cart is created */}
           {isAdmin && !cartId ? (
-            <div className="space-y-1">
-              <Label className="text-xs text-gray-500">Canal</Label>
+            <div className="space-y-1.5">
+              <Label className="text-sm text-gray-500">Canal</Label>
               <div className="flex gap-2">
                 {(["tienda", "online"] as const).map((ch) => (
                   <button
@@ -188,7 +186,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                     type="button"
                     onClick={() => setChannel(ch)}
                     className={cn(
-                      "flex-1 rounded-lg border py-1.5 text-sm font-medium capitalize transition-colors",
+                      "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                       channel === ch
                         ? "border-gray-900 bg-gray-900 text-white"
                         : "border-gray-200 text-gray-600 hover:border-gray-400"
@@ -200,14 +198,14 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
               </div>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 capitalize">
+            <p className="text-sm text-gray-400 capitalize">
               Canal: <span className="font-medium">{channel}</span>
             </p>
           )}
 
           <div className="flex items-end gap-3">
-            <div className="flex-1 space-y-1">
-              <Label className="text-xs text-gray-500">Nota de la orden (opcional)</Label>
+            <div className="flex-1 space-y-1.5">
+              <Label className="text-sm text-gray-500">Nota de la orden (opcional)</Label>
               <Input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -219,7 +217,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
               disabled={savingNote || (note === (cart?.note ?? "") && !!cartId) || (!cartId && !note.trim())}
               onClick={saveNote}
             >
-              {savingNote ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+              {savingNote ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Guardar
             </Button>
           </div>
@@ -328,33 +326,28 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                         <p className="text-xs text-gray-400 py-1">Sin stock en {channel}</p>
                       ) : (
                         <>
-                          <p className="text-xs font-medium text-gray-500 mb-2">Seleccionar talla y cantidad</p>
+                          <p className="text-sm font-medium text-gray-500 mb-2">Seleccionar talla y cantidad</p>
                           {availableVariants.map((v) => {
                             const stock = channelStock(v);
                             const inCartItem = cartItems.find((i) => i.variant_id === v.id);
-                            const qty = variantQty[v.id] ?? 1;
+                            const qty = variantQty[v.id] ?? inCartItem?.quantity ?? 1;
                             const isUpdating = updating === v.id;
 
                             return (
-                              <div key={v.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-white px-3 py-2">
-                                <span className="w-12 shrink-0 text-sm font-semibold text-gray-800">{v.size}</span>
+                              <div key={v.id} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2">
+                                <span className="w-10 shrink-0 text-sm font-semibold text-gray-800">{v.size}</span>
 
-                                <span className="text-xs text-gray-500 flex-1 min-w-[80px]">
-                                  ${v.price_usd.toFixed(2)} · stock: {stock}
-                                  {inCartItem && (
-                                    <span className="ml-2 text-emerald-600 font-medium">
-                                      ({inCartItem.quantity} en orden)
-                                    </span>
-                                  )}
+                                <span className="text-sm text-gray-500 flex-1">
+                                  ${v.price_usd.toFixed(2)} · {stock} disp.
                                 </span>
 
-                                <div className="flex items-center gap-1 ml-auto">
+                                <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => setVariantQty((p) => ({ ...p, [v.id]: Math.max(1, (p[v.id] ?? 1) - 1) }))}
-                                    className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50"
+                                    onClick={() => setVariantQty((p) => ({ ...p, [v.id]: Math.max(1, (p[v.id] ?? qty) - 1) }))}
+                                    className="h-7 w-7 rounded border flex items-center justify-center hover:bg-gray-50"
                                   >
-                                    <Minus size={10} />
+                                    <Minus size={12} />
                                   </button>
                                   <Input
                                     type="number"
@@ -367,14 +360,14 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                                         [v.id]: Math.max(1, Math.min(stock, parseInt(e.target.value) || 1)),
                                       }))
                                     }
-                                    className="h-6 w-12 text-center text-xs px-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                    className="h-7 w-12 text-center text-sm px-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => setVariantQty((p) => ({ ...p, [v.id]: Math.min(stock, (p[v.id] ?? 1) + 1) }))}
-                                    className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50"
+                                    onClick={() => setVariantQty((p) => ({ ...p, [v.id]: Math.min(stock, (p[v.id] ?? qty) + 1) }))}
+                                    className="h-7 w-7 rounded border flex items-center justify-center hover:bg-gray-50"
                                   >
-                                    <Plus size={10} />
+                                    <Plus size={12} />
                                   </button>
                                 </div>
 
@@ -384,9 +377,9 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                                   onClick={() => addVariant(v.id, stock)}
                                 >
                                   {isUpdating ? (
-                                    <Loader2 size={11} className="animate-spin" />
+                                    <Loader2 size={14} className="animate-spin" />
                                   ) : inCartItem ? (
-                                    "Agregar más"
+                                    "Actualizar"
                                   ) : (
                                     "Agregar"
                                   )}
@@ -423,8 +416,8 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
         <div className="sticky top-4 space-y-4">
           <div className="rounded-xl border bg-white p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-                <ShoppingCart size={14} />
+              <h2 className="flex items-center gap-2 text-base font-semibold text-gray-700">
+                <ShoppingCart size={16} />
                 Productos seleccionados
                 {cartCount > 0 && (
                   <span className="rounded-full bg-gray-900 px-1.5 py-0.5 text-xs text-white">
@@ -438,16 +431,16 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             </div>
 
             {cart?.has_stock_issues && (
-              <div className="flex items-start gap-1.5 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
-                <AlertTriangle size={13} className="text-orange-500 mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-orange-700">
+              <div className="flex items-start gap-2 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2.5">
+                <AlertTriangle size={15} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-orange-700">
                   Algunos productos ya no tienen stock suficiente.
                 </p>
               </div>
             )}
 
             {cartItems.length === 0 ? (
-              <p className="py-4 text-center text-xs text-gray-400">
+              <p className="py-4 text-center text-sm text-gray-400">
                 Usa el <strong>+</strong> en un producto para agregar aquí
               </p>
             ) : (
@@ -456,7 +449,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                   <div
                     key={item.variant_id}
                     className={cn(
-                      "flex items-center gap-2 py-2 px-1 rounded",
+                      "flex items-center gap-2 py-2.5 px-1 rounded",
                       item.stock_warning && "bg-orange-50"
                     )}
                   >
@@ -464,13 +457,13 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                       <Image
                         src={item.variant.product.photos[0]}
                         alt={item.variant.product.name}
-                        width={32} height={32}
-                        className="h-8 w-8 flex-shrink-0 rounded object-cover"
+                        width={40} height={40}
+                        className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
                       />
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium truncate">{item.variant.product.name}</p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-sm font-medium truncate">{item.variant.product.name}</p>
+                      <p className="text-sm text-gray-400">
                         {item.variant.size}
                         {item.stock_warning && (
                           <span className="ml-1 text-orange-500">
@@ -479,37 +472,37 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                         )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => updateItem(item.variant_id, Math.max(1, item.quantity - 1))}
                         disabled={!!updating}
-                        className="h-5 w-5 rounded flex items-center justify-center hover:bg-gray-100 disabled:opacity-40"
+                        className="h-6 w-6 rounded flex items-center justify-center hover:bg-gray-100 disabled:opacity-40"
                       >
-                        <Minus size={10} />
+                        <Minus size={12} />
                       </button>
-                      <span className="w-5 text-center text-xs font-medium">{item.quantity}</span>
+                      <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                       <button
                         type="button"
                         onClick={() => updateItem(item.variant_id, Math.min(item.stock_available, item.quantity + 1))}
                         disabled={!!updating || item.quantity >= item.stock_available}
-                        className="h-5 w-5 rounded flex items-center justify-center hover:bg-gray-100 disabled:opacity-40"
+                        className="h-6 w-6 rounded flex items-center justify-center hover:bg-gray-100 disabled:opacity-40"
                       >
-                        <Plus size={10} />
+                        <Plus size={12} />
                       </button>
                     </div>
-                    <span className="text-xs font-semibold w-14 text-right">
+                    <span className="text-sm font-semibold w-16 text-right">
                       ${(item.unit_price_usd * item.quantity).toFixed(2)}
                     </span>
                     {updating === item.variant_id ? (
-                      <Loader2 size={12} className="animate-spin text-gray-400 flex-shrink-0" />
+                      <Loader2 size={14} className="animate-spin text-gray-400 flex-shrink-0" />
                     ) : (
                       <button
                         type="button"
                         onClick={() => updateItem(item.variant_id, 0)}
-                        className="text-gray-300 hover:text-red-500 flex-shrink-0"
+                        className="p-1 text-gray-300 hover:text-red-500 flex-shrink-0"
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
@@ -520,15 +513,15 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
 
           {error && (
             <Alert variant="destructive" className="py-2">
-              <AlertCircle size={13} />
-              <AlertDescription className="text-xs">{error}</AlertDescription>
+              <AlertCircle size={14} />
+              <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
           {cartId && cartItems.length > 0 && (
             <>
               {cart?.has_stock_issues && (
-                <p className="text-xs text-center text-orange-600">
+                <p className="text-sm text-center text-orange-600">
                   Corrige el stock antes de continuar
                 </p>
               )}
@@ -550,7 +543,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             disabled={deleting}
             className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
           >
-            {deleting ? <Loader2 size={13} className="animate-spin mr-1.5" /> : <Trash2 size={13} className="mr-1.5" />}
+            {deleting ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Trash2 size={14} className="mr-1.5" />}
             Cancelar orden
           </Button>
         </div>

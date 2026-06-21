@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -173,39 +175,39 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
       )}
 
       {/* Table */}
-      <div className="rounded-xl border bg-white overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-xs text-gray-500">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Documento</th>
-              <th className="px-4 py-3 text-left font-medium">Nombre</th>
-              <th className="px-4 py-3 text-left font-medium">Dirección</th>
-              <th className="px-4 py-3 text-center font-medium">Órdenes</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y">
+      <div className="overflow-x-auto rounded-xl border bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Documento</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Dirección</TableHead>
+              <TableHead className="text-center">Órdenes</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {loading && (
-              <tr>
-                <td colSpan={5} className="py-10 text-center text-gray-400">
+              <TableRow>
+                <TableCell colSpan={5} className="py-10 text-center text-gray-400">
                   <Loader2 size={18} className="animate-spin inline" />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {!loading && customers.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-10 text-center text-gray-400 text-sm">
+              <TableRow>
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-gray-400">
                   No hay clientes registrados
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {!loading && customers.map((c) => {
               const isEditing = editing?.id === c.id;
               return (
-                <tr key={c.id} className={cn(isEditing && "bg-blue-50")}>
+                <TableRow key={c.id} className={cn(isEditing && "bg-blue-50")}>
                   {isEditing ? (
                     <>
-                      <td className="px-4 py-2">
+                      <TableCell>
                         <div className="flex gap-1">
                           <Select value={editing.doc_type}
                             onValueChange={(v) => setEditing((p) => p ? { ...p, doc_type: v as DocType } : p)}>
@@ -223,8 +225,8 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                             onChange={(e) => setEditing((p) => p ? { ...p, doc_number: e.target.value.replace(/\D/g, "") } : p)}
                           />
                         </div>
-                      </td>
-                      <td className="px-4 py-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex gap-1">
                           <Input className="h-8 text-xs" value={editing.name}
                             onChange={(e) => setEditing((p) => p ? { ...p, name: e.target.value } : p)}
@@ -233,16 +235,16 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                             onChange={(e) => setEditing((p) => p ? { ...p, lastname: e.target.value } : p)}
                             placeholder="Apellido" />
                         </div>
-                      </td>
-                      <td className="px-4 py-2">
+                      </TableCell>
+                      <TableCell>
                         <Input className="h-8 text-xs" value={editing.address}
                           onChange={(e) => setEditing((p) => p ? { ...p, address: e.target.value } : p)}
                           placeholder="Dirección" />
-                      </td>
-                      <td className="px-4 py-2 text-center text-gray-500">
+                      </TableCell>
+                      <TableCell className="text-center text-gray-500">
                         {c._count?.orders ?? 0}
-                      </td>
-                      <td className="px-4 py-2">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1">
                           <Button size="sm" className="h-7 px-2 text-xs" onClick={saveEdit} disabled={saving}>
                             {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
@@ -252,23 +254,23 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                             <X size={12} />
                           </Button>
                         </div>
-                      </td>
+                      </TableCell>
                     </>
                   ) : (
                     <>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-700">
+                      <TableCell className="font-mono text-xs text-gray-700">
                         {c.doc_type}-{c.doc_number}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-900">
                         {c.name} {c.lastname}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs max-w-[200px] truncate">
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500 max-w-[200px] truncate">
                         {c.address ?? <span className="italic">Sin dirección</span>}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-500">
+                      </TableCell>
+                      <TableCell className="text-center text-sm text-gray-600">
                         {c._count?.orders ?? 0}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1 justify-end">
                           <button type="button" onClick={() => startEdit(c)}
                             className="text-gray-300 hover:text-blue-500 p-1">
@@ -279,14 +281,14 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                             <Trash2 size={13} />
                           </button>
                         </div>
-                      </td>
+                      </TableCell>
                     </>
                   )}
-                </tr>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {/* Pagination */}

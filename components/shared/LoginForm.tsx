@@ -51,7 +51,9 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
       <div className="space-y-1.5">
-        <Label htmlFor="email">Correo electrónico</Label>
+        <Label htmlFor="email" className="text-sm font-medium">
+          Correo electrónico
+        </Label>
         <Input
           id="email"
           type="email"
@@ -61,11 +63,14 @@ export function LoginForm() {
           placeholder="usuario@cenicola.com"
           disabled={loading}
           required
+          className="h-11 text-base px-4"
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="password">Contraseña</Label>
+        <Label htmlFor="password" className="text-sm font-medium">
+          Contraseña
+        </Label>
         <div className="relative">
           <Input
             id="password"
@@ -76,7 +81,7 @@ export function LoginForm() {
             placeholder="••••••••"
             disabled={loading}
             required
-            className="pr-10"
+            className="h-11 text-base px-4 pr-12"
           />
           <button
             type="button"
@@ -85,7 +90,7 @@ export function LoginForm() {
             tabIndex={-1}
             aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
           >
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         </div>
       </div>
@@ -99,10 +104,10 @@ export function LoginForm() {
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button type="submit" className="h-11 w-full text-base" disabled={loading}>
         {loading ? (
           <>
-            <Loader2 size={16} className="mr-2 animate-spin" />
+            <Loader2 size={17} className="mr-2 animate-spin" />
             Iniciando sesión…
           </>
         ) : (

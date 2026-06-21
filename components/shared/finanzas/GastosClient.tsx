@@ -184,6 +184,7 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
               <Input
                 type="date"
                 value={fecha}
+                max={todayStr}
                 onChange={(e) => setFecha(e.target.value)}
                 disabled={isPending}
               />
@@ -230,11 +231,11 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-gray-500">Desde</Label>
-          <Input type="date" value={filterD} onChange={(e) => setFilterD(e.target.value)} className="w-36 text-sm" />
+          <Input type="date" value={filterD} max={todayStr} onChange={(e) => setFilterD(e.target.value)} className="w-36 text-sm" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs text-gray-500">Hasta</Label>
-          <Input type="date" value={filterH} onChange={(e) => setFilterHasta(e.target.value)} className="w-36 text-sm" />
+          <Input type="date" value={filterH} max={todayStr} onChange={(e) => setFilterHasta(e.target.value)} className="w-36 text-sm" />
         </div>
         <Button variant="outline" onClick={applyFilters} className="rounded-full px-4">
           <Search size={13} className="mr-1" />Filtrar

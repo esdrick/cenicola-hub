@@ -278,6 +278,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                     <Input
                       type="date"
                       value={form.payment_date}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value }))}
                     />
                   </div>

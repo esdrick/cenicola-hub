@@ -80,6 +80,7 @@ function getWeekRange() {
 }
 
 const MONTH = getMonthRange();
+const today = new Date().toISOString().slice(0, 10);
 
 export function ResumenClient() {
   const [desde, setDesde] = useState(MONTH.desde);
@@ -212,6 +213,7 @@ export function ResumenClient() {
             <Input
               type="date"
               value={desde}
+              max={today}
               onChange={(e) => { setDesde(e.target.value); setActivePreset("custom"); }}
               className="w-40 text-sm"
             />
@@ -221,6 +223,7 @@ export function ResumenClient() {
             <Input
               type="date"
               value={hasta}
+              max={today}
               onChange={(e) => { setHasta(e.target.value); setActivePreset("custom"); }}
               className="w-40 text-sm"
             />
@@ -248,7 +251,7 @@ export function ResumenClient() {
       )}
 
       {/* Tarjetas de resumen */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         {loading
           ? Array.from({ length: 5 }).map((_, i) => (
               <Card key={i} className="animate-pulse">
@@ -357,7 +360,7 @@ export function ResumenClient() {
       {/* Accesos rápidos */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-700">Accesos rápidos</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {LINKS.map((l) => (
             <Link
               key={l.href}

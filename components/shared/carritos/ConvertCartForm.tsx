@@ -47,28 +47,28 @@ const STEPS = ["Productos", "Cliente", "Pago"];
 function StepIndicator({ step, channel }: { step: number; channel: string }) {
   return (
     <div className="flex items-center justify-between mb-6 gap-2">
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex items-center gap-2 sm:gap-3">
         {STEPS.map((label, i) => (
-          <div key={i} className="flex items-center gap-1 sm:gap-2">
+          <div key={i} className="flex items-center gap-2 sm:gap-3">
             <div className={cn(
-              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
               i + 1 === step ? "bg-gray-900 text-white" :
               i + 1 < step  ? "bg-emerald-500 text-white" :
                               "bg-gray-100 text-gray-500"
             )}>
-              {i + 1 < step ? <Check size={12} /> : i + 1}
+              {i + 1 < step ? <Check size={15} /> : i + 1}
             </div>
             <span className={cn(
               "hidden sm:block text-sm",
               i + 1 === step ? "font-semibold text-gray-900" : "text-gray-400"
             )}>{label}</span>
             {i < STEPS.length - 1 && (
-              <ChevronRight size={14} className="text-gray-300 mx-0.5 sm:mx-1" />
+              <ChevronRight size={16} className="text-gray-300 mx-1 sm:mx-2" />
             )}
           </div>
         ))}
       </div>
-      <span className="shrink-0 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
+      <span className="shrink-0 text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full capitalize">
         {channel}
       </span>
     </div>
@@ -647,16 +647,20 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
           {/* Tasas de referencia */}
           {tasaLoading && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Loader2 size={11} className="animate-spin" /> Cargando tasas…
+            <div className="flex items-center gap-1.5 rounded-xl border bg-white px-5 py-3 text-sm text-gray-400">
+              <Loader2 size={14} className="animate-spin" /> Cargando tasas…
             </div>
           )}
           {!tasaLoading && tasa && (
-            <span className="inline-flex items-center gap-3 rounded-full border bg-white px-4 py-1.5 text-xs text-gray-600">
-              <span><span className="font-semibold text-gray-800">USD</span> {fmtBs(tasa.rate)}{tasa.stale && <AlertTriangle size={9} className="inline ml-0.5 text-amber-500" />}</span>
-              {tasa.eur_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">EUR</span> {fmtBs(tasa.eur_rate)}</span></>}
-              {tasa.paralelo_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">Paralelo</span> {fmtBs(tasa.paralelo_rate)}</span></>}
-            </span>
+            <div className="w-full sm:w-fit rounded-xl border bg-white px-5 py-3">
+              <p className="mb-1.5 text-xs font-medium text-gray-400">Tasas de referencia</p>
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold text-gray-800">USD</span> {fmtBs(tasa.rate)} Bs.
+                {tasa.stale && <AlertTriangle size={11} className="inline ml-1 text-amber-500" />}
+                {tasa.eur_rate != null && <> · <span className="font-semibold text-gray-800">EUR</span> {fmtBs(tasa.eur_rate)} Bs.</>}
+                {tasa.paralelo_rate != null && <> · <span className="font-semibold text-gray-800">Paralelo</span> {fmtBs(tasa.paralelo_rate)} Bs.</>}
+              </p>
+            </div>
           )}
 
           {payments.length > 0 && (
@@ -672,10 +676,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                       <span className={cn("font-medium", isEditing && "text-blue-700")}>
                         {PAYMENT_TYPE_LABELS[p.payment_type]}
                       </span>
-                      {p.reference && <span className="text-xs text-gray-400">ref: {p.reference}</span>}
-                      <span className="text-xs text-gray-400">{p.payment_date}</span>
+                      {p.reference && <span className="text-sm text-gray-400">ref: {p.reference}</span>}
+                      <span className="text-sm text-gray-400">{p.payment_date}</span>
                       {isEditing && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
                           Editando…
                         </span>
                       )}
@@ -705,10 +709,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
           {(remaining > 0.005 || editingIndex !== null) && (
             <div className="rounded-xl border bg-white p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-gray-700">
+              <h2 className="text-base font-semibold text-gray-700">
                 {editingIndex !== null ? "Editar pago" : "Agregar pago"}
               </h2>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Tipo *</Label>
                   <select
@@ -756,16 +760,16 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                           className={`[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none${montoError ? " border-red-400 focus-visible:ring-red-400" : ""}`}
                         />
                         {montoError && (
-                          <p className="text-xs text-red-600">{montoError}</p>
+                          <p className="text-sm text-red-600">{montoError}</p>
                         )}
                         {!montoError && amountBs !== null && (
                           <div className="rounded-md bg-emerald-50 border border-emerald-100 px-2.5 py-1.5">
-                            <p className="text-xs text-emerald-700 font-medium">≈ Bs. {fmtBs(amountBs)}</p>
-                            <p className="text-[10px] text-emerald-500 mt-0.5">
+                            <p className="text-sm text-emerald-700 font-medium">≈ Bs. {fmtBs(amountBs)}</p>
+                            <p className="text-xs text-emerald-500 mt-0.5">
                               Tasa: Bs. {fmtBs(tasa!.rate)} × $1
                               {tasa!.stale && (
                                 <span className="ml-1 inline-flex items-center gap-0.5 text-amber-600">
-                                  <AlertTriangle size={9} /> desactualizada
+                                  <AlertTriangle size={11} /> desactualizada
                                 </span>
                               )}
                             </p>
@@ -777,14 +781,14 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 </div>
               </div>
               {draft.payment_type !== "efectivo" && (
-                <div className="flex gap-3">
-                  <div className="flex-1 space-y-1.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
                     <Label>Fecha</Label>
                     <Input type="date" value={draft.payment_date}
                       max={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))} />
                   </div>
-                  <div className="w-32 space-y-1.5">
+                  <div className="space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))} />

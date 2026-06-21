@@ -219,7 +219,7 @@ export default async function InventarioPage({
 
   const tabClass = (active: boolean) =>
     cn(
-      "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+      "flex flex-1 sm:flex-none items-center justify-center sm:justify-start rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
       active
         ? "bg-gray-900 text-white shadow-sm"
         : "text-gray-500 hover:text-gray-900"
@@ -230,7 +230,7 @@ export default async function InventarioPage({
       <InventarioHeader subtitle={subtitle} canAdjust={canAdjust} lowStockThreshold={lowStockThreshold} />
 
       {/* ── Tabs ── */}
-      <div className="flex w-fit gap-1 rounded-lg border bg-gray-50 p-1">
+      <div className="flex w-full sm:w-fit gap-1 rounded-lg border bg-gray-50 p-1">
         <Link href="/dashboard/inventario?tab=stock" className={tabClass(tab !== "movimientos")}>
           Stock actual
         </Link>

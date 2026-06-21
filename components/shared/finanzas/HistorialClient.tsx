@@ -77,6 +77,8 @@ const INSIGHT_STYLE: Record<InsightType, { bg: string; border: string; text: str
   info:     { bg: "bg-blue-50",    border: "border-blue-200",    text: "text-blue-800",    icon: Info },
 };
 
+const today = new Date().toISOString().slice(0, 10);
+
 const CAT_COLORS: Record<string, string> = {
   operativo: "bg-blue-500",
   logistica: "bg-violet-500",
@@ -158,6 +160,7 @@ export function HistorialClient({ data }: { data: HistorialData }) {
             <Input
               type="date"
               value={desde}
+              max={today}
               onChange={(e) => setDesde(e.target.value)}
               className="w-36 text-sm"
             />
@@ -167,6 +170,7 @@ export function HistorialClient({ data }: { data: HistorialData }) {
             <Input
               type="date"
               value={hasta}
+              max={today}
               onChange={(e) => setHasta(e.target.value)}
               className="w-36 text-sm"
             />
@@ -293,7 +297,7 @@ function ResumenTab({ data }: { data: HistorialData }) {
       {data.insights.length > 0 && (
         <div>
           <h3 className="mb-3 text-sm font-semibold text-gray-700">Análisis automático</h3>
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
             {data.insights.map((ins, i) => {
               const style = INSIGHT_STYLE[ins.type];
               const Icon = style.icon;
