@@ -31,10 +31,11 @@ export function Sidebar({ session }: SidebarProps) {
   const sidebarContent = (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 shrink-0 items-center border-b px-5">
-        <span className="text-base font-semibold text-gray-900">
-          Cenicola<span className="text-blue-600">&apos;s hub</span>
-        </span>
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b px-5">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900">
+          <span className="text-sm font-bold text-white">C</span>
+        </div>
+        <span className="text-lg font-semibold text-gray-900">Cenicola&apos;s hub</span>
       </div>
 
       {/* Nav */}
@@ -102,9 +103,12 @@ export function Sidebar({ session }: SidebarProps) {
         >
           <Menu size={22} />
         </button>
-        <span className="ml-3 text-base font-semibold text-gray-900">
-          Cenicola<span className="text-blue-600">&apos;s hub</span>
-        </span>
+        <div className="ml-3 flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900">
+            <span className="text-sm font-bold text-white">C</span>
+          </div>
+          <span className="text-lg font-semibold text-gray-900">Cenicola&apos;s hub</span>
+        </div>
       </div>
 
       {/* ── Mobile overlay ── */}

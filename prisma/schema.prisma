@@ -199,6 +199,7 @@ model Order {
   address             String?
   shipping_company    String?
   total_usd           Decimal     @db.Decimal(10, 2)
+  exchange_rate_id    String?
   is_partial_agreed   Boolean     @default(false)
   partial_agreed_by   String?
   notes               String?
@@ -209,6 +210,7 @@ model Order {
   customer             Customer?           @relation(fields: [customer_id], references: [id])
   creator              User                @relation("OrderCreatedBy", fields: [created_by], references: [id])
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
+  exchange_rate        ExchangeRate?       @relation(fields: [exchange_rate_id], references: [id])
   items                OrderItem[]
   payments             OrderPayment[]
   shipment             OrderShipment?
@@ -288,6 +290,7 @@ model ExchangeRate {
   created_at      DateTime @default(now())
 
   creator  User           @relation(fields: [created_by], references: [id])
+  orders   Order[]
   payments OrderPayment[]
   expenses Expense[]
   payrolls Payroll[]

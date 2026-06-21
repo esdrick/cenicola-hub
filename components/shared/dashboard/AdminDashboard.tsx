@@ -148,17 +148,17 @@ export async function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Tarjetas */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2">
         {CARDS.map((c) => (
           <Card key={c.label}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
               <div className={`rounded-lg p-2 ${c.bg}`}>
-                <c.icon size={18} className={c.color} />
+                <c.icon size={16} className={c.color} />
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-gray-900">{c.value}</p>
+              <p className="text-xl font-bold text-gray-900">{c.value}</p>
               <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
             </CardContent>
           </Card>

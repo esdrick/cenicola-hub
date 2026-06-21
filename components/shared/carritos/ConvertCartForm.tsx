@@ -22,6 +22,19 @@ import type { PaymentType } from "@/app/generated/prisma/client";
 
 type DocType = "V" | "P" | "J" | "E";
 
+type TasaInfo = {
+  id: string;
+  rate: number;
+  eur_rate: number | null;
+  paralelo_rate: number | null;
+  date: string;
+  stale: boolean;
+};
+
+function fmtBs(n: number) {
+  return new Intl.NumberFormat("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 const DOC_TYPE_LABELS: Record<DocType, string> = {
   V: "V- (Venezolano)",
   P: "P- (Pasaporte)",
@@ -109,6 +122,8 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [error, setError] = useState<string | null>(null);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [tasa, setTasa] = useState<TasaInfo | null>(null);
+  const [tasaLoading, setTasaLoading] = useState(false);
 
   const NAME_RE = /^[\p{L}\s]+$/u;
 
@@ -192,6 +207,18 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
     }, 400);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customer.doc_type, customer.doc_number]);
+
+  // Fetch exchange rate when entering step 3
+  useEffect(() => {
+    if (step !== 3 || tasa || tasaLoading) return;
+    setTasaLoading(true);
+    fetch("/api/tasa")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setTasa(d ?? null))
+      .catch(() => setTasa(null))
+      .finally(() => setTasaLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   // Live cart state — refreshable to check current stock
   const [cartData, setCartData] = useState<CartJSON>(cart);
@@ -618,6 +645,20 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             <span className="text-lg font-semibold">${cartTotal.toFixed(2)} USD</span>
           </div>
 
+          {/* Tasas de referencia */}
+          {tasaLoading && (
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <Loader2 size={11} className="animate-spin" /> Cargando tasas…
+            </div>
+          )}
+          {!tasaLoading && tasa && (
+            <span className="inline-flex items-center gap-3 rounded-full border bg-white px-4 py-1.5 text-xs text-gray-600">
+              <span><span className="font-semibold text-gray-800">USD</span> {fmtBs(tasa.rate)}{tasa.stale && <AlertTriangle size={9} className="inline ml-0.5 text-amber-500" />}</span>
+              {tasa.eur_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">EUR</span> {fmtBs(tasa.eur_rate)}</span></>}
+              {tasa.paralelo_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">Paralelo</span> {fmtBs(tasa.paralelo_rate)}</span></>}
+            </span>
+          )}
+
           {payments.length > 0 && (
             <div className="rounded-xl border bg-white divide-y">
               {payments.map((p, i) => {
@@ -702,8 +743,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         : draft.amount_usd && num > remaining + 0.005
                         ? `Máximo $${remaining.toFixed(2)}`
                         : null;
+                    const amountBs = tasa && !isNaN(num) && num > 0 ? num * tasa.rate : null;
                     return (
-                      <>
+                      <div className="space-y-1">
                         <Input
                           type="number"
                           min="0.01"
@@ -716,7 +758,20 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         {montoError && (
                           <p className="text-xs text-red-600">{montoError}</p>
                         )}
-                      </>
+                        {!montoError && amountBs !== null && (
+                          <div className="rounded-md bg-emerald-50 border border-emerald-100 px-2.5 py-1.5">
+                            <p className="text-xs text-emerald-700 font-medium">≈ Bs. {fmtBs(amountBs)}</p>
+                            <p className="text-[10px] text-emerald-500 mt-0.5">
+                              Tasa: Bs. {fmtBs(tasa!.rate)} × $1
+                              {tasa!.stale && (
+                                <span className="ml-1 inline-flex items-center gap-0.5 text-amber-600">
+                                  <AlertTriangle size={9} /> desactualizada
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     );
                   })()}
                 </div>

@@ -21,6 +21,8 @@ import type { PaymentType } from "@/app/generated/prisma/client";
 type TasaInfo = {
   id: string;
   rate: number;
+  eur_rate: number | null;
+  paralelo_rate: number | null;
   date: string;
   stale: boolean;
 };
@@ -169,6 +171,20 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Tasas de referencia */}
+            {tasaLoading && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <Loader2 size={11} className="animate-spin" /> Cargando tasas…
+              </div>
+            )}
+            {!tasaLoading && tasa && (
+              <span className="inline-flex items-center gap-3 rounded-full border bg-gray-50 px-4 py-1.5 text-xs text-gray-600">
+                <span><span className="font-semibold text-gray-800">USD</span> {fmtBs(tasa.rate)}{tasa.stale && <AlertTriangle size={9} className="inline ml-0.5 text-amber-500" />}</span>
+                {tasa.eur_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">EUR</span> {fmtBs(tasa.eur_rate)}</span></>}
+                {tasa.paralelo_rate != null && <><span className="text-gray-300">·</span><span><span className="font-semibold text-gray-800">Par.</span> {fmtBs(tasa.paralelo_rate)}</span></>}
+              </span>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Tipo *</Label>

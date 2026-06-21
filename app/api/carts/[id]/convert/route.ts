@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference } from "@/lib/order-utils";
+import { getTasa } from "@/lib/tasa-cambio";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -61,6 +62,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   const canPartial = auth.session.role === "admin" || auth.session.role === "vendedora_tienda";
   const partialAgreed = is_partial_agreed === true && canPartial;
   const ip = getClientIp(request);
+
+  const tasaResult = await getTasa(auth.session.id).catch(() => null);
+  const tasaId = tasaResult?.id ?? null;
 
   // Mark cart as converting to prevent concurrent conversions
   await prisma.cart.update({ where: { id }, data: { status: "converting" } });
@@ -173,6 +177,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           address: channel === "online" ? address?.trim() : null,
           shipping_company: channel === "online" ? shipping_company?.trim() : null,
           total_usd: totalUsd,
+          exchange_rate_id: tasaId,
           is_partial_agreed: partialAgreed,
           partial_agreed_by: partialAgreed ? auth.session.id : null,
           notes: notes?.trim() || null,
