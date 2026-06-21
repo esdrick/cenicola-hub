@@ -63,7 +63,7 @@ export function LoginForm() {
           placeholder="usuario@cenicola.com"
           disabled={loading}
           required
-          className="h-11 text-base px-4"
+          className="h-9 text-sm px-3"
         />
       </div>
 
@@ -81,7 +81,7 @@ export function LoginForm() {
             placeholder="••••••••"
             disabled={loading}
             required
-            className="h-11 text-base px-4 pr-12"
+            className="h-9 text-sm px-3 pr-10"
           />
           <button
             type="button"
@@ -104,10 +104,10 @@ export function LoginForm() {
         </div>
       )}
 
-      <Button type="submit" className="h-11 w-full text-base" disabled={loading}>
+      <Button type="submit" className="h-9 w-full text-sm" disabled={loading}>
         {loading ? (
           <>
-            <Loader2 size={17} className="mr-2 animate-spin" />
+            <Loader2 size={15} className="mr-2 animate-spin" />
             Iniciando sesión…
           </>
         ) : (

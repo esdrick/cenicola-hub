@@ -10,7 +10,7 @@ export default async function LoginPage() {
   if (session) redirect(getDefaultRedirect(session.role));
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-5">
+    <main className="flex min-h-screen items-center justify-center bg-white px-5">
       <div className="w-full max-w-xs">
         <div className="mb-6 flex flex-col items-center gap-2">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gray-900 shadow-sm">
