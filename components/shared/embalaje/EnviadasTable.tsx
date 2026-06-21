@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import type { EmbalajeOrdenJSON, UserRole } from "@/types";
 
@@ -222,6 +223,11 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
           {!selectedOrder?.shipment && (
             <p className="text-gray-500 text-sm">No hay fotos disponibles.</p>
           )}
+          <DialogFooter>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setSelectedOrder(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
