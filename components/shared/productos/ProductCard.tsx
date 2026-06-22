@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ImageOff } from "lucide-react";
@@ -6,6 +9,7 @@ import type { ProductJSON } from "@/types";
 type Props = { product: ProductJSON };
 
 export function ProductCard({ product }: Props) {
+  const [imgError, setImgError] = useState(false);
   const photo = product.photos[0];
   const activeVariants = product.variants.filter((v) => v.is_active);
   const price = activeVariants[0]?.price_usd;
@@ -25,12 +29,13 @@ export function ProductCard({ product }: Props) {
     >
       {/* Foto */}
       <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-100">
-        {photo ? (
+        {photo && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={photo}
             alt={product.name}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-gray-300">

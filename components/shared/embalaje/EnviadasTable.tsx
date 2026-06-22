@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ImageIcon, Loader2 } from "lucide-react";
+import { Search, ImageIcon, ImageOff, Loader2 } from "lucide-react";
 import { shortOrderNumber } from "@/lib/order-utils";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,8 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
   const [orders, setOrders] = useState(initialOrders);
   const [selectedOrder, setSelectedOrder] = useState<EmbalajeOrdenJSON | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [packagePhotoError, setPackagePhotoError] = useState(false);
+  const [receiptPhotoError, setReceiptPhotoError] = useState(false);
 
   const filtered = orders.filter((o) => {
     if (!search.trim()) return true;
@@ -144,7 +146,7 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
                   <TableCell>
                     {o.shipment?.photo_package ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setSelectedOrder(o); }}
+                        onClick={(e) => { e.stopPropagation(); setPackagePhotoError(false); setReceiptPhotoError(false); setSelectedOrder(o); }}
                         className="text-blue-600 hover:text-blue-800"
                       >
                         <ImageIcon size={18} />
@@ -196,25 +198,35 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-gray-700">Foto del paquete</p>
-                <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100">
-                  <Image
-                    src={selectedOrder.shipment.photo_package}
-                    alt="Foto del paquete"
-                    fill
-                    className="object-cover"
-                  />
+                <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100 flex items-center justify-center">
+                  {!packagePhotoError ? (
+                    <Image
+                      src={selectedOrder.shipment.photo_package}
+                      alt="Foto del paquete"
+                      fill
+                      className="object-cover"
+                      onError={() => setPackagePhotoError(true)}
+                    />
+                  ) : (
+                    <ImageOff size={32} className="text-gray-400" />
+                  )}
                 </div>
               </div>
               {selectedOrder.shipment.photo_receipt && (
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Foto del recibo</p>
-                  <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100">
-                    <Image
-                      src={selectedOrder.shipment.photo_receipt}
-                      alt="Foto del recibo"
-                      fill
-                      className="object-cover"
-                    />
+                  <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100 flex items-center justify-center">
+                    {!receiptPhotoError ? (
+                      <Image
+                        src={selectedOrder.shipment.photo_receipt}
+                        alt="Foto del recibo"
+                        fill
+                        className="object-cover"
+                        onError={() => setReceiptPhotoError(true)}
+                      />
+                    ) : (
+                      <ImageOff size={32} className="text-gray-400" />
+                    )}
                   </div>
                 </div>
               )}

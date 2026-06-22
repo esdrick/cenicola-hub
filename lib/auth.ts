@@ -31,8 +31,8 @@ export function getDefaultRedirect(role: UserRole): string {
     admin: "/dashboard",
     inventario: "/dashboard",
     embalador: "/dashboard/embalaje",
-    vendedora_online: "/dashboard/ordenes",
-    vendedora_tienda: "/dashboard/ordenes",
+    vendedora_online: "/dashboard",
+    vendedora_tienda: "/dashboard",
   };
   return paths[role] ?? "/dashboard";
 }

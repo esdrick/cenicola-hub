@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  AlertCircle, AlertTriangle, Loader2, ShoppingCart, Trash2,
+  AlertCircle, AlertTriangle, ImageOff, Loader2, ShoppingCart, Trash2,
   Plus, ChevronRight, ChevronLeft, Check, Upload, Pencil, X,
 } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
@@ -116,6 +116,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment());
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [paymentPhotoError, setPaymentPhotoError] = useState(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [isPartialAgreed, setIsPartialAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -173,6 +174,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       setCustomerFound(false);
       setFoundAddress(null);
       setUseCustomerAddress(false);
+      setIsPartialAgreed(false);
       setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "" }));
       return;
     }
@@ -219,6 +221,8 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       .finally(() => setTasaLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  useEffect(() => { setPaymentPhotoError(false); }, [draft.payment_photo]);
 
   // Live cart state — refreshable to check current stock
   const [cartData, setCartData] = useState<CartJSON>(cart);
@@ -781,14 +785,14 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 </div>
               </div>
               {draft.payment_type !== "efectivo" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                <div className="flex gap-3">
+                  <div className="flex-1 min-w-0 space-y-1.5">
                     <Label>Fecha</Label>
                     <Input type="date" value={draft.payment_date}
                       max={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))} />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="w-28 shrink-0 space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))} />
@@ -817,8 +821,15 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                       </Button>
                     </div>
                     {draft.payment_photo && (
-                      <Image src={draft.payment_photo} alt="Comprobante" width={80} height={80}
-                        className="mt-1 h-16 w-16 rounded object-cover" />
+                      paymentPhotoError ? (
+                        <div className="mt-1 h-16 w-16 rounded border bg-gray-100 flex items-center justify-center">
+                          <ImageOff size={16} className="text-gray-400" />
+                        </div>
+                      ) : (
+                        <Image src={draft.payment_photo} alt="Comprobante" width={80} height={80}
+                          className="mt-1 h-16 w-16 rounded object-cover"
+                          onError={() => setPaymentPhotoError(true)} />
+                      )
                     )}
                   </div>
                 </>
@@ -849,9 +860,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             </div>
           )}
 
-          {/* Pago parcial: admin siempre, tienda solo si hay cliente registrado */}
+          {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta */}
           {payments.length > 0 && remaining > 0.005 && (
-            isAdmin || (channel === "tienda" && customer.doc_number.trim())
+            (isAdmin || channel === "tienda") && customer.doc_number.trim()
               ? (
                 <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
                   <input type="checkbox" checked={isPartialAgreed}

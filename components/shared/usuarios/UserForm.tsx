@@ -16,12 +16,14 @@ import type { UserJSON, UserRole } from "@/types";
 
 const ROLES: UserRole[] = ["inventario", "embalador", "vendedora_online", "vendedora_tienda"];
 
-const ROLE_DOMAINS: Record<UserRole, string> = {
-  admin:             "admin.cenicola.com",
-  inventario:        "inventario.cenicola.com",
-  embalador:         "embalaje.cenicola.com",
-  vendedora_online:  "online.cenicola.com",
-  vendedora_tienda:  "tienda.cenicola.com",
+const EMAIL_DOMAIN = "cenicolas.com";
+
+const ROLE_SLUG: Record<UserRole, string> = {
+  admin:             "admin",
+  inventario:        "inventario",
+  embalador:         "embalador",
+  vendedora_online:  "online",
+  vendedora_tienda:  "tienda",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -37,14 +39,11 @@ function slugify(text: string): string {
 }
 
 function generateEmail(nombre: string, rol: UserRole): string {
-  const parts = nombre.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "";
-  const local =
-    parts.length === 1
-      ? slugify(parts[0])
-      : `${slugify(parts[0])}.${slugify(parts.slice(1).join(" "))}`;
+  const firstName = nombre.trim().split(/\s+/)[0];
+  if (!firstName) return "";
+  const local = slugify(firstName);
   if (!local) return "";
-  return `${local}@${ROLE_DOMAINS[rol]}`;
+  return `${local}.${ROLE_SLUG[rol]}@${EMAIL_DOMAIN}`;
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
@@ -268,7 +267,7 @@ export function UserForm(props: Props) {
           value={email}
           onChange={(e) => handleEmailChange(e.target.value)}
           onBlur={() => touch("email")}
-          placeholder="correo@rol.cenicola.com"
+          placeholder="nombre.rol@cenicolas.com"
           autoComplete="off"
           className={cn(errors.email && "border-red-500 focus-visible:ring-red-500/50")}
         />

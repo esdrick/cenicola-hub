@@ -21,6 +21,11 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
   const [channel, setChannel] = useState<"online" | "tienda">(defaultChannel);
   const [carts, setCarts] = useState<CartJSON[]>(initialCarts);
   const [view, setView] = useState<ViewMode>("grid");
+  const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set());
+
+  function markPhotoBroken(id: string) {
+    setBrokenPhotos((prev) => new Set(prev).add(id));
+  }
 
   function handleCartUpdate(updated: CartJSON) {
     setCarts((prev) =>
@@ -124,12 +129,13 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                 )}
                 <Link href={`/dashboard/productos/${product.id}`} className="block">
                   <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-100">
-                    {photo ? (
+                    {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={photo}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={() => markPhotoBroken(product.id)}
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center text-gray-300">
@@ -192,9 +198,10 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                 {/* Thumbnail */}
                 <Link href={`/dashboard/productos/${product.id}`} className="shrink-0">
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-gray-100">
-                    {photo ? (
+                    {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo} alt={product.name} className="h-full w-full object-cover" />
+                      <img src={photo} alt={product.name} className="h-full w-full object-cover"
+                        onError={() => markPhotoBroken(product.id)} />
                     ) : (
                       <div className="flex h-full items-center justify-center text-gray-300">
                         <ImageOff size={20} />

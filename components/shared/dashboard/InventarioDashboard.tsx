@@ -120,39 +120,44 @@ export async function InventarioDashboard() {
               Todos los productos tienen stock suficiente
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-center">Online</TableHead>
-                  <TableHead className="text-center">Tienda</TableHead>
-                  <TableHead className="text-center">Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {variantesStockBajo.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell>
-                      <p className="text-sm font-medium">{v.product.name}</p>
-                      <p className="text-xs text-gray-400">
-                        {v.size}{v.product.color ? ` · ${v.product.color}` : ""}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-center text-sm">{v.stock_online}</TableCell>
-                    <TableCell className="text-center text-sm">{v.stock_store}</TableCell>
-                    <TableCell className="text-center">
-                      <span className={`inline-block min-w-[2rem] rounded-full px-2 py-0.5 text-xs font-bold ${
-                        v.stock_total === 0
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}>
-                        {v.stock_total}
-                      </span>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="hidden sm:table-cell text-center">Online</TableHead>
+                    <TableHead className="hidden sm:table-cell text-center">Tienda</TableHead>
+                    <TableHead className="text-center">Total</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {variantesStockBajo.map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell>
+                        <p className="text-sm font-medium">{v.product.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {v.size}{v.product.color ? ` · ${v.product.color}` : ""}
+                        </p>
+                        <p className="text-xs text-gray-400 sm:hidden">
+                          Online: {v.stock_online} · Tienda: {v.stock_store}
+                        </p>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-center text-sm">{v.stock_online}</TableCell>
+                      <TableCell className="hidden sm:table-cell text-center text-sm">{v.stock_store}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={`inline-block min-w-[2rem] rounded-full px-2 py-0.5 text-xs font-bold ${
+                          v.stock_total === 0
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}>
+                          {v.stock_total}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
 
@@ -166,41 +171,46 @@ export async function InventarioDashboard() {
               No hay movimientos registrados
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Producto</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="text-right">Cant.</TableHead>
-                  <TableHead>Usuario</TableHead>
-                  <TableHead>Hora</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ultimosMovimientos.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <p className="text-sm font-medium">{m.variant.product.name}</p>
-                      <p className="text-xs text-gray-400">{m.variant.size}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`border-0 text-xs ${MOVEMENT_COLORS[m.type] ?? "bg-gray-100 text-gray-700"}`}>
-                        {MOVEMENT_LABELS[m.type] ?? m.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className={`text-right font-semibold text-sm ${m.qty_change > 0 ? "text-emerald-600" : "text-red-600"}`}>
-                      {m.qty_change > 0 ? "+" : ""}{m.qty_change}
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-500">
-                      {m.created_by_user.name.split(" ")[0]}
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-500 whitespace-nowrap">
-                      {fmtDateTime(m.created_at)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Producto</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Cant.</TableHead>
+                    <TableHead className="hidden sm:table-cell">Usuario</TableHead>
+                    <TableHead className="hidden sm:table-cell">Hora</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {ultimosMovimientos.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <p className="text-sm font-medium">{m.variant.product.name}</p>
+                        <p className="text-xs text-gray-400">{m.variant.size}</p>
+                        <p className="text-xs text-gray-400 sm:hidden">
+                          {m.created_by_user.name.split(" ")[0]} · {fmtDateTime(m.created_at)}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={`border-0 text-xs ${MOVEMENT_COLORS[m.type] ?? "bg-gray-100 text-gray-700"}`}>
+                          {MOVEMENT_LABELS[m.type] ?? m.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold text-sm ${m.qty_change > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        {m.qty_change > 0 ? "+" : ""}{m.qty_change}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-gray-500">
+                        {m.created_by_user.name.split(" ")[0]}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-xs text-gray-500 whitespace-nowrap">
+                        {fmtDateTime(m.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       </div>
