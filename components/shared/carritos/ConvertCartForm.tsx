@@ -785,14 +785,14 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 </div>
               </div>
               {draft.payment_type !== "efectivo" && (
-                <div className="flex gap-3">
-                  <div className="flex-1 min-w-0 space-y-1.5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:max-w-sm">
+                  <div className="w-full sm:flex-1 space-y-1.5">
                     <Label>Fecha</Label>
                     <Input type="date" value={draft.payment_date}
                       max={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))} />
                   </div>
-                  <div className="w-28 shrink-0 space-y-1.5">
+                  <div className="w-full sm:w-32 sm:shrink-0 space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))} />
