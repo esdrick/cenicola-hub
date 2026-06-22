@@ -791,13 +791,13 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                     <Input type="date" value={draft.payment_date}
                       max={new Date().toISOString().split("T")[0]}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))}
-                      className="max-w-full" />
+                      className="appearance-none" />
                   </div>
                   <div className="w-full min-w-0 sm:w-32 sm:shrink-0 space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
                       onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))}
-                      className="max-w-full" />
+                      className="appearance-none" />
                   </div>
                 </div>
               )}
