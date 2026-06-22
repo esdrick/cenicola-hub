@@ -712,7 +712,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           )}
 
           {(remaining > 0.005 || editingIndex !== null) && (
-            <div className="rounded-xl border bg-white p-5 space-y-4">
+            <div className="rounded-xl border bg-white p-5 space-y-4 overflow-hidden">
               <h2 className="text-base font-semibold text-gray-700">
                 {editingIndex !== null ? "Editar pago" : "Agregar pago"}
               </h2>
@@ -786,16 +786,18 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
               </div>
               {draft.payment_type !== "efectivo" && (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:max-w-sm">
-                  <div className="w-full sm:flex-1 space-y-1.5">
+                  <div className="w-full min-w-0 sm:flex-1 space-y-1.5">
                     <Label>Fecha</Label>
                     <Input type="date" value={draft.payment_date}
                       max={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))} />
+                      onChange={(e) => setDraft((p) => ({ ...p, payment_date: e.target.value }))}
+                      className="max-w-full" />
                   </div>
-                  <div className="w-full sm:w-32 sm:shrink-0 space-y-1.5">
+                  <div className="w-full min-w-0 sm:w-32 sm:shrink-0 space-y-1.5">
                     <Label>Hora</Label>
                     <Input type="time" value={draft.payment_time}
-                      onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))} />
+                      onChange={(e) => setDraft((p) => ({ ...p, payment_time: e.target.value }))}
+                      className="max-w-full" />
                   </div>
                 </div>
               )}
