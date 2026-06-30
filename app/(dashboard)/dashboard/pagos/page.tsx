@@ -7,7 +7,7 @@ import { PagosTable } from "@/components/shared/pagos/PagosTable";
 import { PagosVerificadosTable, type PagoVerificadoJSON } from "@/components/shared/pagos/PagosVerificadosTable";
 import { PagosTabs } from "@/components/shared/pagos/PagosTabs";
 import type { PagoOrdenJSON } from "@/types";
-import type { PaymentType, OrderStatus } from "@/app/generated/prisma/client";
+import type { PaymentType, OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
 
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: string | string[] | undefined) { return typeof v === "string" ? v : ""; }
@@ -29,8 +29,8 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
   const pendingCount = await prisma.order.count({
     where: {
       OR: [
-        { status: { in: ["pendiente_pago", "pago_parcial"] } },
-        { status: "pago_verificado", channel: "online" },
+        { status: { in: ["pendiente_pago", "pago_parcial"] as OrderStatus[] } },
+        { status: "pago_verificado" as OrderStatus, channel: "online" as OrderChannel },
       ],
     },
   });
@@ -129,27 +129,27 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
       : hasta ? { lte: new Date(`${hasta}T23:59:59`) }
       : undefined;
 
-  const baseStatusFilter = {
-    OR: [
-      { status: { in: ["pendiente_pago", "pago_parcial"] as OrderStatus[] } },
-      { status: "pago_verificado" as OrderStatus, channel: "online" },
-    ],
-  };
+  const pendienteOr = [
+    { status: { in: ["pendiente_pago", "pago_parcial"] as OrderStatus[] } },
+    { status: "pago_verificado" as OrderStatus, channel: "online" as OrderChannel },
+  ];
 
   const where = {
-    AND: [
-      baseStatusFilter,
-      ...(metodo ? [{ payments: { some: { payment_type: metodo } } }] : []),
-      ...(dateFilter ? [{ created_at: dateFilter }] : []),
-      ...(q ? [{
-        OR: [
-          { customer_name:     { contains: q, mode: "insensitive" as const } },
-          { customer_lastname: { contains: q, mode: "insensitive" as const } },
-          { order_number:      { contains: q, mode: "insensitive" as const } },
-          { payments: { some: { reference: { contains: q, mode: "insensitive" as const } } } },
-        ],
-      }] : []),
-    ],
+    OR: pendienteOr,
+    ...(metodo && { payments: { some: { payment_type: metodo } } }),
+    ...(dateFilter && { created_at: dateFilter }),
+    ...(q && {
+      AND: [
+        {
+          OR: [
+            { customer_name:     { contains: q, mode: "insensitive" as const } },
+            { customer_lastname: { contains: q, mode: "insensitive" as const } },
+            { order_number:      { contains: q, mode: "insensitive" as const } },
+            { payments: { some: { reference: { contains: q, mode: "insensitive" as const } } } },
+          ],
+        },
+      ],
+    }),
   };
 
   const [orders, total] = await Promise.all([
