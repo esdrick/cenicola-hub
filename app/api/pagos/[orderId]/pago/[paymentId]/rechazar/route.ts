@@ -37,13 +37,10 @@ export async function POST(
         data: { status: "rechazado", rejection_reason: motivo },
       });
 
-      // Ensure order is at pendiente_pago so vendedora can add a new payment
-      if (prevOrderStatus !== "pendiente_pago") {
-        await tx.order.update({
-          where: { id: params.orderId },
-          data: { status: "pendiente_pago" },
-        });
-      }
+      await tx.order.update({
+        where: { id: params.orderId },
+        data: { status: "pendiente_pago" },
+      });
 
       await tx.auditLog.create({
         data: {

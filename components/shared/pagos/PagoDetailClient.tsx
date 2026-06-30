@@ -23,7 +23,8 @@ import type { PagoOrdenDetailJSON } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 const METODO_LABELS: Record<PaymentType, string> = {
-  efectivo:      "Efectivo",
+  efectivo_bs:   "Efectivo Bs",
+  efectivo_usd:  "Efectivo USD",
   transferencia: "Transferencia",
   zelle:         "Zelle",
   pago_movil:    "Pago Móvil",
@@ -31,12 +32,17 @@ const METODO_LABELS: Record<PaymentType, string> = {
 };
 
 const METODO_CLASSES: Record<PaymentType, string> = {
-  efectivo:      "bg-emerald-100 text-emerald-800",
+  efectivo_bs:   "bg-emerald-100 text-emerald-800",
+  efectivo_usd:  "bg-teal-100 text-teal-800",
   transferencia: "bg-blue-100 text-blue-800",
   zelle:         "bg-violet-100 text-violet-800",
   pago_movil:    "bg-orange-100 text-orange-800",
   usdt:          "bg-yellow-100 text-yellow-800",
 };
+
+function isBcvType(pt: PaymentType): boolean {
+  return pt !== "zelle" && pt !== "usdt" && pt !== "efectivo_usd";
+}
 
 // ─── Dialog state types ───────────────────────────────────────────────────────
 
@@ -394,6 +400,10 @@ export function PagoDetailClient({ order }: Props) {
                   p.status === "rechazado"  ? "bg-red-50/70"
                   : p.status === "verificado" ? "bg-emerald-50/50"
                   : "";
+                const rate = p.exchange_rate?.usd_to_ves ?? null;
+                const bsAmount = isBcvType(p.payment_type) && p.status !== "rechazado"
+                  ? (p.amount_ves ?? (rate !== null ? p.amount_usd * rate : null))
+                  : null;
                 return (
                   <div key={p.id} className={`px-4 py-3 space-y-2 ${cardBg}`}>
                     <div className="flex items-start justify-between gap-2">
@@ -421,8 +431,11 @@ export function PagoDetailClient({ order }: Props) {
                         <p className={`text-sm font-semibold ${p.status === "rechazado" ? "line-through text-gray-400" : ""}`}>
                           ${p.amount_usd.toFixed(2)}
                         </p>
-                        {p.amount_ves && (
-                          <p className="text-xs text-gray-500">Bs {p.amount_ves.toFixed(2)}</p>
+                        {bsAmount !== null && (
+                          <p className="text-xs text-gray-500">Bs {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        )}
+                        {rate !== null && isBcvType(p.payment_type) && p.status !== "rechazado" && (
+                          <p className="text-[10px] text-gray-400">tasa Bs {Number(rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         )}
                       </div>
                     </div>
@@ -439,7 +452,6 @@ export function PagoDetailClient({ order }: Props) {
                       <p>
                         {p.payment_date}
                         {p.payment_time && <span className="ml-1 text-gray-400">{p.payment_time}</span>}
-                        {p.exchange_rate && <span className="ml-2">· BCV Bs {p.exchange_rate.usd_to_ves.toFixed(2)}</span>}
                       </p>
                     </div>
 
@@ -507,6 +519,10 @@ export function PagoDetailClient({ order }: Props) {
                       p.status === "rechazado" ? "bg-red-50/70"
                       : p.status === "verificado" ? "bg-emerald-50/50"
                       : "";
+                    const rate = p.exchange_rate?.usd_to_ves ?? null;
+                    const bsAmount = isBcvType(p.payment_type) && p.status !== "rechazado"
+                      ? (p.amount_ves ?? (rate !== null ? p.amount_usd * rate : null))
+                      : null;
 
                     return (
                       <TableRow key={p.id} className={rowBg}>
@@ -549,12 +565,14 @@ export function PagoDetailClient({ order }: Props) {
                           <span className={p.status === "rechazado" ? "line-through text-gray-400" : ""}>
                             ${p.amount_usd.toFixed(2)}
                           </span>
-                          {p.amount_ves && (
-                            <p className="text-xs font-normal text-gray-500">Bs {p.amount_ves.toFixed(2)}</p>
+                          {bsAmount !== null && (
+                            <p className="text-xs font-normal text-gray-500">Bs {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                           )}
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">
-                          {p.exchange_rate ? `Bs ${p.exchange_rate.usd_to_ves.toFixed(2)}` : "—"}
+                          {isBcvType(p.payment_type) && rate !== null
+                            ? `Bs ${Number(rate).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs text-gray-600">
                           {p.payment_date}

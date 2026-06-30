@@ -27,11 +27,15 @@ type TasaInfo = {
   stale: boolean;
 };
 
+const BCV_METHODS = ["efectivo_bs", "transferencia", "pago_movil"] as const;
+const DIVISAS_METHODS = ["efectivo_usd", "zelle", "usdt"] as const;
+
 type Props = {
   orderId: string;
   orderNumber: string;
   totalUsd: number;
   paidUsd: number;
+  pricingMethod: "bcv" | "divisas" | null;
 };
 
 function fmtBs(n: number) {
@@ -41,7 +45,7 @@ function fmtBs(n: number) {
   }).format(n);
 }
 
-export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: Props) {
+export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pricingMethod }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, start] = useTransition();
@@ -52,9 +56,15 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
   const photoRef = useRef<HTMLInputElement | null>(null);
 
   const remaining = Math.max(0, totalUsd - paidUsd);
+  const maxAmount = remaining + 2.00;
+
+  const allowedMethods: PaymentType[] =
+    pricingMethod === "bcv" ? [...BCV_METHODS] :
+    pricingMethod === "divisas" ? [...DIVISAS_METHODS] :
+    Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[];
 
   const makeEmpty = () => ({
-    payment_type: "transferencia" as PaymentType,
+    payment_type: (pricingMethod === "divisas" ? "zelle" : "transferencia") as PaymentType,
     amount_usd: "",
     payment_date: new Date().toISOString().slice(0, 10),
     payment_time: "",
@@ -108,11 +118,11 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
     setError(null);
     const amt = parseFloat(form.amount_usd);
     if (isNaN(amt) || amt <= 0) { setError("Monto inválido"); return; }
-    if (amt > remaining + 0.005) {
-      setError(`El monto ($${amt.toFixed(2)}) supera el saldo pendiente ($${remaining.toFixed(2)} USD)`);
+    if (amt > maxAmount) {
+      setError(`El monto excede el límite de redondeo. Máximo $${maxAmount.toFixed(2)}`);
       return;
     }
-    if (form.payment_type !== "efectivo" && !form.reference.trim()) {
+    if (form.payment_type !== "efectivo_bs" && form.payment_type !== "efectivo_usd" && !form.reference.trim()) {
       setError("La referencia es requerida para este método de pago");
       return;
     }
@@ -145,7 +155,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
     });
   }
 
-  const isEfectivo = form.payment_type === "efectivo";
+  const isEfectivo = form.payment_type === "efectivo_bs" || form.payment_type === "efectivo_usd";
   const amountNum = parseFloat(form.amount_usd);
   const amountBs = tasa && !isNaN(amountNum) && amountNum > 0
     ? amountNum * tasa.rate
@@ -192,7 +202,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                   value={form.payment_type}
                   onValueChange={(v) => {
                     const now = new Date();
-                    const ef = v === "efectivo";
+                    const ef = v === "efectivo_bs" || v === "efectivo_usd";
                     setForm((p) => ({
                       ...p,
                       payment_type: v as PaymentType,
@@ -204,11 +214,15 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                     }));
                   }}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue>{PAYMENT_TYPE_LABELS[form.payment_type]}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(PAYMENT_TYPE_LABELS).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
+                    {Object.entries(PAYMENT_TYPE_LABELS)
+                      .filter(([k]) => allowedMethods.includes(k as PaymentType))
+                      .map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -220,8 +234,8 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                   const montoError =
                     form.amount_usd && (isNaN(num) || num <= 0)
                       ? "Monto inválido"
-                      : form.amount_usd && num > remaining + 0.005
-                      ? `Máximo $${remaining.toFixed(2)}`
+                      : form.amount_usd && num > maxAmount
+                      ? `Máximo $${maxAmount.toFixed(2)} (redondeo)`
                       : null;
                   return (
                     <div className="space-y-1">
@@ -229,7 +243,6 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                         type="number"
                         min="0.01"
                         step="0.01"
-                        max={remaining}
                         value={form.amount_usd}
                         onChange={(e) => setForm((p) => ({ ...p, amount_usd: e.target.value }))}
                         placeholder="0.00"
@@ -369,7 +382,7 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd }: P
                   !form.amount_usd ||
                   isNaN(parseFloat(form.amount_usd)) ||
                   parseFloat(form.amount_usd) <= 0 ||
-                  parseFloat(form.amount_usd) > remaining + 0.005
+                  parseFloat(form.amount_usd) > maxAmount
                 }
               >
                 {isPending

@@ -47,8 +47,6 @@ export async function POST(
       const canAdvance = isFullyPaid;
 
       if (canAdvance) {
-        const finalStatus = payment.order.channel === "online" ? "en_embalaje" : "completada";
-
         await tx.order.update({ where: { id: params.orderId }, data: { status: "pago_verificado" } });
         await tx.auditLog.create({
           data: {
@@ -62,18 +60,22 @@ export async function POST(
           },
         });
 
-        await tx.order.update({ where: { id: params.orderId }, data: { status: finalStatus } });
-        await tx.auditLog.create({
-          data: {
-            user_id: auth.session.id,
-            action: "estado_actualizado",
-            entity_type: "Order",
-            entity_id: params.orderId,
-            data_before: { status: "pago_verificado" },
-            data_after: { status: finalStatus },
-            ip_address: ip,
-          },
-        });
+        // Tienda completes immediately — online waits for a manual "confirmar" step
+        const finalStatus = payment.order.channel === "tienda" ? "completada" : "pago_verificado";
+        if (payment.order.channel === "tienda") {
+          await tx.order.update({ where: { id: params.orderId }, data: { status: "completada" } });
+          await tx.auditLog.create({
+            data: {
+              user_id: auth.session.id,
+              action: "estado_actualizado",
+              entity_type: "Order",
+              entity_id: params.orderId,
+              data_before: { status: "pago_verificado" },
+              data_after: { status: "completada" },
+              ip_address: ip,
+            },
+          });
+        }
 
 
         // Order fully paid — close any open receivable

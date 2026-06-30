@@ -31,15 +31,15 @@ export async function POST(
 
       const prevStatus = order.status;
 
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: "pendiente_pago" },
-      });
-
-      // Mark all pending payments as rejected with the reason
+      // Reject all pending payments first
       await tx.orderPayment.updateMany({
         where: { order_id: order.id, status: "pendiente" },
         data: { status: "rechazado", rejection_reason: motivo },
+      });
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "pendiente_pago" },
       });
 
       await tx.auditLog.create({

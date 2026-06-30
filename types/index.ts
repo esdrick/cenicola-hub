@@ -100,7 +100,12 @@ export type ProductVariantJSON = {
   stock_total: number;
   stock_online: number;
   stock_store: number;
-  price_usd: number;
+  price_bcv: number;
+  price_divisas: number;
+  price_bundle_bcv: number;
+  price_bundle_divisas: number;
+  price_mayor_bcv: number;
+  price_mayor_divisas: number;
   is_active: boolean;
   updated_at: string;
 };
@@ -204,6 +209,7 @@ export type OrderJSON = {
   address: string | null;
   shipping_company: string | null;
   total_usd: number;
+  pricing_method: "bcv" | "divisas" | null;
   is_partial_agreed: boolean;
   partial_agreed_by: string | null;
   notes: string | null;
@@ -259,7 +265,7 @@ export type StockVariantJSON = {
   stock_total: number;
   stock_online: number;
   stock_store: number;
-  price_usd: number;
+  price_bcv: number;
   product: {
     id: string;
     name: string;
@@ -389,6 +395,7 @@ export type CartJSON = {
   channel: OrderChannel;
   note: string | null;
   status: CartStatus;
+  pricing_method: "bcv" | "divisas";
   created_at: string;
   updated_at: string;
   vendor: { id: string; name: string };

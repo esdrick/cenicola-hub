@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
+import { resolveUnitPrice } from "@/lib/pricing";
+import { getSetting } from "@/lib/settings";
 
 function serializeCart(cart: Awaited<ReturnType<typeof fetchCart>>) {
   const channel = cart.channel;
@@ -40,6 +42,7 @@ function serializeCart(cart: Awaited<ReturnType<typeof fetchCart>>) {
     channel: cart.channel,
     note: cart.note,
     status: cart.status,
+    pricing_method: cart.pricing_method,
     created_at: cart.created_at.toISOString(),
     updated_at: cart.updated_at.toISOString(),
     vendor: cart.vendor,
@@ -120,6 +123,27 @@ export async function PUT(request: NextRequest, { params }: Params) {
     });
   }
 
+  // Handle pricing_method change — reprices all items
+  if ("pricing_method" in body && (body.pricing_method === "bcv" || body.pricing_method === "divisas")) {
+    const newMethod = body.pricing_method as "bcv" | "divisas";
+    if (newMethod !== cart.pricing_method) {
+      const [mayorThreshold, bundleThreshold] = await Promise.all([
+        getSetting("mayor_threshold"),
+        getSetting("bundle_threshold"),
+      ]);
+      const allItems = await prisma.cartItem.findMany({
+        where: { cart_id: id },
+        include: { variant: true },
+      });
+      const totalQty = allItems.reduce((s, i) => s + i.quantity, 0);
+      for (const item of allItems) {
+        const unitPrice = resolveUnitPrice(item.variant, newMethod, totalQty, mayorThreshold, bundleThreshold);
+        await prisma.cartItem.update({ where: { id: item.id }, data: { unit_price_usd: unitPrice } });
+      }
+      await prisma.cart.update({ where: { id }, data: { pricing_method: newMethod, updated_at: new Date() } });
+    }
+  }
+
   // Handle item upsert: { variant_id, quantity }
   if (body.item) {
     const { variant_id, quantity } = body.item as { variant_id: string; quantity: number };
@@ -132,17 +156,26 @@ export async function PUT(request: NextRequest, { params }: Params) {
       // Remove item
       await prisma.cartItem.deleteMany({ where: { cart_id: id, variant_id } });
     } else {
-      // Get current price
       const variant = await prisma.productVariant.findUnique({ where: { id: variant_id } });
       if (!variant || !variant.is_active) {
         return NextResponse.json({ error: "Variante no encontrada" }, { status: 404 });
       }
 
+      // Compute total quantity across all items after this operation, then resolve price
+      const allItems = await prisma.cartItem.findMany({ where: { cart_id: id } });
+      const existingQty = allItems.find((i) => i.variant_id === variant_id)?.quantity ?? 0;
+      const totalQtyAfter = allItems.reduce((s, i) => s + i.quantity, 0) - existingQty + quantity;
+      const [mayorThreshold, bundleThreshold] = await Promise.all([
+        getSetting("mayor_threshold"),
+        getSetting("bundle_threshold"),
+      ]);
+      const unitPrice = resolveUnitPrice(variant, cart.pricing_method, totalQtyAfter, mayorThreshold, bundleThreshold);
+
       const existing = await prisma.cartItem.findFirst({ where: { cart_id: id, variant_id } });
       if (existing) {
         await prisma.cartItem.update({
           where: { id: existing.id },
-          data: { quantity },
+          data: { quantity, unit_price_usd: unitPrice },
         });
       } else {
         await prisma.cartItem.create({
@@ -150,7 +183,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
             cart_id: id,
             variant_id,
             quantity,
-            unit_price_usd: variant.price_usd,
+            unit_price_usd: unitPrice,
           },
         });
       }

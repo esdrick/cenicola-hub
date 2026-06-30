@@ -70,7 +70,7 @@ async function getStock(params: SearchParams, lowStock: number) {
     stock_total: v.stock_total,
     stock_online: v.stock_online,
     stock_store: v.stock_store,
-    price_usd: Number(v.price_usd),
+    price_bcv: Number(v.price_bcv),
     product: {
       id: v.product.id,
       name: v.product.name,

@@ -45,7 +45,8 @@ export const STATUS_CLASSES: Record<string, string> = {
 };
 
 export const PAYMENT_TYPE_LABELS: Record<string, string> = {
-  efectivo:      "Efectivo",
+  efectivo_bs:   "Efectivo Bs",
+  efectivo_usd:  "Efectivo USD",
   transferencia: "Transferencia",
   zelle:         "Zelle",
   pago_movil:    "Pago Móvil",

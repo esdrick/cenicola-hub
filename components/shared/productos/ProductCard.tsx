@@ -12,7 +12,7 @@ export function ProductCard({ product }: Props) {
   const [imgError, setImgError] = useState(false);
   const photo = product.photos[0];
   const activeVariants = product.variants.filter((v) => v.is_active);
-  const price = activeVariants[0]?.price_usd;
+  const price = activeVariants[0]?.price_bcv;
   const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
   const outOfStock = totalStock === 0;
 

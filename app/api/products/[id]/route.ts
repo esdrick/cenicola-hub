@@ -26,7 +26,12 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     updated_at: product.updated_at.toISOString(),
     variants: product.variants.map((v) => ({
       ...v,
-      price_usd: Number(v.price_usd),
+      price_bcv: Number(v.price_bcv),
+      price_divisas: Number(v.price_divisas),
+      price_bundle_bcv: Number(v.price_bundle_bcv),
+      price_bundle_divisas: Number(v.price_bundle_divisas),
+      price_mayor_bcv: Number(v.price_mayor_bcv),
+      price_mayor_divisas: Number(v.price_mayor_divisas),
       updated_at: v.updated_at.toISOString(),
     })),
   });
@@ -46,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { name, type, color, description, photos, price_usd, variants } = body;
+  const { name, type, color, description, photos, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, variants } = body;
   const ip = getClientIp(request);
 
   const dataBefore = { name: existing.name, type: existing.type, color: existing.color };
@@ -65,7 +70,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       });
 
       if (Array.isArray(variants)) {
-        const price = price_usd ? parseFloat(Number(price_usd).toFixed(2)) : null;
+        const pBcv       = price_bcv           != null ? parseFloat(Number(price_bcv).toFixed(2))           : null;
+        const pDivisas   = price_divisas       != null ? parseFloat(Number(price_divisas).toFixed(2))       : null;
+        const pBundleBcv = price_bundle_bcv    != null ? parseFloat(Number(price_bundle_bcv).toFixed(2))    : null;
+        const pBundleDiv = price_bundle_divisas != null ? parseFloat(Number(price_bundle_divisas).toFixed(2)) : null;
+        const pMayorBcv  = price_mayor_bcv     != null ? parseFloat(Number(price_mayor_bcv).toFixed(2))     : null;
+        const pMayorDiv  = price_mayor_divisas != null ? parseFloat(Number(price_mayor_divisas).toFixed(2)) : null;
 
         for (const v of variants) {
           if (v.id) {
@@ -85,7 +95,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
                 stock_online: stockOnline,
                 stock_store: stockStore,
                 stock_total: stockTotal,
-                price_usd: price ?? ev.price_usd,
+                price_bcv:            pBcv       ?? Number(ev.price_bcv),
+                price_divisas:        pDivisas   ?? Number(ev.price_divisas),
+                price_bundle_bcv:     pBundleBcv ?? Number(ev.price_bundle_bcv),
+                price_bundle_divisas: pBundleDiv ?? Number(ev.price_bundle_divisas),
+                price_mayor_bcv:      pMayorBcv  ?? Number(ev.price_mayor_bcv),
+                price_mayor_divisas:  pMayorDiv  ?? Number(ev.price_mayor_divisas),
                 is_active: isActive,
               },
             });
@@ -121,7 +136,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
                 stock_online: stockOnline,
                 stock_store: stockStore,
                 stock_total: stockTotal,
-                price_usd: price ?? Number(existing.variants[0]?.price_usd ?? 0),
+                price_bcv:            pBcv       ?? Number(existing.variants[0]?.price_bcv ?? 0),
+                price_divisas:        pDivisas   ?? Number(existing.variants[0]?.price_divisas ?? 0),
+                price_bundle_bcv:     pBundleBcv ?? Number(existing.variants[0]?.price_bundle_bcv ?? 0),
+                price_bundle_divisas: pBundleDiv ?? Number(existing.variants[0]?.price_bundle_divisas ?? 0),
+                price_mayor_bcv:      pMayorBcv  ?? Number(existing.variants[0]?.price_mayor_bcv ?? 0),
+                price_mayor_divisas:  pMayorDiv  ?? Number(existing.variants[0]?.price_mayor_divisas ?? 0),
               },
             });
 

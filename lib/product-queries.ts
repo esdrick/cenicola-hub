@@ -16,7 +16,12 @@ export async function getProduct(id: string): Promise<ProductJSON | null> {
     updated_at: p.updated_at.toISOString(),
     variants: p.variants.map((v) => ({
       ...v,
-      price_usd: Number(v.price_usd),
+      price_bcv: Number(v.price_bcv),
+      price_divisas: Number(v.price_divisas),
+      price_bundle_bcv: Number(v.price_bundle_bcv),
+      price_bundle_divisas: Number(v.price_bundle_divisas),
+      price_mayor_bcv: Number(v.price_mayor_bcv),
+      price_mayor_divisas: Number(v.price_mayor_divisas),
       updated_at: v.updated_at.toISOString(),
     })),
   };

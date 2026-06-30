@@ -43,7 +43,12 @@ export async function GET(request: NextRequest) {
     hasLowStock: p.variants.some((v) => v.stock_total < 3),
     variants: p.variants.map((v) => ({
       ...v,
-      price_usd: Number(v.price_usd),
+      price_bcv: Number(v.price_bcv),
+      price_divisas: Number(v.price_divisas),
+      price_bundle_bcv: Number(v.price_bundle_bcv),
+      price_bundle_divisas: Number(v.price_bundle_divisas),
+      price_mayor_bcv: Number(v.price_mayor_bcv),
+      price_mayor_divisas: Number(v.price_mayor_divisas),
       updated_at: v.updated_at.toISOString(),
     })),
   }));
@@ -59,12 +64,12 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { name, type, color, description, price_usd, photos, variants } = body;
+  const { name, type, color, description, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, photos, variants } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
   if (!type?.trim()) return NextResponse.json({ error: "El tipo es requerido" }, { status: 400 });
-  if (!price_usd || Number(price_usd) <= 0)
-    return NextResponse.json({ error: "El precio debe ser mayor a 0" }, { status: 400 });
+  if (!price_bcv || Number(price_bcv) <= 0)
+    return NextResponse.json({ error: "El precio BCV debe ser mayor a 0" }, { status: 400 });
   if (!Array.isArray(photos) || photos.length === 0)
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
   if (!Array.isArray(variants) || variants.length === 0)
@@ -88,7 +93,12 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  const price = parseFloat(Number(price_usd).toFixed(2));
+  const pBcv       = parseFloat(Number(price_bcv).toFixed(2));
+  const pDivisas   = parseFloat(Number(price_divisas || 0).toFixed(2));
+  const pBundleBcv = parseFloat(Number(price_bundle_bcv || 0).toFixed(2));
+  const pBundleDiv = parseFloat(Number(price_bundle_divisas || 0).toFixed(2));
+  const pMayorBcv  = parseFloat(Number(price_mayor_bcv || 0).toFixed(2));
+  const pMayorDiv  = parseFloat(Number(price_mayor_divisas || 0).toFixed(2));
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -130,7 +140,12 @@ export async function POST(request: NextRequest) {
             stock_online: stockOnline,
             stock_store: stockStore,
             stock_total: stockTotal,
-            price_usd: price,
+            price_bcv: pBcv,
+            price_divisas: pDivisas,
+            price_bundle_bcv: pBundleBcv,
+            price_bundle_divisas: pBundleDiv,
+            price_mayor_bcv: pMayorBcv,
+            price_mayor_divisas: pMayorDiv,
           },
         });
 

@@ -1,4 +1,6 @@
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+config({ path: ".env", override: false });
 import { PrismaClient } from "../app/generated/prisma";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
@@ -28,6 +30,21 @@ async function main() {
   });
 
   console.log(`✅  Admin creado: ${user.email}`);
+
+  await prisma.systemSetting.upsert({
+    where:  { key: "bundle_threshold" },
+    update: {},
+    create: { key: "bundle_threshold", value: "3" },
+  });
+  console.log("✅  SystemSetting bundle_threshold = 3");
+
+  await prisma.systemSetting.upsert({
+    where:  { key: "mayor_threshold" },
+    update: {},
+    create: { key: "mayor_threshold", value: "6" },
+  });
+  console.log("✅  SystemSetting mayor_threshold = 6");
+
   console.log("\n✔ Seed completo. Crea los demás usuarios desde la UI con el rol admin.");
 }
 

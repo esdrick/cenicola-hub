@@ -120,6 +120,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [isPartialAgreed, setIsPartialAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [repricingCart, setRepricingCart] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -269,21 +270,23 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   function addPayment() {
     const amt = parseFloat(draft.amount_usd);
     if (isNaN(amt) || amt <= 0) { setError("Monto inválido"); return; }
-    if (amt > remaining + 0.005) {
-      setError(`El monto ($${amt.toFixed(2)}) supera el saldo pendiente ($${remaining.toFixed(2)})`);
-      return;
-    }
-    if (draft.payment_type !== "efectivo" && !draft.reference.trim()) {
+    const maxAmt = remaining + 2.00;
+    if (amt > maxAmt) { setError(`El monto excede el límite de redondeo. Máximo $${maxAmt.toFixed(2)}`); return; }
+    const draftIsCash = draft.payment_type === "efectivo_bs" || draft.payment_type === "efectivo_usd";
+    if (!draftIsCash && !draft.reference.trim()) {
       setError("Referencia requerida para este tipo de pago"); return;
     }
-    if (draft.payment_type !== "efectivo" && draft.reference.trim()) {
+    if (!draftIsCash && draft.reference.trim()) {
       const normRef = draft.reference.toUpperCase().replace(/[\s\-]/g, "");
-      const dup = payments.find((p, i) =>
-        i !== editingIndex &&
-        p.payment_type !== "efectivo" &&
-        p.payment_type === draft.payment_type &&
-        p.reference.toUpperCase().replace(/[\s\-]/g, "") === normRef
-      );
+      const dup = payments.find((p, i) => {
+        const pIsCash = p.payment_type === "efectivo_bs" || p.payment_type === "efectivo_usd";
+        return (
+          i !== editingIndex &&
+          !pIsCash &&
+          p.payment_type === draft.payment_type &&
+          p.reference.toUpperCase().replace(/[\s\-]/g, "") === normRef
+        );
+      });
       if (dup) { setError(`Referencia duplicada: "${draft.reference}"`); return; }
     }
     if (editingIndex !== null) {
@@ -394,13 +397,33 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           )}
 
           <div className="rounded-xl border bg-white p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-                <ShoppingCart size={14} />
-                Productos ({cartData.items.length})
-              </h2>
-              <p className="text-sm font-semibold">${cartTotal.toFixed(2)} USD</p>
-            </div>
+            {(() => {
+              const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
+              const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Bundle" : "Detal";
+              const pm = cartData.pricing_method;
+              return (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+                      <ShoppingCart size={14} />
+                      Productos ({cartData.items.length})
+                    </h2>
+                    {pm && (
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
+                        pm === "bcv" ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700"
+                      )}>
+                        {pm === "bcv" ? "BCV" : "Divisas"}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold leading-none text-gray-600">
+                      {tier}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold shrink-0">${cartTotal.toFixed(2)} USD</p>
+                </div>
+              );
+            })()}
 
             <div className="divide-y">
               {cartData.items.map((item) => (
@@ -642,12 +665,36 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       {/* ── Step 3: Payment ── */}
       {step === 3 && (
         <div className="space-y-5">
-          <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-5 py-3">
-            <span className="text-sm text-gray-600">
-              {cart.items.length} producto{cart.items.length !== 1 ? "s" : ""} · {cart.items.reduce((s, c) => s + c.quantity, 0)} unidades
-            </span>
-            <span className="text-lg font-semibold">${cartTotal.toFixed(2)} USD</span>
-          </div>
+          {(() => {
+            const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
+            const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Bundle" : "Detal";
+            const pm = cartData.pricing_method;
+            return (
+              <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-5 py-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-gray-600">
+                    {cartData.items.length} producto{cartData.items.length !== 1 ? "s" : ""} · {totalQty} unidades
+                  </span>
+                  {pm && (
+                    <span className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
+                      pm === "bcv" ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700"
+                    )}>
+                      {pm === "bcv" ? "BCV" : "Divisas"}
+                    </span>
+                  )}
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold leading-none text-gray-600">
+                    {tier}
+                  </span>
+                </div>
+                <span className="flex items-center gap-1.5 text-lg font-semibold">
+                  {repricingCart
+                    ? <Loader2 size={16} className="animate-spin text-gray-400" />
+                    : `$${cartTotal.toFixed(2)} USD`}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* Tasas de referencia */}
           {tasaLoading && (
@@ -723,7 +770,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                     value={draft.payment_type}
                     onChange={(e) => {
                       const now = new Date();
-                      const isEfectivo = e.target.value === "efectivo";
+                      const isEfectivo = e.target.value === "efectivo_bs" || e.target.value === "efectivo_usd";
                       setDraft((p) => ({
                         ...p,
                         payment_type: e.target.value as PaymentType,
@@ -733,6 +780,21 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                           ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
                           : p.payment_time,
                       }));
+
+                      // Reprice cart if the pricing method implied by this payment type differs
+                      const newMethod = ["zelle", "usdt", "efectivo_usd"].includes(e.target.value) ? "divisas" : "bcv";
+                      if (newMethod !== cartData.pricing_method) {
+                        setRepricingCart(true);
+                        fetch(`/api/carts/${cart.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ pricing_method: newMethod }),
+                        })
+                          .then((r) => r.ok ? r.json() : null)
+                          .then((data) => { if (data) setCartData(data); })
+                          .catch(() => null)
+                          .finally(() => setRepricingCart(false));
+                      }
                     }}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                   >
@@ -745,11 +807,12 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   <Label>Monto USD *</Label>
                   {(() => {
                     const num = parseFloat(draft.amount_usd);
+                    const maxAmt = remaining + 2.00;
                     const montoError =
                       draft.amount_usd && (isNaN(num) || num <= 0)
                         ? "Monto inválido"
-                        : draft.amount_usd && num > remaining + 0.005
-                        ? `Máximo $${remaining.toFixed(2)}`
+                        : draft.amount_usd && num > maxAmt
+                        ? `Máximo $${maxAmt.toFixed(2)} (redondeo)`
                         : null;
                     const amountBs = tasa && !isNaN(num) && num > 0 ? num * tasa.rate : null;
                     return (
@@ -784,7 +847,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   })()}
                 </div>
               </div>
-              {draft.payment_type !== "efectivo" && (
+              {draft.payment_type !== "efectivo_bs" && draft.payment_type !== "efectivo_usd" && (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:max-w-sm">
                   <div className="w-full min-w-0 sm:flex-1 space-y-1.5">
                     <Label>Fecha</Label>
@@ -801,7 +864,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   </div>
                 </div>
               )}
-              {draft.payment_type !== "efectivo" && (
+              {draft.payment_type !== "efectivo_bs" && draft.payment_type !== "efectivo_usd" && (
                 <>
                   <div className="space-y-1.5">
                     <Label>Referencia *</Label>
@@ -842,10 +905,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   variant="outline"
                   onClick={addPayment}
                   disabled={
+                    repricingCart ||
                     !draft.amount_usd ||
                     isNaN(parseFloat(draft.amount_usd)) ||
-                    parseFloat(draft.amount_usd) <= 0 ||
-                    parseFloat(draft.amount_usd) > remaining + 0.005
+                    parseFloat(draft.amount_usd) <= 0
                   }
                 >
                   {editingIndex !== null

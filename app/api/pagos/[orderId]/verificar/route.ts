@@ -36,9 +36,8 @@ export async function POST(
       }
 
       const prevStatus = order.status;
-      const finalStatus = order.channel === "online" ? "en_embalaje" : "completada";
 
-      // Step 1: transition to pago_verificado
+      // Transition to pago_verificado
       await tx.order.update({
         where: { id: order.id },
         data: { status: "pago_verificado" },
@@ -56,23 +55,26 @@ export async function POST(
         },
       });
 
-      // Step 2: transition to final status (en_embalaje or completada)
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: finalStatus },
-      });
+      // Tienda orders complete immediately — online requires a separate "confirmar" step
+      if (order.channel === "tienda") {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { status: "completada" },
+        });
+        await tx.auditLog.create({
+          data: {
+            user_id: auth.session.id,
+            action: "estado_actualizado",
+            entity_type: "Order",
+            entity_id: order.id,
+            data_before: { status: "pago_verificado" },
+            data_after: { status: "completada" },
+            ip_address: ip,
+          },
+        });
+      }
 
-      await tx.auditLog.create({
-        data: {
-          user_id: auth.session.id,
-          action: "estado_actualizado",
-          entity_type: "Order",
-          entity_id: order.id,
-          data_before: { status: "pago_verificado" },
-          data_after: { status: finalStatus },
-          ip_address: ip,
-        },
-      });
+      const finalStatus = order.channel === "tienda" ? "completada" : "pago_verificado";
 
       // Mark all pending payments as verified
       await tx.orderPayment.updateMany({

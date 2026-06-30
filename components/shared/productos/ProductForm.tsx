@@ -63,13 +63,18 @@ export function ProductForm({ initialData, productId }: Props) {
   const router = useRouter();
   const isEdit = !!productId;
 
-  const firstPrice = initialData?.variants.find((v) => v.is_active)?.price_usd ?? "";
+  const firstVariant = initialData?.variants.find((v) => v.is_active);
 
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState(initialData?.type ?? "");
   const [color, setColor] = useState<string | null>(initialData?.color ?? null);
   const [description, setDescription] = useState(initialData?.description ?? "");
-  const [priceUsd, setPriceUsd] = useState<string>(firstPrice !== "" ? String(firstPrice) : "");
+  const [priceBcv, setPriceBcv] = useState<string>(firstVariant?.price_bcv ? String(firstVariant.price_bcv) : "");
+  const [priceDivisas, setPriceDivisas] = useState<string>(firstVariant?.price_divisas ? String(firstVariant.price_divisas) : "");
+  const [priceBundleBcv, setPriceBundleBcv] = useState<string>(firstVariant?.price_bundle_bcv ? String(firstVariant.price_bundle_bcv) : "");
+  const [priceBundleDivisas, setPriceBundleDivisas] = useState<string>(firstVariant?.price_bundle_divisas ? String(firstVariant.price_bundle_divisas) : "");
+  const [priceMayorBcv, setPriceMayorBcv] = useState<string>(firstVariant?.price_mayor_bcv ? String(firstVariant.price_mayor_bcv) : "");
+  const [priceMayorDivisas, setPriceMayorDivisas] = useState<string>(firstVariant?.price_mayor_divisas ? String(firstVariant.price_mayor_divisas) : "");
   const [photos, setPhotos] = useState<string[]>(initialData?.photos ?? []);
   const [photoInput, setPhotoInput] = useState("");
   const [photoError, setPhotoError] = useState("");
@@ -204,7 +209,7 @@ export function ProductForm({ initialData, productId }: Props) {
 
     if (!name.trim()) { setError("El nombre es requerido"); return; }
     if (!type.trim()) { setError("El tipo es requerido"); return; }
-    if (!priceUsd || Number(priceUsd) <= 0) { setError("El precio debe ser mayor a 0"); return; }
+    if (!priceBcv || Number(priceBcv) <= 0) { setError("El precio BCV debe ser mayor a 0"); return; }
     if (photos.length === 0) { setError("Agrega al menos una foto"); return; }
 
     const variantsToSend = variants.filter((v) => !(v.is_active === false && v.isNew));
@@ -216,7 +221,12 @@ export function ProductForm({ initialData, productId }: Props) {
     try {
       const payload = {
         name, type, color, description,
-        price_usd: Number(priceUsd),
+        price_bcv: Number(priceBcv),
+        price_divisas: Number(priceDivisas) || 0,
+        price_bundle_bcv: Number(priceBundleBcv) || 0,
+        price_bundle_divisas: Number(priceBundleDivisas) || 0,
+        price_mayor_bcv: Number(priceMayorBcv) || 0,
+        price_mayor_divisas: Number(priceMayorDivisas) || 0,
         photos,
         variants: variantsToSend,
       };
@@ -327,13 +337,80 @@ export function ProductForm({ initialData, productId }: Props) {
             </select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="price">Precio USD *</Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">$</span>
-              <Input id="price" type="number" min="0.01" step="0.01" value={priceUsd}
-                onChange={(e) => setPriceUsd(e.target.value)}
-                placeholder="0.00" className="pl-6" disabled={loading} />
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Precios *</p>
+
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Detal (1-2 piezas)</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="price_bcv">BCV *</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_bcv" type="number" min="0.01" step="0.01" value={priceBcv}
+                    onChange={(e) => setPriceBcv(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="price_divisas">Divisas</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_divisas" type="number" min="0" step="0.01" value={priceDivisas}
+                    onChange={(e) => setPriceDivisas(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Bundle (3-5 piezas)</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="price_bundle_bcv">BCV</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_bundle_bcv" type="number" min="0" step="0.01" value={priceBundleBcv}
+                    onChange={(e) => setPriceBundleBcv(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="price_bundle_divisas">Divisas</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_bundle_divisas" type="number" min="0" step="0.01" value={priceBundleDivisas}
+                    onChange={(e) => setPriceBundleDivisas(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Mayoreo (6+ piezas)</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="price_mayor_bcv">BCV</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_mayor_bcv" type="number" min="0" step="0.01" value={priceMayorBcv}
+                    onChange={(e) => setPriceMayorBcv(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="price_mayor_divisas">Divisas</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <Input id="price_mayor_divisas" type="number" min="0" step="0.01" value={priceMayorDivisas}
+                    onChange={(e) => setPriceMayorDivisas(e.target.value)}
+                    placeholder="0.00" className="pl-6" disabled={loading} />
+                </div>
+              </div>
             </div>
           </div>
         </div>

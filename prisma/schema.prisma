@@ -46,7 +46,8 @@ enum OrderStatus {
 }
 
 enum PaymentType {
-  efectivo
+  efectivo_bs
+  efectivo_usd
   transferencia
   zelle
   pago_movil
@@ -76,6 +77,11 @@ enum DocumentType {
   P
   J
   E
+}
+
+enum PricingMethod {
+  bcv
+  divisas
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────
@@ -136,11 +142,16 @@ model ProductVariant {
   product_id   String
   size         String
   sku          String   @unique
-  stock_total  Int      @default(0)
-  stock_online Int      @default(0)
-  stock_store  Int      @default(0)
-  price_usd    Decimal  @db.Decimal(10, 2)
-  is_active    Boolean  @default(true)
+  stock_total          Int      @default(0)
+  stock_online         Int      @default(0)
+  stock_store          Int      @default(0)
+  price_bcv            Decimal  @default(0) @db.Decimal(10, 2)
+  price_divisas        Decimal  @default(0) @db.Decimal(10, 2)
+  price_bundle_bcv     Decimal  @default(0) @db.Decimal(10, 2)
+  price_bundle_divisas Decimal  @default(0) @db.Decimal(10, 2)
+  price_mayor_bcv      Decimal  @default(0) @db.Decimal(10, 2)
+  price_mayor_divisas  Decimal  @default(0) @db.Decimal(10, 2)
+  is_active            Boolean  @default(true)
   updated_at   DateTime @updatedAt
 
   product             Product             @relation(fields: [product_id], references: [id])
@@ -198,9 +209,10 @@ model Order {
   customer_id_doc     String
   address             String?
   shipping_company    String?
-  total_usd           Decimal     @db.Decimal(10, 2)
-  exchange_rate_id    String?
-  is_partial_agreed   Boolean     @default(false)
+  total_usd            Decimal        @db.Decimal(10, 2)
+  pricing_method       PricingMethod?
+  exchange_rate_id     String?
+  is_partial_agreed    Boolean        @default(false)
   partial_agreed_by   String?
   notes               String?
   created_by          String
@@ -408,10 +420,11 @@ model AccountPayable {
 
 model Cart {
   id         String      @id @default(uuid())
-  vendor_id  String
-  channel    OrderChannel
-  note       String?
-  status     CartStatus  @default(active)
+  vendor_id       String
+  channel         OrderChannel
+  pricing_method  PricingMethod  @default(bcv)
+  note            String?
+  status          CartStatus     @default(active)
   created_at DateTime    @default(now())
   updated_at DateTime    @updatedAt
 

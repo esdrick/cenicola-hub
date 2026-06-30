@@ -82,7 +82,6 @@ export async function GET(
         id: item.variant.id,
         size: item.variant.size,
         sku: item.variant.sku,
-        price_usd: Number(item.variant.price_usd),
         updated_at: item.variant.updated_at.toISOString(),
         product: item.variant.product,
       },

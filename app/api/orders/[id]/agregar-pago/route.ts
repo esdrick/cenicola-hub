@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { normalizeReference } from "@/lib/order-utils";
+import { paymentTypeToPricingMethod, resolveUnitPrice } from "@/lib/pricing";
+import { getSetting } from "@/lib/settings";
 import type { PaymentType } from "@/app/generated/prisma/client";
+
+const ALLOWED_BY_METHOD: Record<"bcv" | "divisas", string> = {
+  bcv: "Efectivo Bs, Transferencia, Pago Móvil",
+  divisas: "Efectivo USD, Zelle, USDT",
+};
 
 export async function POST(
   request: NextRequest,
@@ -21,10 +28,18 @@ export async function POST(
   if (isNaN(amt) || amt <= 0) return NextResponse.json({ error: "Monto inválido" }, { status: 400 });
   if (!payment_date) return NextResponse.json({ error: "Fecha de pago requerida" }, { status: 400 });
 
-  const isEfectivo = (payment_type as PaymentType) === "efectivo";
+  const isEfectivo = (payment_type as PaymentType) === "efectivo_bs" || (payment_type as PaymentType) === "efectivo_usd";
   if (!isEfectivo && !reference?.trim()) {
     return NextResponse.json({ error: "Referencia requerida para este método de pago" }, { status: 400 });
   }
+
+  // Fetch pricing thresholds before the transaction
+  const [mayorThreshold, bundleThreshold] = await Promise.all([
+    getSetting("mayor_threshold"),
+    getSetting("bundle_threshold"),
+  ]);
+
+  const derivedMethod = paymentTypeToPricingMethod(payment_type as PaymentType);
 
   const ip = getClientIp(request);
 
@@ -32,6 +47,7 @@ export async function POST(
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: params.id },
+        include: { items: { include: { variant: true } } },
       });
 
       if (!order) throw new Error("NOT_FOUND");
@@ -44,15 +60,55 @@ export async function POST(
         throw new Error("INVALID_STATUS");
       }
 
-      // Validate new payment doesn't exceed remaining balance
+      // ── Handle pricing_method ────────────────────────────────────────────────
+      let effectiveOrderTotal: number;
+
+      if (order.pricing_method === null) {
+        // First payment: recalculate item prices and set pricing_method on order
+        const totalItems = order.items.reduce((s, i) => s + i.quantity, 0);
+        let newTotalUsd = 0;
+
+        for (const item of order.items) {
+          const unitPrice = resolveUnitPrice(
+            item.variant,
+            derivedMethod,
+            totalItems,
+            mayorThreshold,
+            bundleThreshold,
+          );
+          const subtotal = parseFloat((Number(unitPrice) * item.quantity).toFixed(2));
+          newTotalUsd += subtotal;
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: { unit_price_usd: Number(unitPrice), subtotal_usd: subtotal },
+          });
+        }
+        newTotalUsd = parseFloat(newTotalUsd.toFixed(2));
+
+        await tx.order.update({
+          where: { id: order.id },
+          data: { pricing_method: derivedMethod, total_usd: newTotalUsd },
+        });
+
+        effectiveOrderTotal = newTotalUsd;
+      } else {
+        // Subsequent payments: validate compatibility with established pricing_method
+        if (derivedMethod !== order.pricing_method) {
+          throw new Error(`INCOMPATIBLE_PAYMENT:${order.pricing_method}`);
+        }
+        effectiveOrderTotal = Number(order.total_usd);
+      }
+
+      // ── Current paid total (for status updates + overpayment cap) ───────────
       const activePayments = await tx.orderPayment.findMany({
         where: { order_id: order.id, status: { not: "rechazado" } },
         select: { amount_usd: true },
       });
       const currentPaid = activePayments.reduce((s, p) => s + Number(p.amount_usd), 0);
-      const orderTotal = Number(order.total_usd);
-      if (amt > orderTotal - currentPaid + 0.005) {
-        throw new Error("EXCEEDS_BALANCE");
+
+      // Cap: total paid (including this payment) cannot exceed order total + $2 rounding margin
+      if (currentPaid + amt > effectiveOrderTotal + 2.00) {
+        throw new Error("OVERPAYMENT");
       }
 
       const hash = isEfectivo ? null : normalizeReference(reference ?? "");
@@ -129,7 +185,7 @@ export async function POST(
       // For cash payments, auto-update order status based on new paid total
       if (isEfectivo) {
         const newPaidTotal = currentPaid + amt;
-        const isFullyPaid = newPaidTotal >= orderTotal - 0.005;
+        const isFullyPaid = newPaidTotal >= effectiveOrderTotal - 0.005;
         let newOrderStatus: string | null = null;
 
         if (isFullyPaid) {
@@ -149,7 +205,7 @@ export async function POST(
 
         // When going to pago_parcial, create/update AccountReceivable
         if (newOrderStatus === "pago_parcial") {
-          const remainingDebt = parseFloat((orderTotal - (currentPaid + amt)).toFixed(2));
+          const remainingDebt = parseFloat((effectiveOrderTotal - (currentPaid + amt)).toFixed(2));
           if (remainingDebt > 0) {
             const existing = await tx.accountReceivable.findFirst({
               where: { order_id: order.id },
@@ -183,12 +239,13 @@ export async function POST(
           action: "pago_agregado",
           entity_type: "Order",
           entity_id: order.id,
-          data_before: { status: order.status },
+          data_before: { status: order.status, pricing_method: order.pricing_method },
           data_after: {
             payment_type,
             amount_usd: amt,
             reference: isEfectivo ? "EFECTIVO" : reference,
             auto_verified: isEfectivo,
+            pricing_method_set: derivedMethod,
           },
           ip_address: ip,
         },
@@ -207,9 +264,16 @@ export async function POST(
         { error: "Solo se pueden agregar pagos a órdenes pendientes de verificación" },
         { status: 409 }
       );
-    if (msg === "EXCEEDS_BALANCE")
+    if (msg.startsWith("INCOMPATIBLE_PAYMENT:")) {
+      const method = msg.replace("INCOMPATIBLE_PAYMENT:", "") as "bcv" | "divisas";
       return NextResponse.json(
-        { error: "El monto supera el saldo pendiente de la orden" },
+        { error: `Método de pago incompatible. Esta orden usa precios ${method === "bcv" ? "BCV" : "divisas"} — métodos permitidos: ${ALLOWED_BY_METHOD[method]}` },
+        { status: 422 }
+      );
+    }
+    if (msg === "OVERPAYMENT")
+      return NextResponse.json(
+        { error: "El monto excede el total de la orden. Solo se permite hasta $2.00 de diferencia por redondeo." },
         { status: 422 }
       );
     if (msg === "REF_DUP_SAME_ORDER")

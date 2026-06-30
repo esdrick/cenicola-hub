@@ -15,6 +15,7 @@ type CartWithItems = {
   channel: OrderChannel;
   note: string | null;
   status: "active" | "converting";
+  pricing_method: "bcv" | "divisas";
   created_at: Date;
   updated_at: Date;
   vendor: { id: string; name: string };
@@ -74,6 +75,7 @@ function serializeCart(cart: CartWithItems) {
     channel: cart.channel,
     note: cart.note,
     status: cart.status,
+    pricing_method: cart.pricing_method,
     created_at: cart.created_at.toISOString(),
     updated_at: cart.updated_at.toISOString(),
     vendor: cart.vendor,

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, X, AlertCircle, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { Upload, X, AlertCircle, Loader2, ZoomIn } from "lucide-react";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { EmbalajeOrdenDetailJSON } from "@/types";
 
@@ -42,6 +35,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
   const [notas, setNotas] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const foto1InputRef = useRef<HTMLInputElement>(null);
   const foto2InputRef = useRef<HTMLInputElement>(null);
@@ -241,36 +235,45 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
               <CardTitle className="text-base">Productos ({order.items.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Talla</TableHead>
-                    <TableHead className="text-center">Cant.</TableHead>
-                    <TableHead className="text-right">Precio</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {order.items.map((item) => {
-                    const snap = item.variant_snapshot as Record<string, unknown> | null;
-                    const productName = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
-                    const color = (item.variant?.product?.color ?? (snap?.color as string | undefined)) ?? "—";
-                    const size = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{productName}</TableCell>
-                        <TableCell>{color}</TableCell>
-                        <TableCell>{size}</TableCell>
-                        <TableCell className="text-center">{item.quantity}</TableCell>
-                        <TableCell className="text-right">${item.unit_price_usd.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">${item.subtotal_usd.toFixed(2)}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <div className="divide-y">
+                {order.items.map((item) => {
+                  const snap = item.variant_snapshot as Record<string, unknown> | null;
+                  const productName = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
+                  const color = (item.variant?.product?.color ?? (snap?.color as string | undefined)) ?? "—";
+                  const size = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
+                  const photo = item.variant?.product?.photos?.[0] ?? null;
+                  return (
+                    <div key={item.id} className="flex items-center gap-4 px-4 py-3">
+                      {/* Photo */}
+                      {photo ? (
+                        <button
+                          type="button"
+                          onClick={() => setLightboxSrc(photo)}
+                          className="group relative flex-shrink-0 h-20 w-20 overflow-hidden rounded-lg border bg-gray-50"
+                        >
+                          <Image src={photo} alt={productName} fill className="object-cover" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
+                            <ZoomIn size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="flex-shrink-0 h-20 w-20 rounded-lg border bg-gray-100" />
+                      )}
+                      {/* Details */}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm">{productName}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{color} · Talla {size}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 font-mono">{item.variant?.sku}</p>
+                      </div>
+                      {/* Qty + price */}
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-2xl font-bold text-gray-900">×{item.quantity}</p>
+                        <p className="text-xs text-gray-400">${item.subtotal_usd.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
               <div className="px-4 py-3 border-t text-right text-sm font-semibold">
                 Total: ${order.total_usd.toFixed(2)}
               </div>
@@ -460,6 +463,29 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
           )}
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxSrc(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white"
+          >
+            <X size={28} />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Foto del producto"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

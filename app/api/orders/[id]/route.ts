@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { withAuth } from "@/lib/api-auth";
+import { withAuth, withRole } from "@/lib/api-auth";
 
 export async function GET(
   _request: NextRequest,
@@ -45,7 +45,6 @@ export async function GET(
       subtotal_usd: Number(item.subtotal_usd),
       variant: {
         ...item.variant,
-        price_usd: Number(item.variant.price_usd),
         updated_at: item.variant.updated_at.toISOString(),
       },
     })),
@@ -61,3 +60,4 @@ export async function GET(
 
   return NextResponse.json(data);
 }
+

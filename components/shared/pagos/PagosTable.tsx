@@ -20,7 +20,8 @@ import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 const METODO_LABELS: Record<PaymentType, string> = {
-  efectivo:      "Efectivo",
+  efectivo_bs:   "Efectivo Bs",
+  efectivo_usd:  "Efectivo USD",
   transferencia: "Transferencia",
   zelle:         "Zelle",
   pago_movil:    "Pago Móvil",
@@ -28,7 +29,8 @@ const METODO_LABELS: Record<PaymentType, string> = {
 };
 
 const METODO_CLASSES: Record<PaymentType, string> = {
-  efectivo:      "bg-emerald-100 text-emerald-800",
+  efectivo_bs:   "bg-emerald-100 text-emerald-800",
+  efectivo_usd:  "bg-teal-100 text-teal-800",
   transferencia: "bg-blue-100 text-blue-800",
   zelle:         "bg-violet-100 text-violet-800",
   pago_movil:    "bg-orange-100 text-orange-800",

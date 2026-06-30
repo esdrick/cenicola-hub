@@ -79,6 +79,7 @@ export default async function CompletarCarritoPage({ params }: Params) {
     channel: cart.channel,
     note: cart.note,
     status: cart.status,
+    pricing_method: cart.pricing_method,
     created_at: cart.created_at.toISOString(),
     updated_at: cart.updated_at.toISOString(),
     vendor: cart.vendor,

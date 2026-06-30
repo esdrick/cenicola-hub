@@ -10,7 +10,10 @@ import { OrderStatusBadge } from "@/components/shared/ordenes/OrderStatusBadge";
 import { CancelOrderButton } from "@/components/shared/ordenes/CancelOrderButton";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
+import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrdenButton";
 import { STATUS_LABELS, PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { paymentTypeToPricingMethod } from "@/lib/pricing";
+import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink } from "lucide-react";
 
@@ -131,7 +134,10 @@ export default async function OrderDetailPage({
           },
         },
       },
-      payments: { orderBy: { created_at: "asc" } },
+      payments: {
+        include: { exchange_rate: { select: { usd_to_ves: true } } },
+        orderBy: { created_at: "asc" },
+      },
       shipment: { include: { packer: { select: { id: true, name: true } } } },
     },
   });
@@ -146,6 +152,9 @@ export default async function OrderDetailPage({
 
   const canComplete = (session.role === "admin" || session.role === "inventario") &&
     order.status === "enviada";
+
+  const canConfirmar = (session.role === "admin" || session.role === "inventario") &&
+    order.channel === "online" && order.status === "pago_verificado";
 
   const totalUsd = Number(order.total_usd);
 
@@ -196,8 +205,11 @@ export default async function OrderDetailPage({
               Creada por {order.creator.name} · {createdAt}
             </p>
           </div>
-          {(canComplete || canCancel) && (
+          {(canConfirmar || canComplete || canCancel) && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {canConfirmar && (
+                <ConfirmarOrdenButton orderId={order.id} orderNumber={order.order_number} />
+              )}
               {canComplete && (
                 <CompletarOrdenButton orderId={order.id} orderNumber={order.order_number} />
               )}
@@ -218,6 +230,7 @@ export default async function OrderDetailPage({
       <div className="grid gap-5 lg:grid-cols-3">
         {/* ── Left: items + notes ── */}
         <div className="space-y-5 lg:col-span-2">
+
           {/* Items */}
           <div className="rounded-xl border bg-white overflow-hidden">
             <div className="border-b px-3 sm:px-5 py-3">
@@ -249,9 +262,13 @@ export default async function OrderDetailPage({
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between border-t bg-gray-50 px-3 sm:px-5 py-3">
-              <span className="text-sm text-gray-600">Total</span>
-              <span className="text-lg font-bold">${totalUsd.toFixed(2)} USD</span>
+            <div className="border-t bg-gray-50 px-3 sm:px-5 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Total</span>
+                <span className="text-lg font-bold">
+                  ${totalUsd.toFixed(2)} USD
+                </span>
+              </div>
             </div>
           </div>
 
@@ -298,7 +315,19 @@ export default async function OrderDetailPage({
           {/* Payments */}
           <div className="rounded-xl border bg-white overflow-hidden">
             <div className="border-b px-3 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Pagos</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-700">Pagos</h2>
+                {order.pricing_method && (
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-xs font-medium",
+                    order.pricing_method === "bcv"
+                      ? "bg-blue-50 text-blue-700"
+                      : "bg-violet-50 text-violet-700"
+                  )}>
+                    {order.pricing_method === "bcv" ? "Precios BCV" : "Precios Divisas"}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-3">
                 <span className={cn(
                   "text-xs font-medium",
@@ -312,6 +341,7 @@ export default async function OrderDetailPage({
                     orderNumber={order.order_number}
                     totalUsd={totalUsd}
                     paidUsd={paidTotal}
+                    pricingMethod={order.pricing_method}
                   />
                 )}
               </div>
@@ -323,6 +353,11 @@ export default async function OrderDetailPage({
                 {order.payments.map((p) => {
                   const ps = PAYMENT_STATUS[p.status as keyof typeof PAYMENT_STATUS];
                   const isRejected = p.status === "rechazado";
+                  const pm = paymentTypeToPricingMethod(p.payment_type as PaymentType);
+                  const rate = p.exchange_rate?.usd_to_ves ? Number(p.exchange_rate.usd_to_ves) : null;
+                  const bsAmount = pm === "bcv" && !isRejected
+                    ? (p.amount_ves ? Number(p.amount_ves) : rate ? Number(p.amount_usd) * rate : null)
+                    : null;
                   return (
                     <div
                       key={p.id}
@@ -332,18 +367,42 @@ export default async function OrderDetailPage({
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className={cn(
-                          "text-sm font-medium",
-                          isRejected && "text-red-700 line-through"
-                        )}>
-                          {PAYMENT_TYPE_LABELS[p.payment_type]}
-                        </span>
-                        <span className={cn(
-                          "text-sm font-semibold",
-                          isRejected && "text-red-500"
-                        )}>
-                          ${Number(p.amount_usd).toFixed(2)}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn(
+                            "text-sm font-medium",
+                            isRejected && "text-red-700 line-through"
+                          )}>
+                            {PAYMENT_TYPE_LABELS[p.payment_type]}
+                          </span>
+                          {!isRejected && (
+                            <span className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+                              pm === "bcv"
+                                ? "bg-blue-50 text-blue-600"
+                                : "bg-violet-50 text-violet-600"
+                            )}>
+                              {pm === "bcv" ? "BCV" : "Divisas"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className={cn(
+                            "text-sm font-semibold",
+                            isRejected && "text-red-500"
+                          )}>
+                            ${Number(p.amount_usd).toFixed(2)}
+                          </span>
+                          {bsAmount !== null && (
+                            <p className="text-xs text-gray-500">
+                              Bs {bsAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          )}
+                          {rate !== null && pm === "bcv" && !isRejected && (
+                            <p className="text-[10px] text-gray-400">
+                              tasa Bs {rate.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-gray-400">

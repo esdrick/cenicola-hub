@@ -190,7 +190,7 @@ export function AddToCartButton({
               <div key={v.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
                 <span className="w-12 text-sm font-semibold text-gray-800">{v.size}</span>
                 <span className="flex-1 text-xs text-gray-400">
-                  ${v.price_usd.toFixed(2)} · {stock} disp.
+                  ${v.price_bcv.toFixed(2)} · {stock} disp.
                 </span>
 
                 {/* Qty stepper */}

@@ -96,7 +96,8 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
 
   const data: OrderJSON[] = orders.map((o) => ({
     ...o,
-    total_usd:  Number(o.total_usd),
+    total_usd:        Number(o.total_usd),
+    pricing_method:   o.pricing_method as "bcv" | "divisas" | null,
     created_at: o.created_at.toISOString(),
     updated_at: o.updated_at.toISOString(),
   }));
@@ -135,6 +136,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
       channel: cart.channel,
       note: cart.note,
       status: cart.status,
+      pricing_method: cart.pricing_method,
       created_at: cart.created_at.toISOString(),
       updated_at: cart.updated_at.toISOString(),
       vendor: cart.vendor,

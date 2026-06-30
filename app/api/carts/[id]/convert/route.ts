@@ -108,7 +108,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             color: variant.product.color,
             size: variant.size,
             sku: variant.sku,
-            price_usd: unitPrice,
+            price_bcv: unitPrice,
           },
         });
       }
@@ -116,7 +116,8 @@ export async function POST(request: NextRequest, { params }: Params) {
       // 2. Validate reference hashes
       const seenHashes = new Set<string>();
       for (const pay of payments) {
-        if ((pay.payment_type as PaymentType) !== "efectivo") {
+        const payIsCash = (pay.payment_type as PaymentType) === "efectivo_bs" || (pay.payment_type as PaymentType) === "efectivo_usd";
+        if (!payIsCash) {
           const hash = normalizeReference(pay.reference ?? "");
           if (!hash) throw new Error("La referencia del pago es requerida");
 
@@ -137,11 +138,23 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
 
       // 3. Determine status
-      const isCash = payments.length === 1 && payments[0].payment_type === "efectivo";
-      const isFullPayment =
-        Math.abs(totalUsd - parseFloat(Number(payments[0]?.amount_usd ?? 0).toFixed(2))) < 0.01;
-      const isCompletada = channel === "tienda" && isCash && isFullPayment;
-      const orderStatus = isCompletada ? "completada" : partialAgreed ? "pago_parcial" : "pendiente_pago";
+      const allCash = payments.every(
+        (p: { payment_type: string }) => p.payment_type === "efectivo_bs" || p.payment_type === "efectivo_usd"
+      );
+      const totalPaidAmt = parseFloat(
+        payments.reduce((s: number, p: { amount_usd: number }) => s + Number(p.amount_usd), 0).toFixed(2)
+      );
+      const isFullPayment = totalPaidAmt >= totalUsd - 0.005;
+      const isCompletada = channel === "tienda" && allCash && isFullPayment;
+      // Online + all cash + fully paid → pago_verificado (payment is auto-verified but order still needs shipping)
+      const isAutoVerifiedOnline = channel === "online" && allCash && isFullPayment;
+      const orderStatus = isCompletada
+        ? "completada"
+        : isAutoVerifiedOnline
+        ? "pago_verificado"
+        : partialAgreed
+        ? "pago_parcial"
+        : "pendiente_pago";
 
       // 4. Upsert customer if doc provided (address is NOT updated — only admin can change it)
       let customerId: string | null = null;
@@ -227,21 +240,26 @@ export async function POST(request: NextRequest, { params }: Params) {
 
       // 6. Create payments
       const today = new Date().toISOString().slice(0, 10);
+      const tasaRate = tasaResult?.rate ?? null;
       for (const pay of payments) {
-        const isEfectivo = (pay.payment_type as PaymentType) === "efectivo";
+        const isEfectivo = (pay.payment_type as PaymentType) === "efectivo_bs" || (pay.payment_type as PaymentType) === "efectivo_usd";
         const hash = isEfectivo ? null : normalizeReference(pay.reference ?? "");
+        const amtUsd = parseFloat(Number(pay.amount_usd).toFixed(2));
+        const amountVes = tasaId && tasaRate ? parseFloat((amtUsd * tasaRate).toFixed(2)) : null;
         await tx.orderPayment.create({
           data: {
             order_id: order.id,
             payment_type: pay.payment_type,
-            amount_usd: parseFloat(Number(pay.amount_usd).toFixed(2)),
+            amount_usd: amtUsd,
+            amount_ves: amountVes,
+            exchange_rate_id: tasaId,
             is_partial: pay.is_partial === true,
             payment_date: new Date(pay.payment_date || today),
             payment_time: pay.payment_time || null,
             reference: isEfectivo ? "EFECTIVO" : (pay.reference?.trim() ?? ""),
             reference_hash: hash,
             payment_photo: pay.payment_photo?.trim() || null,
-            status: (isEfectivo || isCompletada) ? "verificado" : "pendiente",
+            status: isEfectivo || isCompletada ? "verificado" : "pendiente",
           },
         });
       }

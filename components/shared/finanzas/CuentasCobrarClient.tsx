@@ -54,7 +54,8 @@ const STATUS_CLASSES: Record<string, string> = {
 };
 
 const METODOS: { value: string; label: string }[] = [
-  { value: "efectivo",     label: "Efectivo" },
+  { value: "efectivo_bs",  label: "Efectivo Bs" },
+  { value: "efectivo_usd", label: "Efectivo USD" },
   { value: "transferencia", label: "Transferencia" },
   { value: "zelle",        label: "Zelle" },
   { value: "pago_movil",   label: "Pago Móvil" },
@@ -91,7 +92,7 @@ export function CuentasCobrarClient({ data }: Props) {
       setFormError(`El abono no puede ser mayor al pendiente ($${abonoTarget.amount_pending.toFixed(2)})`);
       return;
     }
-    if (metodo !== "efectivo" && !referencia.trim()) {
+    if (metodo !== "efectivo_bs" && metodo !== "efectivo_usd" && !referencia.trim()) {
       setFormError("La referencia es requerida para este método de pago");
       return;
     }
@@ -279,7 +280,7 @@ export function CuentasCobrarClient({ data }: Props) {
               </select>
             </div>
             <div className="space-y-1">
-              <Label>Referencia {metodo !== "efectivo" ? "*" : "(opcional)"}</Label>
+              <Label>Referencia {metodo !== "efectivo_bs" && metodo !== "efectivo_usd" ? "*" : "(opcional)"}</Label>
               <Input
                 value={referencia}
                 onChange={(e) => setReferencia(e.target.value)}

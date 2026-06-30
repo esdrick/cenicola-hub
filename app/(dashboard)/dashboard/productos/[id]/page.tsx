@@ -111,6 +111,7 @@ export default async function ProductoDetailPage({
         channel: cart.channel,
         note: cart.note,
         status: cart.status,
+        pricing_method: cart.pricing_method,
         created_at: cart.created_at.toISOString(),
         updated_at: cart.updated_at.toISOString(),
         vendor: cart.vendor,
@@ -122,7 +123,7 @@ export default async function ProductoDetailPage({
   }
 
   const activeVariants = product.variants.filter((v) => v.is_active);
-  const price = activeVariants[0]?.price_usd;
+  const price = activeVariants[0]?.price_bcv;
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -146,7 +147,7 @@ export default async function ProductoDetailPage({
         )}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_1.4fr]">
+      <div className="grid gap-8 md:grid-cols-[1fr_1.4fr]">
         {/* Galería de fotos */}
         {product.photos.length > 0 ? (
           <ProductDetailGallery photos={product.photos} name={product.name} />
@@ -207,65 +208,122 @@ export default async function ProductoDetailPage({
 
       {/* Tabla completa de variantes — solo para admin/inventario */}
       {canEdit && (
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold text-gray-900">
-            Variantes por talla
-          </h2>
-          <div className="overflow-x-auto rounded-xl border bg-white">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Talla</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Online</TableHead>
-                  <TableHead className="text-right">Tienda</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {product.variants.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-sm text-gray-400">
-                      Sin variantes registradas
-                    </TableCell>
+        <div className="space-y-6">
+          {/* Precios */}
+          {activeVariants.length > 0 && (() => {
+            const fmt = (n: number) => n > 0 ? `$${n.toFixed(2)}` : "—";
+            const allSame = activeVariants.every((v) =>
+              v.price_bcv === activeVariants[0].price_bcv &&
+              v.price_divisas === activeVariants[0].price_divisas &&
+              v.price_bundle_bcv === activeVariants[0].price_bundle_bcv &&
+              v.price_bundle_divisas === activeVariants[0].price_bundle_divisas &&
+              v.price_mayor_bcv === activeVariants[0].price_mayor_bcv &&
+              v.price_mayor_divisas === activeVariants[0].price_mayor_divisas
+            );
+            const variantsToShow = allSame ? [activeVariants[0]] : activeVariants;
+
+            return (
+              <div className="space-y-3">
+                <h2 className="text-base font-semibold text-gray-900">Precios</h2>
+                <div className="overflow-x-auto rounded-xl border bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-50">
+                        {!allSame && <TableHead>Talla</TableHead>}
+                        <TableHead>Método</TableHead>
+                        <TableHead className="text-right">Detal</TableHead>
+                        <TableHead className="text-right">Bundle</TableHead>
+                        <TableHead className="text-right">Mayor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {variantsToShow.map((v) => (
+                        <>
+                          <TableRow key={`${v.id}-bcv`}>
+                            {!allSame && (
+                              <TableCell rowSpan={2}>
+                                <Badge variant="secondary">{v.size}</Badge>
+                              </TableCell>
+                            )}
+                            <TableCell className="text-sm text-gray-500">BCV</TableCell>
+                            <TableCell className="text-right font-medium">{fmt(v.price_bcv)}</TableCell>
+                            <TableCell className="text-right text-gray-500">{fmt(v.price_bundle_bcv)}</TableCell>
+                            <TableCell className="text-right text-gray-500">{fmt(v.price_mayor_bcv)}</TableCell>
+                          </TableRow>
+                          <TableRow key={`${v.id}-div`}>
+                            <TableCell className="text-sm text-gray-500">Divisas</TableCell>
+                            <TableCell className="text-right font-medium">{fmt(v.price_divisas)}</TableCell>
+                            <TableCell className="text-right text-gray-500">{fmt(v.price_bundle_divisas)}</TableCell>
+                            <TableCell className="text-right text-gray-500">{fmt(v.price_mayor_divisas)}</TableCell>
+                          </TableRow>
+                        </>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Stock y acciones */}
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold text-gray-900">Variantes por talla</h2>
+            <div className="overflow-x-auto rounded-xl border bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Talla</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead className="text-right">Online</TableHead>
+                    <TableHead className="text-right">Tienda</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
-                ) : (
-                  product.variants.map((v) => (
-                    <TableRow key={v.id} className={!v.is_active ? "opacity-50" : ""}>
-                      <TableCell>
-                        <Badge variant="secondary">{v.size}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-gray-400">{v.sku}</TableCell>
-                      <TableCell className="text-right">{v.stock_online}</TableCell>
-                      <TableCell className="text-right">{v.stock_store}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={`font-semibold ${v.stock_total < 3 ? "text-amber-600" : "text-gray-900"}`}>
-                          {v.stock_total}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {v.is_active ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Activa</span>
-                        ) : (
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Inactiva</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <VariantActions
-                          variantId={v.id}
-                          productName={product.name}
-                          size={v.size}
-                          currentOnline={v.stock_online}
-                          currentStore={v.stock_store}
-                        />
+                </TableHeader>
+                <TableBody>
+                  {product.variants.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-8 text-center text-sm text-gray-400">
+                        Sin variantes registradas
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    product.variants.map((v) => (
+                      <TableRow key={v.id} className={!v.is_active ? "opacity-50" : ""}>
+                        <TableCell>
+                          <Badge variant="secondary">{v.size}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-gray-400">{v.sku}</TableCell>
+                        <TableCell className="text-right">{v.stock_online}</TableCell>
+                        <TableCell className="text-right">{v.stock_store}</TableCell>
+                        <TableCell className="text-right">
+                          <span className={`font-semibold ${v.stock_total < 3 ? "text-amber-600" : "text-gray-900"}`}>
+                            {v.stock_total}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {v.is_active ? (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">Activa</span>
+                          ) : (
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Inactiva</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <VariantActions
+                            variantId={v.id}
+                            productName={product.name}
+                            size={v.size}
+                            currentOnline={v.stock_online}
+                            currentStore={v.stock_store}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
       )}

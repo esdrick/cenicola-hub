@@ -2,6 +2,8 @@ import { prisma } from "./prisma";
 
 export const SETTING_DEFAULTS = {
   low_stock_threshold: 3,
+  bundle_threshold: 3,
+  mayor_threshold: 6,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

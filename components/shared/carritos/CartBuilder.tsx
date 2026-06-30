@@ -289,7 +289,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                         {availableVariants.length} talla{availableVariants.length !== 1 ? "s" : ""}
                         {availableVariants.length > 0 && (
                           <span className="ml-1">
-                            · desde ${Math.min(...availableVariants.map((v) => v.price_usd)).toFixed(2)}
+                            · desde ${Math.min(...availableVariants.map((v) => v.price_bcv)).toFixed(2)}
                           </span>
                         )}
                       </p>
@@ -338,7 +338,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                                 <span className="w-10 shrink-0 text-sm font-semibold text-gray-800">{v.size}</span>
 
                                 <span className="text-sm text-gray-500 flex-1">
-                                  ${v.price_usd.toFixed(2)} · {stock} disp.
+                                  ${v.price_bcv.toFixed(2)} · {stock} disp.
                                 </span>
 
                                 <div className="flex items-center gap-1">
