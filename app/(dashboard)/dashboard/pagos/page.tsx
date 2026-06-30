@@ -27,7 +27,12 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
   const page   = Math.max(1, parseInt(s(searchParams.page) || "1"));
 
   const pendingCount = await prisma.order.count({
-    where: { status: { in: ["pendiente_pago", "pago_parcial"] } },
+    where: {
+      OR: [
+        { status: { in: ["pendiente_pago", "pago_parcial"] } },
+        { status: "pago_verificado", channel: "online" },
+      ],
+    },
   });
 
   // ── Historial de pagos confirmados ─────────────────────────────────────────
@@ -116,22 +121,35 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
     );
   }
 
-  // ── Pendientes de verificación (default) ───────────────────────────────────
-  const STATUSES: OrderStatus[] = ["pendiente_pago", "pago_parcial"];
+  // ── Pendientes de verificación + pendientes de confirmar (default) ────────
+  const dateFilter =
+    desde && hasta
+      ? { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) }
+      : desde ? { gte: new Date(desde) }
+      : hasta ? { lte: new Date(`${hasta}T23:59:59`) }
+      : undefined;
+
+  const baseStatusFilter = {
+    OR: [
+      { status: { in: ["pendiente_pago", "pago_parcial"] as OrderStatus[] } },
+      { status: "pago_verificado" as OrderStatus, channel: "online" },
+    ],
+  };
+
   const where = {
-    status: { in: STATUSES },
-    ...(metodo && { payments: { some: { payment_type: metodo } } }),
-    ...(desde && !hasta && { created_at: { gte: new Date(desde) } }),
-    ...(hasta && !desde && { created_at: { lte: new Date(`${hasta}T23:59:59`) } }),
-    ...(desde && hasta && { created_at: { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) } }),
-    ...(q && {
-      OR: [
-        { customer_name:     { contains: q, mode: "insensitive" as const } },
-        { customer_lastname: { contains: q, mode: "insensitive" as const } },
-        { order_number:      { contains: q, mode: "insensitive" as const } },
-        { payments: { some: { reference: { contains: q, mode: "insensitive" as const } } } },
-      ],
-    }),
+    AND: [
+      baseStatusFilter,
+      ...(metodo ? [{ payments: { some: { payment_type: metodo } } }] : []),
+      ...(dateFilter ? [{ created_at: dateFilter }] : []),
+      ...(q ? [{
+        OR: [
+          { customer_name:     { contains: q, mode: "insensitive" as const } },
+          { customer_lastname: { contains: q, mode: "insensitive" as const } },
+          { order_number:      { contains: q, mode: "insensitive" as const } },
+          { payments: { some: { reference: { contains: q, mode: "insensitive" as const } } } },
+        ],
+      }] : []),
+    ],
   };
 
   const [orders, total] = await Promise.all([
@@ -178,7 +196,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Pagos</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          {total} orden{total !== 1 ? "es" : ""} pendiente{total !== 1 ? "s" : ""} de verificación
+          {total} orden{total !== 1 ? "es" : ""} pendiente{total !== 1 ? "s" : ""}
         </p>
       </div>
       <PagosTabs active="pendientes" pendingCount={pendingCount} />

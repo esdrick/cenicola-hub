@@ -232,7 +232,7 @@ export default async function ProductoDetailPage({
                         {!allSame && <TableHead>Talla</TableHead>}
                         <TableHead>Método</TableHead>
                         <TableHead className="text-right">Detal</TableHead>
-                        <TableHead className="text-right">Bundle</TableHead>
+                        <TableHead className="text-right">Paquete</TableHead>
                         <TableHead className="text-right">Mayor</TableHead>
                       </TableRow>
                     </TableHeader>

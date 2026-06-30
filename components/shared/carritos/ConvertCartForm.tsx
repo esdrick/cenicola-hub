@@ -85,6 +85,9 @@ type CustomerData = {
   notes: string;
 };
 
+const BCV_TYPES: PaymentType[] = ["efectivo_bs", "transferencia", "pago_movil"];
+const DIVISAS_TYPES: PaymentType[] = ["efectivo_usd", "zelle", "usdt"];
+
 const makeEmptyPayment = (): PaymentFormInput => ({
   payment_type: "transferencia",
   amount_usd: "",
@@ -399,7 +402,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           <div className="rounded-xl border bg-white p-5 space-y-3">
             {(() => {
               const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
-              const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Bundle" : "Detal";
+              const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Paquete" : "Detal";
               const pm = cartData.pricing_method;
               return (
                 <div className="flex items-center justify-between gap-2">
@@ -667,7 +670,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
         <div className="space-y-5">
           {(() => {
             const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
-            const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Bundle" : "Detal";
+            const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Paquete" : "Detal";
             const pm = cartData.pricing_method;
             return (
               <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-5 py-3">
@@ -758,11 +761,29 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             </div>
           )}
 
-          {(remaining > 0.005 || editingIndex !== null) && (
-            <div className="rounded-xl border bg-white p-5 space-y-4 overflow-hidden">
-              <h2 className="text-base font-semibold text-gray-700">
-                {editingIndex !== null ? "Editar pago" : "Agregar pago"}
-              </h2>
+          {(remaining > 0.005 || editingIndex !== null) && (() => {
+            // Derive locked method from committed payments (excluding the one being edited)
+            const committed = payments.filter((_, i) => i !== editingIndex);
+            const lockedMethod: "bcv" | "divisas" | null = committed.length > 0
+              ? (DIVISAS_TYPES.includes(committed[0].payment_type as PaymentType) ? "divisas" : "bcv")
+              : null;
+            const allowedTypes = lockedMethod === "bcv" ? BCV_TYPES
+              : lockedMethod === "divisas" ? DIVISAS_TYPES
+              : [...BCV_TYPES, ...DIVISAS_TYPES];
+            return (<div className="rounded-xl border bg-white p-5 space-y-4 overflow-hidden">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-semibold text-gray-700">
+                  {editingIndex !== null ? "Editar pago" : "Agregar pago"}
+                </h2>
+                {lockedMethod && (
+                  <span className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
+                    lockedMethod === "bcv" ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700"
+                  )}>
+                    {lockedMethod === "bcv" ? "Solo BCV" : "Solo Divisas"}
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Tipo *</Label>
@@ -781,26 +802,30 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                           : p.payment_time,
                       }));
 
-                      // Reprice cart if the pricing method implied by this payment type differs
-                      const newMethod = ["zelle", "usdt", "efectivo_usd"].includes(e.target.value) ? "divisas" : "bcv";
-                      if (newMethod !== cartData.pricing_method) {
-                        setRepricingCart(true);
-                        fetch(`/api/carts/${cart.id}`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ pricing_method: newMethod }),
-                        })
-                          .then((r) => r.ok ? r.json() : null)
-                          .then((data) => { if (data) setCartData(data); })
-                          .catch(() => null)
-                          .finally(() => setRepricingCart(false));
+                      // Only reprice when there are no committed payments locking the method
+                      if (lockedMethod === null) {
+                        const newMethod = DIVISAS_TYPES.includes(e.target.value as PaymentType) ? "divisas" : "bcv";
+                        if (newMethod !== cartData.pricing_method) {
+                          setRepricingCart(true);
+                          fetch(`/api/carts/${cart.id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ pricing_method: newMethod }),
+                          })
+                            .then((r) => r.ok ? r.json() : null)
+                            .then((data) => { if (data) setCartData(data); })
+                            .catch(() => null)
+                            .finally(() => setRepricingCart(false));
+                        }
                       }
                     }}
                     className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                   >
-                    {Object.entries(PAYMENT_TYPE_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
+                    {Object.entries(PAYMENT_TYPE_LABELS)
+                      .filter(([k]) => allowedTypes.includes(k as PaymentType))
+                      .map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -922,8 +947,8 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   </Button>
                 )}
               </div>
-            </div>
-          )}
+            </div>);
+          })()}
 
           {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta */}
           {payments.length > 0 && remaining > 0.005 && (

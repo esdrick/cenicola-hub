@@ -367,7 +367,7 @@ export function ProductForm({ initialData, productId }: Props) {
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs text-gray-400">Bundle (3-5 piezas)</p>
+            <p className="text-xs text-gray-400">Paquete (3-5 piezas)</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="price_bundle_bcv">BCV</Label>

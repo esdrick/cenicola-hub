@@ -234,7 +234,7 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
             {orders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="py-12 text-center text-sm text-gray-400">
-                  No hay pagos pendientes de verificación
+                  No hay pagos pendientes
                 </TableCell>
               </TableRow>
             ) : (
@@ -248,7 +248,11 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                   <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
                     onClick={() => {
                       const qs = sp.toString();
-                      router.push(`/dashboard/pagos/${o.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
+                      if (o.status === "pago_verificado") {
+                        router.push(`/dashboard/ordenes/${o.id}`);
+                      } else {
+                        router.push(`/dashboard/pagos/${o.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
+                      }
                     }}>
                     <TableCell className="font-mono text-xs font-semibold text-gray-700">
                       {shortOrderNumber(o.order_number)}
@@ -282,8 +286,14 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                       ${o.paid_usd.toFixed(2)}
                     </TableCell>
                     <TableCell>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.status === "pago_parcial" ? "bg-orange-100 text-orange-800" : "bg-yellow-100 text-yellow-800"}`}>
-                        {o.status === "pago_parcial" ? "Pago parcial" : "Pendiente pago"}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        o.status === "pago_verificado" ? "bg-blue-100 text-blue-800" :
+                        o.status === "pago_parcial"    ? "bg-orange-100 text-orange-800" :
+                                                         "bg-yellow-100 text-yellow-800"
+                      }`}>
+                        {o.status === "pago_verificado" ? "Por confirmar" :
+                         o.status === "pago_parcial"    ? "Pago parcial" :
+                                                          "Pendiente pago"}
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
