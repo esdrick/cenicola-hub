@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { ProductForm } from "@/components/shared/productos/ProductForm";
+import { getSetting } from "@/lib/settings";
 import { ChevronLeft } from "lucide-react";
 
 export const metadata = { title: "Nuevo producto — Cenicola's hub" };
@@ -12,6 +13,8 @@ export default async function NuevoProductoPage() {
   if (session.role !== "admin" && session.role !== "inventario") {
     redirect("/dashboard/productos");
   }
+
+  const quickSaleLimit = await getSetting("quick_sale_limit");
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -28,7 +31,7 @@ export default async function NuevoProductoPage() {
       </div>
 
       <div className="rounded-xl border bg-white p-6 shadow-sm">
-        <ProductForm />
+        <ProductForm quickSaleLimit={quickSaleLimit} />
       </div>
     </div>
   );

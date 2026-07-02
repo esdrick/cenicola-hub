@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { DevSwCleanup } from "@/components/shared/DevSwCleanup";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -35,6 +36,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <DevSwCleanup />
         {children}
       </body>
     </html>

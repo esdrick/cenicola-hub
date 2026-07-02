@@ -36,6 +36,12 @@ export default async function CartPage({ params }: Params) {
   const isVendor = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   if (isVendor && cart.vendor_id !== session.id) redirect("/dashboard/ordenes");
 
+  const isAdmin = session.role === "admin" || session.role === "inventario";
+  const defaultChannel: "online" | "tienda" | undefined =
+    session.role === "vendedora_tienda" ? "tienda" :
+    session.role === "vendedora_online" ? "online" :
+    undefined;
+
   const channel = cart.channel;
 
   const items: CartItemJSON[] = cart.items.map((item) => {
@@ -88,7 +94,12 @@ export default async function CartPage({ params }: Params) {
         <BackToOrdersButton />
         <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
       </div>
-      <CartBuilder cart={cartJSON} />
+      <CartBuilder
+        cart={cartJSON}
+        isAdmin={isAdmin}
+        defaultChannel={defaultChannel}
+        quickSale={session.role === "vendedora_tienda"}
+      />
     </div>
   );
 }

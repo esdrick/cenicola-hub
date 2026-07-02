@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
+import { getSetting } from "@/lib/settings";
 
 type Ctx = { params: { id: string } };
 
@@ -51,13 +52,21 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { name, type, color, description, photos, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, variants } = body;
+  const { name, type, color, description, photos, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, variants, quick_sale } = body;
   const ip = getClientIp(request);
 
   const dataBefore = { name: existing.name, type: existing.type, color: existing.color };
 
   try {
     await prisma.$transaction(async (tx) => {
+      if (quick_sale === true && !existing.quick_sale) {
+        const [count, limit] = await Promise.all([
+          tx.product.count({ where: { quick_sale: true, id: { not: params.id } } }),
+          getSetting("quick_sale_limit"),
+        ]);
+        if (count >= limit) throw new Error("QUICK_SALE_LIMIT");
+      }
+
       await tx.product.update({
         where: { id: params.id },
         data: {
@@ -66,6 +75,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
           color: color?.trim() || null,
           description: description?.trim() || null,
           photos: Array.isArray(photos) ? photos.filter(Boolean) : existing.photos,
+          ...(typeof quick_sale === "boolean" && { quick_sale }),
         },
       });
 
@@ -163,6 +173,12 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
         }
       }
 
+      const effectiveQuickSale = typeof quick_sale === "boolean" ? quick_sale : existing.quick_sale;
+      if (effectiveQuickSale) {
+        const activeCount = await tx.productVariant.count({ where: { product_id: params.id, is_active: true } });
+        if (activeCount !== 1) throw new Error("QUICK_SALE_SINGLE_VARIANT");
+      }
+
       await tx.auditLog.create({
         data: {
           user_id: auth.session.id,
@@ -178,6 +194,13 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    if (err instanceof Error && err.message === "QUICK_SALE_LIMIT") {
+      const limit = await getSetting("quick_sale_limit");
+      return NextResponse.json({ error: `Ya existen ${limit} productos marcados para venta rápida (límite configurado)` }, { status: 409 });
+    }
+    if (err instanceof Error && err.message === "QUICK_SALE_SINGLE_VARIANT") {
+      return NextResponse.json({ error: "Los productos de venta rápida deben tener exactamente una talla activa" }, { status: 400 });
+    }
     console.error("PUT /api/products/[id]:", err);
     return NextResponse.json({ error: "Error al actualizar el producto" }, { status: 500 });
   }

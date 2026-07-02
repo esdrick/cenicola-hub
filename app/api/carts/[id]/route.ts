@@ -193,6 +193,16 @@ export async function PUT(request: NextRequest, { params }: Params) {
     await prisma.cart.update({ where: { id }, data: { updated_at: new Date() } });
   }
 
+  // Don't persist an empty, untitled cart — remove it instead of leaving an orphan
+  const [itemCount, current] = await Promise.all([
+    prisma.cartItem.count({ where: { cart_id: id } }),
+    prisma.cart.findUnique({ where: { id }, select: { note: true } }),
+  ]);
+  if (itemCount === 0 && !current?.note?.trim()) {
+    await prisma.cart.delete({ where: { id } });
+    return NextResponse.json({ deleted: true, id });
+  }
+
   const updated = await fetchCart(id);
   return NextResponse.json(serializeCart(updated));
 }

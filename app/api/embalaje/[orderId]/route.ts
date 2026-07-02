@@ -7,7 +7,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { orderId: string } }
 ) {
-  const auth = await withRole(["admin", "embalador"]);
+  const auth = await withRole(["admin", "embalador", "inventario"]);
   if (!auth.ok) return auth.response;
 
   const order = await prisma.order.findUnique({

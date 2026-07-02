@@ -13,7 +13,7 @@ export default async function EmbalajeDetailPage({
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!["admin", "embalador"].includes(session.role)) redirect("/dashboard");
+  if (!["admin", "embalador", "inventario"].includes(session.role)) redirect("/dashboard");
 
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },

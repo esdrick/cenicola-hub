@@ -178,13 +178,17 @@ export async function POST(request: NextRequest, { params }: Params) {
 
       // 5. Create order
       const orderNumber = await generateOrderNumber(tx);
+      // Anonymous tienda sales get a placeholder name instead of a blank field,
+      // so order lists/receipts elsewhere in the system don't show empty customer data.
+      const finalCustomerName =
+        customer_name?.trim() || (channel === "tienda" ? "Cliente de tienda" : "");
       const order = await tx.order.create({
         data: {
           order_number: orderNumber,
           channel,
           status: orderStatus,
           customer_id: customerId,
-          customer_name: customer_name?.trim() || "",
+          customer_name: finalCustomerName,
           customer_lastname: customer_lastname?.trim() || "",
           customer_id_doc,
           address: channel === "online" ? address?.trim() : null,

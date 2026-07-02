@@ -88,8 +88,8 @@ type CustomerData = {
 const BCV_TYPES: PaymentType[] = ["efectivo_bs", "transferencia", "pago_movil"];
 const DIVISAS_TYPES: PaymentType[] = ["efectivo_usd", "zelle", "usdt"];
 
-const makeEmptyPayment = (): PaymentFormInput => ({
-  payment_type: "transferencia",
+const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
+  payment_type: channel === "tienda" ? "efectivo_bs" : "transferencia",
   amount_usd: "",
   payment_date: new Date().toISOString().slice(0, 10),
   payment_time: "",
@@ -100,7 +100,8 @@ const makeEmptyPayment = (): PaymentFormInput => ({
 
 export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: boolean }) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(cart.channel === "tienda" ? 3 : 1);
+  const [showAddCustomer, setShowAddCustomer] = useState(false);
 
   const [customer, setCustomer] = useState<CustomerData>({
     customer_name: "", customer_lastname: "",
@@ -116,7 +117,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [payments, setPayments] = useState<PaymentFormInput[]>([]);
-  const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment());
+  const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment(cart.channel));
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [paymentPhotoError, setPaymentPhotoError] = useState(false);
@@ -266,7 +267,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   function cancelEdit() {
     setEditingIndex(null);
-    setDraft(makeEmptyPayment());
+    setDraft(makeEmptyPayment(channel));
     setError(null);
   }
 
@@ -298,7 +299,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
     } else {
       setPayments((prev) => [...prev, { ...draft }]);
     }
-    setDraft(makeEmptyPayment());
+    setDraft(makeEmptyPayment(channel));
     setError(null);
   }
 
@@ -375,7 +376,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   return (
     <div className="max-w-3xl mx-auto">
-      <StepIndicator step={step} channel={channel} />
+      {channel !== "tienda" && <StepIndicator step={step} channel={channel} />}
 
       {/* ── Step 1: Review products ── */}
       {step === 1 && (
@@ -699,6 +700,114 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             );
           })()}
 
+          {/* Cliente opcional — solo tienda, sin dirección/envío */}
+          {channel === "tienda" && (
+            showAddCustomer ? (
+              <div className="rounded-xl border bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700">Cliente</p>
+                  <button type="button" onClick={() => setShowAddCustomer(false)}
+                    className="text-gray-300 hover:text-gray-500"><X size={14} /></button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Documento (opcional)</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={customer.doc_type}
+                      onValueChange={(v) => {
+                        setCustomer((p) => ({ ...p, doc_type: v as DocType, doc_number: "", customer_name: "", customer_lastname: "" }));
+                        setCustomerFound(false);
+                        setFieldErrors((p) => ({ ...p, doc_number: "" }));
+                      }}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.entries(DOC_TYPE_LABELS) as [DocType, string][]).map(([k, v]) => (
+                          <SelectItem key={k} value={k}>{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="relative flex-1">
+                      <Input
+                        value={customer.doc_number}
+                        onChange={(e) => {
+                          const maxLen = ["J", "E"].includes(customer.doc_type) ? 15 : 9;
+                          const val = e.target.value.replace(/\D/g, "").slice(0, maxLen);
+                          setCustomer((p) => ({ ...p, doc_number: val, customer_name: "", customer_lastname: "" }));
+                          setCustomerFound(false);
+                        }}
+                        onBlur={(e) => blurField("doc_number", e.target.value)}
+                        placeholder="12345678"
+                        inputMode="numeric"
+                        className={cn("pr-8",
+                          customerFound && "border-emerald-400",
+                          fieldErrors.doc_number && "border-red-400"
+                        )}
+                      />
+                      {lookingUp && (
+                        <Loader2 size={13} className="absolute right-2 top-1/2 -translate-y-1/2 animate-spin text-gray-400" />
+                      )}
+                      {!lookingUp && customerFound && (
+                        <Check size={13} className="absolute right-2 top-1/2 -translate-y-1/2 text-emerald-500" />
+                      )}
+                    </div>
+                  </div>
+                  {fieldErrors.doc_number && (
+                    <p className="text-xs text-red-500">{fieldErrors.doc_number}</p>
+                  )}
+                  <p className="text-xs text-gray-400">Si lo agregas, la venta queda asociada al cliente en Clientes.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Nombre</Label>
+                    <Input
+                      value={customer.customer_name}
+                      readOnly={customerFound}
+                      onChange={(e) => {
+                        if (customerFound) return;
+                        setCustomer((p) => ({ ...p, customer_name: e.target.value }));
+                      }}
+                      onBlur={(e) => !customerFound && blurField("customer_name", e.target.value)}
+                      maxLength={50}
+                      placeholder="Ana"
+                      className={cn(
+                        customerFound ? "cursor-default bg-gray-50 text-gray-700 focus:ring-0 focus:border-input" : "",
+                        fieldErrors.customer_name && "border-red-400"
+                      )}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Apellido</Label>
+                    <Input
+                      value={customer.customer_lastname}
+                      readOnly={customerFound}
+                      onChange={(e) => {
+                        if (customerFound) return;
+                        setCustomer((p) => ({ ...p, customer_lastname: e.target.value }));
+                      }}
+                      onBlur={(e) => !customerFound && blurField("customer_lastname", e.target.value)}
+                      maxLength={50}
+                      placeholder="García"
+                      className={cn(
+                        customerFound ? "cursor-default bg-gray-50 text-gray-700 focus:ring-0 focus:border-input" : "",
+                        fieldErrors.customer_lastname && "border-red-400"
+                      )}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowAddCustomer(true)}
+                className="text-sm text-gray-500 hover:text-gray-800 underline underline-offset-2">
+                + Agregar cliente
+              </button>
+            )
+          )}
+
           {/* Tasas de referencia */}
           {tasaLoading && (
             <div className="flex items-center gap-1.5 rounded-xl border bg-white px-5 py-3 text-sm text-gray-400">
@@ -952,7 +1061,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
           {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta */}
           {payments.length > 0 && remaining > 0.005 && (
-            (isAdmin || channel === "tienda") && customer.doc_number.trim()
+            (isAdmin || channel === "tienda") &&
+            (channel === "tienda"
+              ? customer.customer_name.trim() && customer.customer_lastname.trim()
+              : customer.doc_number.trim())
               ? (
                 <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
                   <input type="checkbox" checked={isPartialAgreed}
@@ -967,7 +1079,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 </label>
               ) : channel === "tienda" ? (
                 <p className="text-xs text-gray-400 border rounded-lg px-3 py-2 bg-gray-50">
-                  Para registrar pago parcial en tienda debes asociar la venta a un cliente (ingresa el documento).
+                  Para registrar pago parcial en tienda, agrega el nombre del cliente (botón &ldquo;+ Agregar cliente&rdquo;).
                 </p>
               ) : null
           )}
@@ -983,10 +1095,12 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
       {/* ── Navigation ── */}
       <div className="mt-6 flex items-center justify-between">
-        <Button variant="ghost" disabled={step === 1}
-          onClick={() => { setStep((s) => s - 1); setError(null); }}>
-          <ChevronLeft size={14} className="mr-1" />Anterior
-        </Button>
+        {channel !== "tienda" ? (
+          <Button variant="ghost" disabled={step === 1}
+            onClick={() => { setStep((s) => s - 1); setError(null); }}>
+            <ChevronLeft size={14} className="mr-1" />Anterior
+          </Button>
+        ) : <span />}
         {step < 3 ? (
           <Button
             disabled={(step === 1 && hasStockIssues) || (step === 2 && !step2Valid())}

@@ -13,13 +13,13 @@ type SP = { [key: string]: string | string[] | undefined };
 export default async function EmbalajeListPage({ searchParams }: { searchParams: SP }) {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!["admin", "embalador"].includes(session.role)) redirect("/dashboard");
+  if (!["admin", "embalador", "inventario"].includes(session.role)) redirect("/dashboard");
 
-  const isAdmin = session.role === "admin";
-  const tab = isAdmin && searchParams.tab === "historial" ? "historial" : "embalaje";
+  const hasHistorialTab = session.role === "admin" || session.role === "inventario";
+  const tab = hasHistorialTab && searchParams.tab === "historial" ? "historial" : "embalaje";
 
-  // ── Historial de Envíos (solo admin, tab=historial) ───────────────────────
-  if (isAdmin && tab === "historial") {
+  // ── Historial de Envíos (admin e inventario, tab=historial) ───────────────
+  if (hasHistorialTab && tab === "historial") {
     const [orders, pendingCount] = await Promise.all([
       prisma.order.findMany({
         where: { status: { in: ["enviada", "completada"] } },
@@ -165,7 +165,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
           {data.length} orden{data.length !== 1 ? "es" : ""} pendiente{data.length !== 1 ? "s" : ""} de embalaje
         </p>
       </div>
-      {isAdmin && <EmbalajeAdminTabs active="embalaje" pendingCount={pendingCount} />}
+      {hasHistorialTab && <EmbalajeAdminTabs active="embalaje" pendingCount={pendingCount} />}
       <EmbalajeTable initialOrders={data} />
     </div>
   );

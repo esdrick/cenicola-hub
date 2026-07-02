@@ -126,6 +126,7 @@ model Product {
   description String?
   photos      String[]
   is_active   Boolean  @default(true)
+  quick_sale  Boolean  @default(false)
   created_by  String
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt

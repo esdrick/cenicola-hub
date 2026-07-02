@@ -4,6 +4,7 @@ export const SETTING_DEFAULTS = {
   low_stock_threshold: 3,
   bundle_threshold: 3,
   mayor_threshold: 6,
+  quick_sale_limit: 4,
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;

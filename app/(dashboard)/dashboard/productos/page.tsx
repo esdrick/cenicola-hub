@@ -7,8 +7,10 @@ import { ProductCard } from "@/components/shared/productos/ProductCard";
 import { ProductCatalog } from "@/components/shared/productos/ProductCatalog";
 import { ProductFilters } from "@/components/shared/productos/ProductFilters";
 import { Pagination } from "@/components/shared/Pagination";
+import { QuickSaleLimitButton } from "@/components/shared/productos/QuickSaleLimitButton";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getSetting } from "@/lib/settings";
 import type { ProductJSON, CartJSON, CartItemJSON } from "@/types";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
@@ -108,9 +110,10 @@ export default async function ProductosPage({
   const isVendor = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const channel = session.role === "vendedora_online" ? "online" : "tienda";
 
-  const [{ data, total, page, totalPages }, filterOptions] = await Promise.all([
+  const [{ data, total, page, totalPages }, filterOptions, quickSaleLimit] = await Promise.all([
     getProducts(searchParams),
     getFilterOptions(),
+    getSetting("quick_sale_limit"),
   ]);
 
   // Fetch active carts for vendors (and admin) to populate the cart selector
@@ -192,12 +195,15 @@ export default async function ProductosPage({
             {total} producto{total !== 1 ? "s" : ""} en el catálogo
           </p>
         </div>
-        {canEdit && (
-          <Link href="/dashboard/productos/nuevo" className={cn(buttonVariants())}>
-            <Plus size={16} />
-            Nuevo producto
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {session.role === "admin" && <QuickSaleLimitButton current={quickSaleLimit} />}
+          {canEdit && (
+            <Link href="/dashboard/productos/nuevo" className={cn(buttonVariants())}>
+              <Plus size={16} />
+              Nuevo producto
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Filters */}

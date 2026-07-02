@@ -32,7 +32,7 @@ export function getDefaultRedirect(role: UserRole): string {
     inventario: "/dashboard",
     embalador: "/dashboard/embalaje",
     vendedora_online: "/dashboard",
-    vendedora_tienda: "/dashboard",
+    vendedora_tienda: "/dashboard/ordenes/nueva",
   };
   return paths[role] ?? "/dashboard";
 }

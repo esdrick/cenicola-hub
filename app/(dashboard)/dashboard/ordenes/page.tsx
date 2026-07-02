@@ -31,7 +31,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
 
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const canSeeAll    = !isRestricted;
-  const canUseCarts  = isRestricted || session.role === "admin";
+  const canUseCarts  = isRestricted || session.role === "admin" || session.role === "inventario";
 
   const where = {
     ...(isRestricted && { created_by: session.id }),

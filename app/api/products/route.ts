@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
+import { getSetting } from "@/lib/settings";
 
 // GET /api/products?q=&tipo=&color=&page=1
 export async function GET(request: NextRequest) {
@@ -12,14 +13,16 @@ export async function GET(request: NextRequest) {
   const q = sp.get("q")?.trim() ?? "";
   const tipo = sp.get("tipo")?.trim() ?? "";
   const color = sp.get("color")?.trim() ?? "";
+  const quickSale = sp.get("quick_sale") === "true";
   const page = Math.max(1, parseInt(sp.get("page") ?? "1"));
-  const pageSize = 24;
+  const pageSize = quickSale ? 2 : 24;
 
   const where = {
     is_active: true,
     ...(q && { name: { contains: q, mode: "insensitive" as const } }),
     ...(tipo && { type: { contains: tipo, mode: "insensitive" as const } }),
     ...(color && { color: { contains: color, mode: "insensitive" as const } }),
+    ...(quickSale && { quick_sale: true }),
   };
 
   const [products, total] = await Promise.all([
@@ -64,7 +67,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { name, type, color, description, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, photos, variants } = body;
+  const { name, type, color, description, price_bcv, price_divisas, price_bundle_bcv, price_bundle_divisas, price_mayor_bcv, price_mayor_divisas, photos, variants, quick_sale } = body;
 
   if (!name?.trim()) return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
   if (!type?.trim()) return NextResponse.json({ error: "El tipo es requerido" }, { status: 400 });
@@ -114,6 +117,14 @@ export async function POST(request: NextRequest) {
       });
       if (concurrentDup) throw new Error(`DUP:${concurrentDup.id}`);
 
+      if (quick_sale === true) {
+        const [count, limit] = await Promise.all([
+          tx.product.count({ where: { quick_sale: true } }),
+          getSetting("quick_sale_limit"),
+        ]);
+        if (count >= limit) throw new Error("QUICK_SALE_LIMIT");
+      }
+
       const product = await tx.product.create({
         data: {
           name: name.trim(),
@@ -121,6 +132,7 @@ export async function POST(request: NextRequest) {
           color: normalizedColor,
           description: description?.trim() || null,
           photos: photos.filter(Boolean),
+          quick_sale: quick_sale === true,
           created_by: auth.session.id,
         },
       });
@@ -165,6 +177,11 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      if (quick_sale === true) {
+        const activeCount = await tx.productVariant.count({ where: { product_id: product.id, is_active: true } });
+        if (activeCount !== 1) throw new Error("QUICK_SALE_SINGLE_VARIANT");
+      }
+
       await tx.auditLog.create({
         data: {
           user_id: auth.session.id,
@@ -188,6 +205,13 @@ export async function POST(request: NextRequest) {
         { error: "Ya existe un producto con ese nombre y color", existingId },
         { status: 409 }
       );
+    }
+    if (msg === "QUICK_SALE_LIMIT") {
+      const limit = await getSetting("quick_sale_limit");
+      return NextResponse.json({ error: `Ya existen ${limit} productos marcados para venta rápida (límite configurado)` }, { status: 409 });
+    }
+    if (msg === "QUICK_SALE_SINGLE_VARIANT") {
+      return NextResponse.json({ error: "Los productos de venta rápida deben tener exactamente una talla activa" }, { status: 400 });
     }
     console.error("POST /api/products:", err);
     return NextResponse.json({ error: "Error al crear el producto" }, { status: 500 });

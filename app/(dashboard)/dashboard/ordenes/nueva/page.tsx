@@ -9,10 +9,10 @@ export default async function NuevaOrdenPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const allowed = ["admin", "vendedora_online", "vendedora_tienda"];
+  const allowed = ["admin", "inventario", "vendedora_online", "vendedora_tienda"];
   if (!allowed.includes(session.role)) redirect("/dashboard/ordenes");
 
-  const isAdmin = session.role === "admin";
+  const isAdmin = session.role === "admin" || session.role === "inventario";
   const defaultChannel: "online" | "tienda" | undefined =
     session.role === "vendedora_tienda" ? "tienda" :
     session.role === "vendedora_online" ? "online" :
@@ -24,7 +24,12 @@ export default async function NuevaOrdenPage() {
         <BackToOrdersButton />
         <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
       </div>
-      <CartBuilder cart={null} defaultChannel={defaultChannel} isAdmin={isAdmin} />
+      <CartBuilder
+        cart={null}
+        defaultChannel={defaultChannel}
+        isAdmin={isAdmin}
+        quickSale={session.role === "vendedora_tienda"}
+      />
     </div>
   );
 }

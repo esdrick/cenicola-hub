@@ -9,8 +9,8 @@ import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 export default async function EnviadasPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!["admin", "embalador"].includes(session.role)) redirect("/dashboard");
-  if (session.role === "admin") redirect("/dashboard/embalaje?tab=historial");
+  if (!["admin", "embalador", "inventario"].includes(session.role)) redirect("/dashboard");
+  if (session.role === "admin" || session.role === "inventario") redirect("/dashboard/embalaje?tab=historial");
 
   const isEmbalador = session.role === "embalador";
 

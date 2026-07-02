@@ -29,6 +29,7 @@ export const PREDEFINED_COLORS = [
 type Props = {
   initialData?: ProductJSON;
   productId?: string;
+  quickSaleLimit?: number;
 };
 
 function initVariants(initialData?: ProductJSON): VariantInput[] {
@@ -59,7 +60,7 @@ function initVariants(initialData?: ProductJSON): VariantInput[] {
   return [...predefined, ...custom];
 }
 
-export function ProductForm({ initialData, productId }: Props) {
+export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Props) {
   const router = useRouter();
   const isEdit = !!productId;
 
@@ -75,6 +76,7 @@ export function ProductForm({ initialData, productId }: Props) {
   const [priceBundleDivisas, setPriceBundleDivisas] = useState<string>(firstVariant?.price_bundle_divisas ? String(firstVariant.price_bundle_divisas) : "");
   const [priceMayorBcv, setPriceMayorBcv] = useState<string>(firstVariant?.price_mayor_bcv ? String(firstVariant.price_mayor_bcv) : "");
   const [priceMayorDivisas, setPriceMayorDivisas] = useState<string>(firstVariant?.price_mayor_divisas ? String(firstVariant.price_mayor_divisas) : "");
+  const [quickSale, setQuickSale] = useState(initialData?.quick_sale ?? false);
   const [photos, setPhotos] = useState<string[]>(initialData?.photos ?? []);
   const [photoInput, setPhotoInput] = useState("");
   const [photoError, setPhotoError] = useState("");
@@ -168,12 +170,13 @@ export function ProductForm({ initialData, productId }: Props) {
   }
 
   function toggleSize(index: number) {
+    const nowActive = !variants[index].is_active;
+    if (nowActive && quickSale && variants.some((v) => v.is_active)) {
+      setError("Venta Rápida requiere una sola talla activa. Desactiva la talla actual antes de elegir otra.");
+      return;
+    }
     setVariants((prev) =>
-      prev.map((v, i) => {
-        if (i !== index) return v;
-        const nowActive = !v.is_active;
-        return { ...v, is_active: nowActive };
-      })
+      prev.map((v, i) => (i === index ? { ...v, is_active: nowActive } : v))
     );
   }
 
@@ -183,6 +186,10 @@ export function ProductForm({ initialData, productId }: Props) {
     if (variants.some((v) => v.size.toUpperCase() === size)) {
       setCustomSizeInput("");
       setShowCustomInput(false);
+      return;
+    }
+    if (quickSale && variants.some((v) => v.is_active)) {
+      setError("Venta Rápida requiere una sola talla activa. Desactiva la talla actual antes de agregar otra.");
       return;
     }
     setVariants((prev) => [
@@ -216,6 +223,10 @@ export function ProductForm({ initialData, productId }: Props) {
     const activeVariants = variantsToSend.filter((v) => v.is_active);
 
     if (activeVariants.length === 0) { setError("Activa al menos una talla"); return; }
+    if (quickSale && activeVariants.length > 1) {
+      setError("Venta Rápida requiere exactamente una talla activa");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -229,6 +240,7 @@ export function ProductForm({ initialData, productId }: Props) {
         price_mayor_divisas: Number(priceMayorDivisas) || 0,
         photos,
         variants: variantsToSend,
+        quick_sale: quickSale,
       };
       const url = isEdit ? `/api/products/${productId}` : "/api/products";
       const method = isEdit ? "PUT" : "POST";
@@ -421,6 +433,26 @@ export function ProductForm({ initialData, productId }: Props) {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Descripción opcional del producto…" rows={3} disabled={loading} />
         </div>
+
+        <label className="flex cursor-pointer select-none items-start gap-2 text-sm">
+          <input type="checkbox" checked={quickSale}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              if (checked && variants.filter((v) => v.is_active).length > 1) {
+                setError("Antes de activar Venta Rápida, desactiva todas las tallas menos una.");
+                return;
+              }
+              setQuickSale(checked);
+            }}
+            disabled={loading}
+            className="mt-0.5 rounded border-gray-300" />
+          <span>
+            Mostrar en Venta Rápida (tienda)
+            <span className="block text-xs text-gray-400">
+              Máximo {quickSaleLimit} producto{quickSaleLimit !== 1 ? "s" : ""} pueden estar marcados a la vez, y cada uno debe tener una sola talla activa.
+            </span>
+          </span>
+        </label>
       </section>
 
       <Separator />
@@ -510,9 +542,9 @@ export function ProductForm({ initialData, productId }: Props) {
               <button
                 type="button"
                 onClick={() => toggleSize(i)}
-                disabled={loading}
+                disabled={loading || (!v.is_active && quickSale && variants.some((x) => x.is_active))}
                 className={cn(
-                  "flex h-5 w-5 items-center justify-center rounded border-2 transition-colors",
+                  "flex h-5 w-5 items-center justify-center rounded border-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                   v.is_active
                     ? "border-gray-900 bg-gray-900 text-white"
                     : "border-gray-300 bg-white"
@@ -619,7 +651,8 @@ export function ProductForm({ initialData, productId }: Props) {
           <button
             type="button"
             onClick={() => setShowCustomInput(true)}
-            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+            disabled={quickSale && variants.some((v) => v.is_active)}
+            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline disabled:hover:text-gray-400"
           >
             + Agregar talla personalizada
           </button>

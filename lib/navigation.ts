@@ -38,6 +38,7 @@ const INVENTARIO_NAV: NavItem[] = [
   { label: "Productos",   href: "/dashboard/productos",   icon: Package },
   { label: "Inventario",  href: "/dashboard/inventario",  icon: Boxes },
   { label: "Órdenes",     href: "/dashboard/ordenes",     icon: ShoppingCart },
+  { label: "Embalaje",    href: "/dashboard/embalaje",    icon: PackageCheck },
   { label: "Pagos",       href: "/dashboard/pagos",       icon: CreditCard },
 ];
 
@@ -58,7 +59,6 @@ export const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { label: "Dashboard",    href: "/dashboard",                icon: LayoutDashboard },
     { label: "Nueva Venta",  href: "/dashboard/ordenes/nueva",  icon: PlusCircle },
     { label: "Mis Ventas",   href: "/dashboard/ordenes",        icon: ShoppingBag },
-    { label: "Productos",    href: "/dashboard/productos",      icon: Package },
   ],
 };
 

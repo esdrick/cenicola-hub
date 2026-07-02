@@ -121,9 +121,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => ({}));
   const note: string | undefined = body.note?.trim() || undefined;
-  // Admin can specify channel; vendors get it from their role
+  // Admin and inventario can specify channel; vendors get it from their role
   const channel: OrderChannel =
-    auth.session.role === "admin" && body.channel
+    (auth.session.role === "admin" || auth.session.role === "inventario") && body.channel
       ? (body.channel as OrderChannel)
       : cartChannel(auth.session.role);
 

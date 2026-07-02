@@ -118,6 +118,7 @@ export type ProductJSON = {
   description: string | null;
   photos: string[];
   is_active: boolean;
+  quick_sale: boolean;
   created_at: string;
   updated_at: string;
   variants: ProductVariantJSON[];
