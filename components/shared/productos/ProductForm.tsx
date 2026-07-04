@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,8 @@ import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import type { ProductJSON, VariantInput } from "@/types";
 
 const PREDEFINED_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "UNIQUE"];
+
+const KID_SIZES = ["4", "6", "8", "10", "12", "14", "16"];
 
 export const PREDEFINED_COLORS = [
   "Rojo", "Azul", "Amarillo", "Verde", "Blanco", "Negro", "Gris", "Naranja",
@@ -83,6 +85,8 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
   const [variants, setVariants] = useState<VariantInput[]>(() => initVariants(initialData));
   const [customSizeInput, setCustomSizeInput] = useState("");
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [showKidSizes, setShowKidSizes] = useState(false);
+  const [knownCustomSizes, setKnownCustomSizes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -107,6 +111,18 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
       } catch { /* ignore */ }
     }, 400);
   }, [isEdit]);
+
+  // ── Tallas personalizadas guardadas ──────────────────────────────────────────
+  useEffect(() => {
+    const known = new Set([...PREDEFINED_SIZES, ...KID_SIZES]);
+    fetch("/api/products/sizes")
+      .then((res) => res.json())
+      .then((data) => {
+        const sizes: string[] = data.sizes ?? [];
+        setKnownCustomSizes(sizes.filter((s) => !known.has(s.toUpperCase())));
+      })
+      .catch(() => { /* ignore */ });
+  }, []);
 
   // ── Name autocomplete ────────────────────────────────────────────────────────
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
@@ -180,24 +196,31 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
     );
   }
 
-  function addCustomSize() {
-    const size = customSizeInput.trim().toUpperCase();
-    if (!size) return;
-    if (variants.some((v) => v.size.toUpperCase() === size)) {
-      setCustomSizeInput("");
-      setShowCustomInput(false);
-      return;
-    }
+  function addSize(rawSize: string): "added" | "duplicate" | "blocked" {
+    const size = rawSize.trim().toUpperCase();
+    if (!size) return "blocked";
+    if (variants.some((v) => v.size.toUpperCase() === size)) return "duplicate";
     if (quickSale && variants.some((v) => v.is_active)) {
       setError("Venta Rápida requiere una sola talla activa. Desactiva la talla actual antes de agregar otra.");
-      return;
+      return "blocked";
     }
     setVariants((prev) => [
       ...prev,
       { size, stock_online: 0, stock_store: 0, is_active: true, isNew: true },
     ]);
-    setCustomSizeInput("");
-    setShowCustomInput(false);
+    return "added";
+  }
+
+  function addCustomSize() {
+    const result = addSize(customSizeInput);
+    if (result !== "blocked") {
+      setCustomSizeInput("");
+      setShowCustomInput(false);
+    }
+  }
+
+  function addKidSize(size: string) {
+    addSize(size);
   }
 
   function removeCustomVariant(index: number) {
@@ -597,7 +620,24 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                     v.is_active ? "bg-white" : "bg-gray-50 opacity-60"
                   )}
                 >
-                  <span />
+                  <button
+                    type="button"
+                    onClick={() => toggleSize(i)}
+                    disabled={loading || (!v.is_active && quickSale && variants.some((x) => x.is_active))}
+                    className={cn(
+                      "flex h-5 w-5 items-center justify-center rounded border-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                      v.is_active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-300 bg-white"
+                    )}
+                    aria-label={v.is_active ? "Desactivar talla" : "Activar talla"}
+                  >
+                    {v.is_active && (
+                      <svg viewBox="0 0 10 8" className="h-3 w-3 fill-none stroke-current stroke-2">
+                        <polyline points="1,4 4,7 9,1" />
+                      </svg>
+                    )}
+                  </button>
                   <div className="flex justify-center">
                     <Badge variant="outline" className="text-xs">{v.size}</Badge>
                   </div>
@@ -611,51 +651,102 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                     onChange={(e) => updateVariant(i, "stock_store", parseInt(e.target.value) || 0)}
                     disabled={loading || !v.is_active} className="h-8 text-center"
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeCustomVariant(i)}
-                    disabled={loading}
-                    className="flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  {v.id ? (
+                    <span />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => removeCustomVariant(i)}
+                      disabled={loading}
+                      className="flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {showCustomInput ? (
-          <div className="flex items-center gap-2 pt-1">
-            <Input
-              ref={customSizeRef}
-              value={customSizeInput}
-              onChange={(e) => setCustomSizeInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addCustomSize(); }
-                if (e.key === "Escape") { setShowCustomInput(false); setCustomSizeInput(""); }
-              }}
-              placeholder="Ej: 38, 40, XXXL…"
-              className="h-8 w-40 text-sm"
-              autoFocus
-            />
-            <Button type="button" size="sm" onClick={addCustomSize} disabled={!customSizeInput.trim()}>
-              Agregar
-            </Button>
-            <Button type="button" variant="ghost" size="sm"
-              onClick={() => { setShowCustomInput(false); setCustomSizeInput(""); }}>
-              Cancelar
-            </Button>
+        {showKidSizes && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-gray-200 p-3">
+            <p className="w-full text-xs text-gray-400">Tallas de niño</p>
+            {KID_SIZES.filter((size) => !variants.some((v) => v.size.toUpperCase() === size)).map((size) => (
+              <button
+                type="button"
+                key={size}
+                onClick={() => addKidSize(size)}
+                disabled={quickSale && variants.some((v) => v.is_active)}
+                className="inline-flex h-5 items-center justify-center rounded-4xl border border-border px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                {size}
+              </button>
+            ))}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowCustomInput(true)}
-            disabled={quickSale && variants.some((v) => v.is_active)}
-            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline disabled:hover:text-gray-400"
-          >
-            + Agregar talla personalizada
-          </button>
+        )}
+
+        {showCustomInput && (
+          <div className="space-y-2 pt-1">
+            {knownCustomSizes.filter((s) => !variants.some((v) => v.size.toUpperCase() === s.toUpperCase())).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-gray-400">Usadas antes:</span>
+                {knownCustomSizes
+                  .filter((s) => !variants.some((v) => v.size.toUpperCase() === s.toUpperCase()))
+                  .map((s) => (
+                    <button
+                      type="button"
+                      key={s}
+                      onClick={() => addSize(s)}
+                      className="inline-flex h-5 items-center justify-center rounded-4xl border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      {s}
+                    </button>
+                  ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                ref={customSizeRef}
+                value={customSizeInput}
+                onChange={(e) => setCustomSizeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addCustomSize(); }
+                  if (e.key === "Escape") { setShowCustomInput(false); setCustomSizeInput(""); }
+                }}
+                placeholder="Ej: 38, 40, XXXL…"
+                className="h-8 w-40 text-sm"
+                autoFocus
+              />
+              <Button type="button" size="sm" onClick={addCustomSize} disabled={!customSizeInput.trim()}>
+                Agregar
+              </Button>
+              <Button type="button" variant="ghost" size="sm"
+                onClick={() => { setShowCustomInput(false); setCustomSizeInput(""); }}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!showCustomInput && (
+          <div className="flex flex-wrap items-center gap-4 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowCustomInput(true)}
+              disabled={quickSale && variants.some((v) => v.is_active)}
+              className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline disabled:hover:text-gray-400"
+            >
+              + Agregar talla personalizada
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowKidSizes((prev) => !prev)}
+              className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 transition-colors"
+            >
+              {showKidSizes ? "Ocultar tallas de niño" : "+ Tallas de niño"}
+            </button>
+          </div>
         )}
       </section>
 
