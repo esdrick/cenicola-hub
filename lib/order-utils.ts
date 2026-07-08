@@ -8,6 +8,13 @@ export function normalizeReference(ref: string): string {
   return ref.toUpperCase().replace(/[\s\-]/g, "");
 }
 
+/** Expresa una cantidad de unidades en docenas, ej. 48 -> "4 doc", 50 -> "4 doc + 2" */
+export function formatDocenas(unidades: number): string {
+  const docenas = Math.floor(unidades / 12);
+  const resto = unidades % 12;
+  return resto === 0 ? `${docenas} doc` : `${docenas} doc + ${resto}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateOrderNumber(tx: any): Promise<string> {
   const now = new Date();

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
+import { formatRangoLabel, PERIODO_TIPOS, type PeriodoTipo } from "@/lib/payroll-periods";
 
 export async function POST(
   request: NextRequest,
@@ -12,10 +13,17 @@ export async function POST(
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { mes, anio, comision, total_ventas } = body;
+  const { desde, hasta, tipo, comision, total_ventas } = body;
 
-  if (!mes || !anio)
-    return NextResponse.json({ error: "Mes y año son requeridos" }, { status: 400 });
+  if (!desde || !hasta)
+    return NextResponse.json({ error: "El rango de fechas es requerido" }, { status: 400 });
+
+  const periodoInicio = new Date(desde);
+  const periodoFin = new Date(hasta);
+  if (isNaN(periodoInicio.getTime()) || isNaN(periodoFin.getTime()) || periodoInicio > periodoFin) {
+    return NextResponse.json({ error: "Rango de fechas inválido" }, { status: 400 });
+  }
+  const periodoTipo: PeriodoTipo = PERIODO_TIPOS.includes(tipo) ? tipo : "personalizado";
 
   const vendedora = await prisma.user.findUnique({
     where: { id: params.userId },
@@ -28,19 +36,26 @@ export async function POST(
 
   const ip = getClientIp(request);
   const now = new Date();
-
-  const MESES = [
-    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
-  ];
+  const mes = periodoInicio.getUTCMonth() + 1;
+  const anio = periodoInicio.getUTCFullYear();
+  const rangoLabel = formatRangoLabel(desde, hasta);
 
   const record = await prisma.$transaction(async (tx) => {
     const comisionAmount = parseFloat(Number(comision ?? 0).toFixed(2));
 
     const upserted = await tx.payrollRecord.upsert({
-      where: { userId_mes_anio: { userId: params.userId, mes, anio } },
+      where: {
+        userId_periodo_inicio_periodo_fin: {
+          userId: params.userId,
+          periodo_inicio: periodoInicio,
+          periodo_fin: periodoFin,
+        },
+      },
       create: {
         userId: params.userId,
+        periodo_tipo: periodoTipo,
+        periodo_inicio: periodoInicio,
+        periodo_fin: periodoFin,
         mes,
         anio,
         total_ventas: parseFloat(Number(total_ventas ?? 0).toFixed(2)),
@@ -49,6 +64,7 @@ export async function POST(
         paid_at: now,
       },
       update: {
+        periodo_tipo: periodoTipo,
         total_ventas: parseFloat(Number(total_ventas ?? 0).toFixed(2)),
         comision: comisionAmount,
         status: "pagada",
@@ -60,7 +76,7 @@ export async function POST(
     if (comisionAmount > 0) {
       await tx.expense.create({
         data: {
-          description: `Nómina ${MESES[mes - 1]} ${anio} — ${vendedora.name}`,
+          description: `Nómina ${rangoLabel} — ${vendedora.name}`,
           amount_usd: comisionAmount,
           category: "nomina",
           expense_date: now,
@@ -78,8 +94,9 @@ export async function POST(
         entity_id: upserted.id,
         data_after: {
           vendedora: vendedora.name,
-          mes,
-          anio,
+          periodo_tipo: periodoTipo,
+          desde,
+          hasta,
           total_ventas: Number(upserted.total_ventas),
           comision: comisionAmount,
           status: "pagada",

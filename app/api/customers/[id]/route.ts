@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
 
 const DOC_TYPES = ["V", "P", "J", "E"] as const;
+const PHONE_RE = /^0\d{9,10}$/;
 
 // GET /api/customers/[id]
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,10 +33,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { doc_type, doc_number, name, lastname, address } = body;
+  const { doc_type, doc_number, name, lastname, address, phone } = body;
 
   if (doc_type && !DOC_TYPES.includes(doc_type)) {
     return NextResponse.json({ error: "Tipo de documento inválido" }, { status: 400 });
+  }
+  if (phone?.trim() && !PHONE_RE.test(phone.trim())) {
+    return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
   }
 
   const existing = await prisma.customer.findUnique({ where: { id } });
@@ -49,6 +53,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(name?.trim() && { name: name.trim() }),
       ...(lastname?.trim() && { lastname: lastname.trim() }),
       address: address !== undefined ? (address?.trim() || null) : existing.address,
+      phone: phone !== undefined ? (phone?.trim() || null) : existing.phone,
     },
   });
 

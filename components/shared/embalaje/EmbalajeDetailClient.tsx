@@ -29,8 +29,10 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
 
   const [foto1, setFoto1] = useState<File | null>(null);
   const [foto2, setFoto2] = useState<File | null>(null);
+  const [foto3, setFoto3] = useState<File | null>(null);
   const [foto1Preview, setFoto1Preview] = useState<string | null>(null);
   const [foto2Preview, setFoto2Preview] = useState<string | null>(null);
+  const [foto3Preview, setFoto3Preview] = useState<string | null>(null);
   const [tracking, setTracking] = useState("");
   const [notas, setNotas] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -39,14 +41,16 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
 
   const foto1InputRef = useRef<HTMLInputElement>(null);
   const foto2InputRef = useRef<HTMLInputElement>(null);
+  const foto3InputRef = useRef<HTMLInputElement>(null);
 
   // Revoke object URLs on cleanup
   useEffect(() => {
     return () => {
       if (foto1Preview) URL.revokeObjectURL(foto1Preview);
       if (foto2Preview) URL.revokeObjectURL(foto2Preview);
+      if (foto3Preview) URL.revokeObjectURL(foto3Preview);
     };
-  }, [foto1Preview, foto2Preview]);
+  }, [foto1Preview, foto2Preview, foto3Preview]);
 
   async function handleFoto1Change(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -108,6 +112,36 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
     if (foto2InputRef.current) foto2InputRef.current.value = "";
   }
 
+  async function handleFoto3Change(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+    const typeError = validateImageFile(file, { validTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"] });
+    if (typeError) { setError(typeError); return; }
+    if (file.size > 20 * 1024 * 1024) {
+      setError("La foto de la guía no puede superar 20MB");
+      return;
+    }
+    if (foto3Preview) URL.revokeObjectURL(foto3Preview);
+    setError(null);
+    try {
+      const optimized = await optimizeImage(file);
+      setFoto3(optimized);
+      setFoto3Preview(URL.createObjectURL(optimized));
+    } catch {
+      setError("No se pudo comprimir la imagen. Intenta con otro archivo.");
+      setFoto3(null);
+      setFoto3Preview(null);
+      if (foto3InputRef.current) foto3InputRef.current.value = "";
+    }
+  }
+
+  function removeFoto3() {
+    if (foto3Preview) URL.revokeObjectURL(foto3Preview);
+    setFoto3(null);
+    setFoto3Preview(null);
+    if (foto3InputRef.current) foto3InputRef.current.value = "";
+  }
+
   async function handleConfirm() {
     if (!foto1) return;
     setSubmitting(true);
@@ -118,6 +152,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
       const fd = new FormData();
       fd.append("foto1", foto1);
       if (foto2) fd.append("foto2", foto2);
+      if (foto3) fd.append("foto3", foto3);
 
       const fotosRes = await fetch(`/api/embalaje/${order.id}/fotos`, {
         method: "POST",
@@ -129,7 +164,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
         throw new Error(data.error ?? "Error al subir las fotos");
       }
 
-      const { foto1Url, foto2Url } = await fotosRes.json();
+      const { foto1Url, foto2Url, foto3Url } = await fotosRes.json();
 
       // Step 2: Confirm shipment
       const confirmarRes = await fetch(`/api/embalaje/${order.id}/confirmar`, {
@@ -138,6 +173,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
         body: JSON.stringify({
           foto1Url,
           foto2Url: foto2Url ?? undefined,
+          foto3Url: foto3Url ?? undefined,
           tracking: tracking.trim() || undefined,
           notas: notas.trim() || undefined,
         }),
@@ -390,6 +426,61 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                         size="sm"
                         className="h-6 px-1 text-gray-400 hover:text-red-500"
                         onClick={removeFoto2}
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Foto 3 - optional */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Foto de la guía{" "}
+                  <span className="text-gray-400 font-normal">(opcional)</span>
+                </Label>
+                <input
+                  ref={foto3InputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleFoto3Change}
+                />
+                {!foto3Preview ? (
+                  <div
+                    className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-gray-300 transition-colors"
+                    onClick={() => foto3InputRef.current?.click()}
+                  >
+                    <Upload className="mx-auto text-gray-400 mb-2" size={24} />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); foto3InputRef.current?.click(); }}
+                    >
+                      Seleccionar foto
+                    </Button>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — máx 20MB</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={foto3Preview}
+                        alt="Preview foto 3"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span className="truncate max-w-[180px]">{foto3?.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1 text-gray-400 hover:text-red-500"
+                        onClick={removeFoto3}
                       >
                         <X size={14} />
                       </Button>

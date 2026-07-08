@@ -54,6 +54,8 @@ export const NAV_BY_ROLE: Record<UserRole, NavItem[]> = {
     { label: "Nueva Venta",  href: "/dashboard/ordenes/nueva",  icon: PlusCircle },
     { label: "Mis Ventas",   href: "/dashboard/ordenes",        icon: ShoppingBag },
     { label: "Productos",    href: "/dashboard/productos",      icon: Package },
+    { label: "Embalaje",     href: "/dashboard/embalaje",       icon: PackageCheck },
+    { label: "Enviadas",     href: "/dashboard/embalaje/enviadas", icon: Truck },
   ],
   vendedora_tienda: [
     { label: "Dashboard",    href: "/dashboard",                icon: LayoutDashboard },

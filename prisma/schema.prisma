@@ -105,6 +105,7 @@ model User {
   partial_agreed_orders Order[]            @relation("OrderPartialAgreedBy")
   payments_verified    OrderPayment[]
   shipments_packed     OrderShipment[]
+  shipments_edited     OrderShipment[]     @relation("ShipmentEditedBy")
   exchange_rates       ExchangeRate[]
   expenses             Expense[]
   receivables          AccountReceivable[]
@@ -190,6 +191,7 @@ model Customer {
   name       String
   lastname   String
   address    String?
+  phone      String?
   created_at DateTime     @default(now())
   updated_at DateTime     @updatedAt
 
@@ -283,10 +285,14 @@ model OrderShipment {
   tracking_number String?
   photo_package   String
   photo_receipt   String?
+  photo_guide     String?
   notes           String?
+  edited_at       DateTime?
+  edited_by       String?
 
   order  Order @relation(fields: [order_id], references: [id])
   packer User  @relation(fields: [packed_by], references: [id])
+  editor User? @relation("ShipmentEditedBy", fields: [edited_by], references: [id])
 
   @@map("order_shipments")
 }
@@ -387,19 +393,22 @@ model AuditLog {
 }
 
 model PayrollRecord {
-  id           String    @id @default(uuid())
-  userId       String
-  mes          Int
-  anio         Int
-  total_ventas Decimal   @db.Decimal(10, 2)
-  comision     Decimal   @default(0) @db.Decimal(10, 2)
-  status       String    @default("pendiente")
-  paid_at      DateTime?
-  created_at   DateTime  @default(now())
+  id             String    @id @default(uuid())
+  userId         String
+  periodo_tipo   String    @default("mes")
+  periodo_inicio DateTime  @db.Date
+  periodo_fin    DateTime  @db.Date
+  mes            Int
+  anio           Int
+  total_ventas   Decimal   @db.Decimal(10, 2)
+  comision       Decimal   @default(0) @db.Decimal(10, 2)
+  status         String    @default("pendiente")
+  paid_at        DateTime?
+  created_at     DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id])
 
-  @@unique([userId, mes, anio])
+  @@unique([userId, periodo_inicio, periodo_fin])
   @@map("payroll_records")
 }
 

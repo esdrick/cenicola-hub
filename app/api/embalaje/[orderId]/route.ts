@@ -7,7 +7,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { orderId: string } }
 ) {
-  const auth = await withRole(["admin", "embalador", "inventario"]);
+  const auth = await withRole(["admin", "embalador", "inventario", "vendedora_online"]);
   if (!auth.ok) return auth.response;
 
   const order = await prisma.order.findUnique({
@@ -28,6 +28,7 @@ export async function GET(
       shipment: {
         include: {
           packer: { select: { id: true, name: true } },
+          editor: { select: { id: true, name: true } },
         },
       },
     },
@@ -44,8 +45,11 @@ export async function GET(
         tracking_number: order.shipment.tracking_number,
         photo_package: order.shipment.photo_package,
         photo_receipt: order.shipment.photo_receipt,
+        photo_guide: order.shipment.photo_guide,
         notes: order.shipment.notes,
+        edited_at: order.shipment.edited_at?.toISOString() ?? null,
         packer: order.shipment.packer,
+        editor: order.shipment.editor,
       }
     : null;
 

@@ -81,6 +81,7 @@ type CustomerData = {
   doc_type: DocType;
   doc_number: string;
   customer_address: string;
+  customer_phone: string;
   shipping_company: string;
   notes: string;
 };
@@ -106,7 +107,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [customer, setCustomer] = useState<CustomerData>({
     customer_name: "", customer_lastname: "",
     doc_type: "V", doc_number: "",
-    customer_address: "",
+    customer_address: "", customer_phone: "",
     shipping_company: "", notes: "",
   });
   const [lookingUp, setLookingUp] = useState(false);
@@ -132,6 +133,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [tasaLoading, setTasaLoading] = useState(false);
 
   const NAME_RE = /^[\p{L}\s]+$/u;
+  const PHONE_RE = /^0\d{9,10}$/;
 
   function validateField(name: string, value: string): string {
     const v = value.trim();
@@ -152,6 +154,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       }
       case "customer_address":
         if (v && v.length < 8) return "Mínimo 8 caracteres";
+        return "";
+      case "customer_phone":
+        if (!v) return channel === "online" ? "El teléfono es obligatorio" : "";
+        if (!PHONE_RE.test(v)) return "Debe iniciar con 0 y tener 10-11 dígitos";
         return "";
       case "shippingAddress":
         if (!v) return channel === "online" ? "La dirección de envío es obligatoria" : "";
@@ -180,7 +186,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       setFoundAddress(null);
       setUseCustomerAddress(false);
       setIsPartialAgreed(false);
-      setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "" }));
+      setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "" }));
       return;
     }
     lookupTimer.current = setTimeout(async () => {
@@ -195,6 +201,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             customer_name: j.customer.name,
             customer_lastname: j.customer.lastname,
             customer_address: addr ?? "",
+            customer_phone: j.customer.phone ?? "",
           }));
           setFoundAddress(addr);
           if (addr) {
@@ -207,7 +214,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           setFoundAddress(null);
           setUseCustomerAddress(false);
           setShippingAddress("");
-          setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "" }));
+          setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "" }));
         }
       } catch { /* silent */ }
       finally { setLookingUp(false); }
@@ -322,6 +329,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           doc_type: customer.doc_type,
           doc_number: customer.doc_number,
           customer_address: customer.customer_address || null,
+          customer_phone: customer.customer_phone || null,
           address: shippingAddress || null,
           shipping_company: customer.shipping_company || null,
           notes: customer.notes || null,
@@ -349,14 +357,15 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   function step2Valid() {
     const fieldsToCheck = channel === "online"
-      ? ["doc_number", "customer_name", "customer_lastname", "shippingAddress", "shipping_company"]
-      : ["doc_number", "customer_name", "customer_lastname", "customer_address"];
+      ? ["doc_number", "customer_name", "customer_lastname", "customer_phone", "shippingAddress", "shipping_company"]
+      : ["doc_number", "customer_name", "customer_lastname", "customer_address", "customer_phone"];
 
     const values: Record<string, string> = {
       doc_number: customer.doc_number,
       customer_name: customer.customer_name,
       customer_lastname: customer.customer_lastname,
       customer_address: customer.customer_address,
+      customer_phone: customer.customer_phone,
       shippingAddress,
       shipping_company: customer.shipping_company,
     };
@@ -403,7 +412,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           <div className="rounded-xl border bg-white p-5 space-y-3">
             {(() => {
               const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
-              const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Paquete" : "Detal";
+              const mayorThreshold = cartData.mayor_threshold ?? 6;
+              const bundleThreshold = cartData.bundle_threshold ?? 3;
+              const tier = totalQty >= mayorThreshold ? "Mayor" : totalQty >= bundleThreshold ? "Paquete" : "Detal";
               const pm = cartData.pricing_method;
               return (
                 <div className="flex items-center justify-between gap-2">
@@ -479,7 +490,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
               <Select
                 value={customer.doc_type}
                 onValueChange={(v) => {
-                  setCustomer((p) => ({ ...p, doc_type: v as DocType, doc_number: "", customer_name: "", customer_lastname: "" }));
+                  setCustomer((p) => ({ ...p, doc_type: v as DocType, doc_number: "", customer_name: "", customer_lastname: "", customer_phone: "" }));
                   setCustomerFound(false);
                   setFoundAddress(null);
                   setUseCustomerAddress(false);
@@ -502,7 +513,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   onChange={(e) => {
                     const maxLen = ["J", "E"].includes(customer.doc_type) ? 15 : 9;
                     const val = e.target.value.replace(/\D/g, "").slice(0, maxLen);
-                    setCustomer((p) => ({ ...p, doc_number: val, customer_name: "", customer_lastname: "" }));
+                    setCustomer((p) => ({ ...p, doc_number: val, customer_name: "", customer_lastname: "", customer_phone: "" }));
                     setCustomerFound(false);
                     setFoundAddress(null);
                     setUseCustomerAddress(false);
@@ -595,6 +606,23 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 <p className="text-xs text-red-500">{fieldErrors.customer_address}</p>
               )}
             </div>
+            <div className="space-y-1.5">
+              <Label>Teléfono{channel === "online" ? " *" : ""}</Label>
+              <Input
+                value={customer.customer_phone}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 11);
+                  setCustomer((p) => ({ ...p, customer_phone: val }));
+                }}
+                onBlur={(e) => blurField("customer_phone", e.target.value)}
+                placeholder="04121234567"
+                inputMode="numeric"
+                className={cn(fieldErrors.customer_phone && "border-red-400")}
+              />
+              {fieldErrors.customer_phone && (
+                <p className="text-xs text-red-500">{fieldErrors.customer_phone}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -671,7 +699,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
         <div className="space-y-5">
           {(() => {
             const totalQty = cartData.items.reduce((s, c) => s + c.quantity, 0);
-            const tier = totalQty >= 6 ? "Mayor" : totalQty >= 3 ? "Paquete" : "Detal";
+            const mayorThreshold = cartData.mayor_threshold ?? 6;
+            const bundleThreshold = cartData.bundle_threshold ?? 3;
+            const tier = totalQty >= mayorThreshold ? "Mayor" : totalQty >= bundleThreshold ? "Paquete" : "Detal";
             const pm = cartData.pricing_method;
             return (
               <div className="flex items-center justify-between rounded-xl border bg-gray-50 px-5 py-3">
@@ -716,7 +746,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                     <Select
                       value={customer.doc_type}
                       onValueChange={(v) => {
-                        setCustomer((p) => ({ ...p, doc_type: v as DocType, doc_number: "", customer_name: "", customer_lastname: "" }));
+                        setCustomer((p) => ({ ...p, doc_type: v as DocType, doc_number: "", customer_name: "", customer_lastname: "", customer_phone: "" }));
                         setCustomerFound(false);
                         setFieldErrors((p) => ({ ...p, doc_number: "" }));
                       }}
@@ -736,7 +766,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         onChange={(e) => {
                           const maxLen = ["J", "E"].includes(customer.doc_type) ? 15 : 9;
                           const val = e.target.value.replace(/\D/g, "").slice(0, maxLen);
-                          setCustomer((p) => ({ ...p, doc_number: val, customer_name: "", customer_lastname: "" }));
+                          setCustomer((p) => ({ ...p, doc_number: val, customer_name: "", customer_lastname: "", customer_phone: "" }));
                           setCustomerFound(false);
                         }}
                         onBlur={(e) => blurField("doc_number", e.target.value)}
@@ -798,6 +828,24 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                       )}
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Teléfono</Label>
+                  <Input
+                    value={customer.customer_phone}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 11);
+                      setCustomer((p) => ({ ...p, customer_phone: val }));
+                    }}
+                    onBlur={(e) => blurField("customer_phone", e.target.value)}
+                    placeholder="04121234567"
+                    inputMode="numeric"
+                    className={cn(fieldErrors.customer_phone && "border-red-400")}
+                  />
+                  {fieldErrors.customer_phone && (
+                    <p className="text-xs text-red-500">{fieldErrors.customer_phone}</p>
+                  )}
                 </div>
               </div>
             ) : (

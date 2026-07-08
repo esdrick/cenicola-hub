@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
 import { getSetting } from "@/lib/settings";
+import { normalizeText } from "@/lib/text";
 
 // GET /api/products?q=&tipo=&color=&page=1
 export async function GET(request: NextRequest) {
@@ -15,29 +16,32 @@ export async function GET(request: NextRequest) {
   const color = sp.get("color")?.trim() ?? "";
   const quickSale = sp.get("quick_sale") === "true";
   const page = Math.max(1, parseInt(sp.get("page") ?? "1"));
-  const pageSize = quickSale ? 2 : 24;
+  const pageSize = 24;
 
   const where = {
     is_active: true,
-    ...(q && { name: { contains: q, mode: "insensitive" as const } }),
     ...(tipo && { type: { contains: tipo, mode: "insensitive" as const } }),
     ...(color && { color: { contains: color, mode: "insensitive" as const } }),
     ...(quickSale && { quick_sale: true }),
   };
 
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: {
-        variants: { where: { is_active: true }, orderBy: { size: "asc" } },
-        creator: { select: { id: true, name: true } },
-      },
-      orderBy: { created_at: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.product.count({ where }),
-  ]);
+  // Name search is matched accent/case-insensitively in JS since Postgres
+  // `contains`/`insensitive` only folds case, not diacritics (no `unaccent` extension).
+  const allMatching = await prisma.product.findMany({
+    where,
+    include: {
+      variants: { where: { is_active: true }, orderBy: { size: "asc" } },
+      creator: { select: { id: true, name: true } },
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  const filtered = q
+    ? allMatching.filter((p) => normalizeText(p.name).includes(normalizeText(q)))
+    : allMatching;
+
+  const total = filtered.length;
+  const products = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   const data = products.map((p) => ({
     ...p,

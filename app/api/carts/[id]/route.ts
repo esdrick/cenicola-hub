@@ -4,7 +4,29 @@ import { withAuth } from "@/lib/api-auth";
 import { resolveUnitPrice } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
 
-function serializeCart(cart: Awaited<ReturnType<typeof fetchCart>>) {
+async function repriceAllCartItems(
+  cartId: string,
+  method: "bcv" | "divisas",
+  mayorThreshold: number,
+  bundleThreshold: number,
+) {
+  const items = await prisma.cartItem.findMany({
+    where: { cart_id: cartId },
+    include: { variant: true },
+  });
+  const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  for (const item of items) {
+    const newPrice = resolveUnitPrice(item.variant, method, totalQty, mayorThreshold, bundleThreshold);
+    if (Number(item.unit_price_usd) !== Number(newPrice)) {
+      await prisma.cartItem.update({ where: { id: item.id }, data: { unit_price_usd: newPrice } });
+    }
+  }
+}
+
+function serializeCart(
+  cart: Awaited<ReturnType<typeof fetchCart>>,
+  thresholds: { mayorThreshold: number; bundleThreshold: number },
+) {
   const channel = cart.channel;
   const items = cart.items.map((item) => {
     const stock = channel === "online" ? item.variant.stock_online : item.variant.stock_store;
@@ -49,6 +71,8 @@ function serializeCart(cart: Awaited<ReturnType<typeof fetchCart>>) {
     items,
     total_usd,
     has_stock_issues,
+    mayor_threshold: thresholds.mayorThreshold,
+    bundle_threshold: thresholds.bundleThreshold,
   };
 }
 
@@ -89,8 +113,13 @@ export async function GET(_: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Sin acceso" }, { status: 403 });
   }
 
+  const [mayorThreshold, bundleThreshold] = await Promise.all([
+    getSetting("mayor_threshold"),
+    getSetting("bundle_threshold"),
+  ]);
+
   const full = await fetchCart(id);
-  return NextResponse.json(serializeCart(full));
+  return NextResponse.json(serializeCart(full, { mayorThreshold, bundleThreshold }));
 }
 
 // PUT /api/carts/[id] — update note and/or items
@@ -115,6 +144,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const body = await request.json().catch(() => ({}));
 
+  const [mayorThreshold, bundleThreshold] = await Promise.all([
+    getSetting("mayor_threshold"),
+    getSetting("bundle_threshold"),
+  ]);
+
   // Update note if provided
   if ("note" in body) {
     await prisma.cart.update({
@@ -123,23 +157,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
     });
   }
 
+  // Tracks the pricing method to use for repricing below, in case it's changed in this same request
+  let activeMethod: "bcv" | "divisas" = cart.pricing_method;
+
   // Handle pricing_method change — reprices all items
   if ("pricing_method" in body && (body.pricing_method === "bcv" || body.pricing_method === "divisas")) {
     const newMethod = body.pricing_method as "bcv" | "divisas";
     if (newMethod !== cart.pricing_method) {
-      const [mayorThreshold, bundleThreshold] = await Promise.all([
-        getSetting("mayor_threshold"),
-        getSetting("bundle_threshold"),
-      ]);
-      const allItems = await prisma.cartItem.findMany({
-        where: { cart_id: id },
-        include: { variant: true },
-      });
-      const totalQty = allItems.reduce((s, i) => s + i.quantity, 0);
-      for (const item of allItems) {
-        const unitPrice = resolveUnitPrice(item.variant, newMethod, totalQty, mayorThreshold, bundleThreshold);
-        await prisma.cartItem.update({ where: { id: item.id }, data: { unit_price_usd: unitPrice } });
-      }
+      activeMethod = newMethod;
+      await repriceAllCartItems(id, newMethod, mayorThreshold, bundleThreshold);
       await prisma.cart.update({ where: { id }, data: { pricing_method: newMethod, updated_at: new Date() } });
     }
   }
@@ -161,21 +187,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
         return NextResponse.json({ error: "Variante no encontrada" }, { status: 404 });
       }
 
-      // Compute total quantity across all items after this operation, then resolve price
-      const allItems = await prisma.cartItem.findMany({ where: { cart_id: id } });
-      const existingQty = allItems.find((i) => i.variant_id === variant_id)?.quantity ?? 0;
-      const totalQtyAfter = allItems.reduce((s, i) => s + i.quantity, 0) - existingQty + quantity;
-      const [mayorThreshold, bundleThreshold] = await Promise.all([
-        getSetting("mayor_threshold"),
-        getSetting("bundle_threshold"),
-      ]);
-      const unitPrice = resolveUnitPrice(variant, cart.pricing_method, totalQtyAfter, mayorThreshold, bundleThreshold);
-
+      // unit_price_usd is a placeholder here — repriceAllCartItems below immediately
+      // recomputes it (and every other line) against the cart's new total quantity.
       const existing = await prisma.cartItem.findFirst({ where: { cart_id: id, variant_id } });
       if (existing) {
         await prisma.cartItem.update({
           where: { id: existing.id },
-          data: { quantity, unit_price_usd: unitPrice },
+          data: { quantity },
         });
       } else {
         await prisma.cartItem.create({
@@ -183,11 +201,16 @@ export async function PUT(request: NextRequest, { params }: Params) {
             cart_id: id,
             variant_id,
             quantity,
-            unit_price_usd: unitPrice,
+            unit_price_usd: variant.price_bcv,
           },
         });
       }
     }
+
+    // Reprice every remaining line against the cart's new total quantity — a tier
+    // change (paquete/mayor) must apply to all products in the cart, not just the
+    // one just added/edited/removed.
+    await repriceAllCartItems(id, activeMethod, mayorThreshold, bundleThreshold);
 
     // Touch updated_at
     await prisma.cart.update({ where: { id }, data: { updated_at: new Date() } });
@@ -204,7 +227,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   }
 
   const updated = await fetchCart(id);
-  return NextResponse.json(serializeCart(updated));
+  return NextResponse.json(serializeCart(updated, { mayorThreshold, bundleThreshold }));
 }
 
 // DELETE /api/carts/[id]

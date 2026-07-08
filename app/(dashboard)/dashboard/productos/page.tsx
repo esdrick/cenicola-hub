@@ -11,6 +11,7 @@ import { QuickSaleLimitButton } from "@/components/shared/productos/QuickSaleLim
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSetting } from "@/lib/settings";
+import { normalizeText } from "@/lib/text";
 import type { ProductJSON, CartJSON, CartItemJSON } from "@/types";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
@@ -29,25 +30,28 @@ async function getProducts(params: SearchParams) {
 
   const where = {
     is_active: true,
-    ...(q     && { name:  { contains: q,     mode: "insensitive" as const } }),
     ...(tipo  && { type:  { equals:   tipo,  mode: "insensitive" as const } }),
     ...(color && { color: { equals:   color, mode: "insensitive" as const } }),
     ...(talla && { variants: { some: { size: talla, is_active: true } } }),
   };
 
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      include: {
-        variants: { where: { is_active: true }, orderBy: { size: "asc" } },
-        creator: { select: { id: true, name: true } },
-      },
-      orderBy: { created_at: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.product.count({ where }),
-  ]);
+  // Name search is matched accent/case-insensitively in JS since Postgres
+  // `contains`/`insensitive` only folds case, not diacritics (no `unaccent` extension).
+  const allMatching = await prisma.product.findMany({
+    where,
+    include: {
+      variants: { where: { is_active: true }, orderBy: { size: "asc" } },
+      creator: { select: { id: true, name: true } },
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  const filtered = q
+    ? allMatching.filter((p) => normalizeText(p.name).includes(normalizeText(q)))
+    : allMatching;
+
+  const total = filtered.length;
+  const products = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
   const data: ProductJSON[] = products.map((p) => ({
     ...p,

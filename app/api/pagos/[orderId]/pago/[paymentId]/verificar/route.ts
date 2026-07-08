@@ -60,22 +60,21 @@ export async function POST(
           },
         });
 
-        // Tienda completes immediately — online waits for a manual "confirmar" step
-        const finalStatus = payment.order.channel === "tienda" ? "completada" : "pago_verificado";
-        if (payment.order.channel === "tienda") {
-          await tx.order.update({ where: { id: params.orderId }, data: { status: "completada" } });
-          await tx.auditLog.create({
-            data: {
-              user_id: auth.session.id,
-              action: "estado_actualizado",
-              entity_type: "Order",
-              entity_id: params.orderId,
-              data_before: { status: "pago_verificado" },
-              data_after: { status: "completada" },
-              ip_address: ip,
-            },
-          });
-        }
+        // Tienda completes immediately; online moves straight to embalaje — this is
+        // the manual verification step, so no separate "confirmar" click is needed.
+        const finalStatus = payment.order.channel === "tienda" ? "completada" : "en_embalaje";
+        await tx.order.update({ where: { id: params.orderId }, data: { status: finalStatus } });
+        await tx.auditLog.create({
+          data: {
+            user_id: auth.session.id,
+            action: "estado_actualizado",
+            entity_type: "Order",
+            entity_id: params.orderId,
+            data_before: { status: "pago_verificado" },
+            data_after: { status: finalStatus },
+            ip_address: ip,
+          },
+        });
 
 
         // Order fully paid — close any open receivable

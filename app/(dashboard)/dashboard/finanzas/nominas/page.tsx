@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { NominasClient } from "@/components/shared/finanzas/NominasClient";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { rangoMes, rangoPorTipo, PERIODO_TIPOS, type PeriodoTipo } from "@/lib/payroll-periods";
 
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: string | string[] | undefined) {
@@ -18,12 +19,31 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
   if (session.role !== "admin") redirect("/dashboard");
 
   const now = new Date();
-  const mes = Math.min(12, Math.max(1, parseInt(s(searchParams.mes) || String(now.getMonth() + 1))));
-  const anio = parseInt(s(searchParams.anio) || String(now.getFullYear()));
-  const safeAnio = isNaN(anio) ? now.getFullYear() : anio;
+  const tipoParam = s(searchParams.tipo);
+  const tipo: PeriodoTipo = PERIODO_TIPOS.includes(tipoParam as PeriodoTipo)
+    ? (tipoParam as PeriodoTipo)
+    : "mes";
 
-  const inicio = new Date(safeAnio, mes - 1, 1);
-  const fin = new Date(safeAnio, mes, 0, 23, 59, 59);
+  const desdeParam = s(searchParams.desde);
+  const hastaParam = s(searchParams.hasta);
+
+  let desde: string;
+  let hasta: string;
+  if (desdeParam && hastaParam) {
+    desde = desdeParam;
+    hasta = hastaParam;
+  } else {
+    const r = tipo === "personalizado" ? rangoMes(now) : rangoPorTipo(tipo, now);
+    desde = r.desde;
+    hasta = r.hasta;
+  }
+
+  const [y1, m1, d1] = desde.split("-").map(Number);
+  const [y2, m2, d2] = hasta.split("-").map(Number);
+  const inicio = new Date(y1, m1 - 1, d1);
+  const fin = new Date(y2, m2 - 1, d2, 23, 59, 59, 999);
+  const periodoInicio = new Date(desde);
+  const periodoFin = new Date(hasta);
 
   const sellers = await prisma.user.findMany({
     where: {
@@ -51,7 +71,7 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
         orderBy: { created_at: "desc" },
       },
       payroll_records: {
-        where: { mes, anio: safeAnio },
+        where: { periodo_inicio: periodoInicio, periodo_fin: periodoFin },
       },
     },
     orderBy: { name: "asc" },
@@ -104,7 +124,7 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
           Comisiones y pagos por vendedora
         </p>
       </div>
-      <NominasClient data={data} mes={mes} anio={safeAnio} />
+      <NominasClient data={data} tipo={tipo} desde={desde} hasta={hasta} />
     </div>
   );
 }

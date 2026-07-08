@@ -57,34 +57,22 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
   const loadProducts = useCallback(async (q: string, p: number) => {
     setLoadingProducts(true);
     try {
-      const url = `/api/products?page=${p}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}`;
+      const url = `/api/products?page=${p}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}${quickSale ? "&quick_sale=true" : ""}`;
       const r = await fetch(url);
       const j = await r.json();
       setProducts(j.data ?? []);
       setTotalPages(j.totalPages ?? 1);
     } catch { /* silent */ }
     finally { setLoadingProducts(false); }
-  }, []);
-
-  // Venta rápida: solo los productos marcados quick_sale, sin búsqueda ni paginación
-  useEffect(() => {
-    if (!quickSale) return;
-    setLoadingProducts(true);
-    fetch("/api/products?quick_sale=true")
-      .then((r) => r.json())
-      .then((j) => setProducts(j.data ?? []))
-      .catch(() => { /* silent */ })
-      .finally(() => setLoadingProducts(false));
   }, [quickSale]);
 
   // Single effect: immediate load on page change, debounced on search change
   useEffect(() => {
-    if (quickSale) return;
     if (searchTimer.current) clearTimeout(searchTimer.current);
     const delay = searchQ ? 300 : 0;
     searchTimer.current = setTimeout(() => loadProducts(searchQ, page), delay);
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
-  }, [searchQ, page, loadProducts, quickSale]);
+  }, [searchQ, page, loadProducts]);
 
   function channelStock(v: ProductJSON["variants"][0]) {
     return channel === "online" ? v.stock_online : v.stock_store;
@@ -203,7 +191,6 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
       {/* ── LEFT: Catalog ── */}
       <div className="space-y-4">
         {/* Note + info */}
-        {!quickSale && (
         <div className="rounded-xl border bg-white p-4 space-y-3">
           {/* Channel selector for admin before cart is created */}
           {isAdmin && !cartId ? (
@@ -252,84 +239,8 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             </Button>
           </div>
         </div>
-        )}
-
-        {quickSale && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {loadingProducts ? (
-              <div className="col-span-full flex items-center justify-center py-12 text-gray-400">
-                <Loader2 size={20} className="animate-spin mr-2" />
-                Cargando productos…
-              </div>
-            ) : products.length === 0 ? (
-              <p className="col-span-full py-12 text-center text-sm text-gray-400">
-                No hay productos configurados para venta rápida. Contacta a un administrador.
-              </p>
-            ) : (
-              products.map((product) => {
-                const variant = product.variants.find((v) => v.is_active);
-                if (!variant) return null;
-                const stock = channelStock(variant);
-                const inCartItem = cartItems.find((i) => i.variant_id === variant.id);
-                const qty = inCartItem?.quantity ?? 0;
-                const isUpdating = updating === variant.id;
-
-                return (
-                  <div key={product.id} className="flex items-center gap-4 rounded-xl border bg-white p-4 sm:flex-col sm:items-center sm:gap-3 sm:text-center">
-                    {product.photos[0] ? (
-                      <Image
-                        src={product.photos[0]}
-                        alt={product.name}
-                        width={64} height={64}
-                        className="size-16 flex-shrink-0 rounded-lg object-cover sm:size-24"
-                      />
-                    ) : (
-                      <div className="size-16 flex-shrink-0 rounded-lg bg-gray-100 flex items-center justify-center sm:size-24">
-                        <ShoppingCart size={24} className="text-gray-300" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1 sm:flex-none sm:w-full">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
-                      <p className="text-xs text-gray-400">${variant.price_bcv.toFixed(2)} · {stock} disp.</p>
-                      {stock === 0 && qty === 0 && (
-                        <p className="mt-1 text-sm text-orange-600">Sin stock</p>
-                      )}
-                    </div>
-
-                    {!(stock === 0 && qty === 0) && (
-                      <div className="flex flex-shrink-0 items-center gap-3 sm:justify-center">
-                        <button
-                          type="button"
-                          onClick={() => updateItem(variant.id, Math.max(0, qty - 1))}
-                          disabled={isUpdating || qty === 0}
-                          className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        {isUpdating ? (
-                          <Loader2 size={16} className="animate-spin w-8 text-center" />
-                        ) : (
-                          <span className="w-8 text-center text-base font-semibold">{qty}</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => updateItem(variant.id, Math.min(stock, qty + 1))}
-                          disabled={isUpdating || qty >= stock}
-                          className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
 
         {/* Search */}
-        {!quickSale && (
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <Input
@@ -348,10 +259,8 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             </button>
           )}
         </div>
-        )}
 
         {/* Product list */}
-        {!quickSale && (
         <div className="rounded-xl border bg-white divide-y overflow-hidden">
           {loadingProducts ? (
             <div className="flex items-center justify-center py-12 text-gray-400">
@@ -360,10 +269,77 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             </div>
           ) : products.length === 0 ? (
             <p className="py-12 text-center text-sm text-gray-400">
-              {searchQ ? `Sin resultados para "${searchQ}"` : "No hay productos disponibles"}
+              {searchQ
+                ? `Sin resultados para "${searchQ}"`
+                : quickSale
+                ? "No hay productos configurados para venta rápida. Contacta a un administrador."
+                : "No hay productos disponibles"}
             </p>
           ) : (
             products.map((product) => {
+              // Venta rápida: una sola talla activa, sin selector — stepper directo bajo el nombre
+              if (quickSale) {
+                const variant = product.variants.find((v) => v.is_active);
+                if (!variant) return null;
+                const stock = channelStock(variant);
+                const inCartItem = cartItems.find((i) => i.variant_id === variant.id);
+                const qty = inCartItem?.quantity ?? 0;
+                const isUpdating = updating === variant.id;
+                const noStock = stock === 0 && qty === 0;
+
+                return (
+                  <div key={product.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="flex-shrink-0">
+                      {product.photos[0] ? (
+                        <Image
+                          src={product.photos[0]}
+                          alt={product.name}
+                          width={48} height={48}
+                          className="h-12 w-12 rounded-lg object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-lg bg-gray-100 flex items-center justify-center">
+                          <ShoppingCart size={16} className="text-gray-300" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 break-words">{product.name}</p>
+                      <p className="text-xs text-gray-400 mb-2">${variant.price_bcv.toFixed(2)} · {stock} disp.</p>
+
+                      {noStock ? (
+                        <p className="text-sm text-orange-600">Sin stock</p>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => updateItem(variant.id, Math.max(0, qty - 1))}
+                            disabled={isUpdating || qty === 0}
+                            className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          {isUpdating ? (
+                            <Loader2 size={16} className="animate-spin w-6 text-center" />
+                          ) : (
+                            <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => updateItem(variant.id, Math.min(stock, qty + 1))}
+                            disabled={isUpdating || qty >= stock}
+                            className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
               const isOpen = expandedId === product.id;
               const availableVariants = product.variants.filter((v) => channelStock(v) > 0 && v.is_active);
               const inCartCount = cartItems
@@ -504,10 +480,9 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
             })
           )}
         </div>
-        )}
 
         {/* Pagination */}
-        {!quickSale && totalPages > 1 && (
+        {totalPages > 1 && (
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
               Anterior

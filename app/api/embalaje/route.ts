@@ -6,7 +6,7 @@ import { withRole } from "@/lib/api-auth";
 
 // GET /api/embalaje — orders in en_embalaje
 export async function GET(request: NextRequest) {
-  const auth = await withRole(["admin", "embalador", "inventario"]);
+  const auth = await withRole(["admin", "embalador", "inventario", "vendedora_online"]);
   if (!auth.ok) return auth.response;
 
   const sp = request.nextUrl.searchParams;

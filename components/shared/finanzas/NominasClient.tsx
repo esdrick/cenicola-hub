@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, formatDocenas } from "@/lib/order-utils";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -14,11 +14,18 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { CheckCircle2, ChevronRight, Loader2, Package, ShoppingBag } from "lucide-react";
+import { formatRangoLabel, rangoPorTipo, type PeriodoTipo } from "@/lib/payroll-periods";
 
 const ROL_LABELS: Record<string, string> = {
   vendedora_online: "Online",
   vendedora_tienda: "Tienda",
 };
+
+const PRESETS: { tipo: "semana" | "quincena" | "mes"; label: string }[] = [
+  { tipo: "semana", label: "Semana" },
+  { tipo: "quincena", label: "15 días" },
+  { tipo: "mes", label: "Mes" },
+];
 
 type OrdenResumen = {
   id: string;
@@ -45,21 +52,18 @@ type VendedoraStats = {
 
 type Props = {
   data: VendedoraStats[];
-  mes: number;
-  anio: number;
+  tipo: PeriodoTipo;
+  desde: string;
+  hasta: string;
 };
 
-const MESES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-
-export function NominasClient({ data, mes, anio }: Props) {
+export function NominasClient({ data, tipo, desde, hasta }: Props) {
   const router = useRouter();
   const [isPending, start] = useTransition();
 
-  const [selectedMes,  setSelectedMes]  = useState(mes);
-  const [selectedAnio, setSelectedAnio] = useState(anio);
+  const [selectedTipo,  setSelectedTipo]  = useState<PeriodoTipo>(tipo);
+  const [selectedDesde, setSelectedDesde] = useState(desde);
+  const [selectedHasta, setSelectedHasta] = useState(hasta);
 
   const [comisiones, setComisiones] = useState<Record<string, string>>(
     Object.fromEntries(data.map((d) => [d.userId, String(d.comision)]))
@@ -70,8 +74,24 @@ export function NominasClient({ data, mes, anio }: Props) {
   const [apiError,     setApiError]     = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
+  function aplicarPreset(t: "semana" | "quincena" | "mes") {
+    const r = rangoPorTipo(t, new Date());
+    setSelectedTipo(t);
+    setSelectedDesde(r.desde);
+    setSelectedHasta(r.hasta);
+    router.push(`/dashboard/finanzas/nominas?tipo=${t}&desde=${r.desde}&hasta=${r.hasta}`);
+  }
+
+  function onFechaChange(campo: "desde" | "hasta", valor: string) {
+    setSelectedTipo("personalizado");
+    if (campo === "desde") setSelectedDesde(valor);
+    else setSelectedHasta(valor);
+  }
+
   function applyFilter() {
-    router.push(`/dashboard/finanzas/nominas?mes=${selectedMes}&anio=${selectedAnio}`);
+    router.push(
+      `/dashboard/finanzas/nominas?tipo=${selectedTipo}&desde=${selectedDesde}&hasta=${selectedHasta}`
+    );
   }
 
   function openConfirm(row: VendedoraStats) {
@@ -93,8 +113,9 @@ export function NominasClient({ data, mes, anio }: Props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              mes,
-              anio,
+              desde,
+              hasta,
+              tipo,
               comision: parseFloat(comisiones[confirmRow.userId] ?? "0") || 0,
               total_ventas: confirmRow.total_ventas,
             }),
@@ -114,36 +135,44 @@ export function NominasClient({ data, mes, anio }: Props) {
     });
   }
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
-
   return (
     <div className="space-y-5">
       {/* Selector de período */}
       <div className="flex flex-wrap items-end gap-4 rounded-xl border bg-white p-4">
         <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Mes</Label>
-          <select
-            value={selectedMes}
-            onChange={(e) => setSelectedMes(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-white px-3 text-sm"
-          >
-            {MESES.map((m, i) => (
-              <option key={i + 1} value={i + 1}>{m}</option>
+          <Label className="text-xs text-gray-500">Período</Label>
+          <div className="flex gap-1.5">
+            {PRESETS.map((p) => (
+              <Button
+                key={p.tipo}
+                type="button"
+                size="sm"
+                variant={selectedTipo === p.tipo ? "default" : "outline"}
+                className="h-9 rounded-full px-4"
+                onClick={() => aplicarPreset(p.tipo)}
+              >
+                {p.label}
+              </Button>
             ))}
-          </select>
+          </div>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-gray-500">Año</Label>
-          <select
-            value={selectedAnio}
-            onChange={(e) => setSelectedAnio(Number(e.target.value))}
+          <Label className="text-xs text-gray-500">Desde</Label>
+          <input
+            type="date"
+            value={selectedDesde}
+            onChange={(e) => onFechaChange("desde", e.target.value)}
             className="h-9 rounded-md border border-input bg-white px-3 text-sm"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs text-gray-500">Hasta</Label>
+          <input
+            type="date"
+            value={selectedHasta}
+            onChange={(e) => onFechaChange("hasta", e.target.value)}
+            className="h-9 rounded-md border border-input bg-white px-3 text-sm"
+          />
         </div>
         <Button variant="outline" onClick={applyFilter} className="rounded-full px-4">
           Ver período
@@ -160,7 +189,7 @@ export function NominasClient({ data, mes, anio }: Props) {
       <div className="rounded-xl border bg-white">
         <div className="border-b px-5 py-3">
           <h2 className="font-semibold text-gray-900">
-            Nóminas — {MESES[mes - 1]} {anio}
+            Nóminas — {formatRangoLabel(desde, hasta)}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Solo órdenes en estado completada
@@ -200,10 +229,15 @@ export function NominasClient({ data, mes, anio }: Props) {
                       {row.ordenes_count}
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className="inline-flex items-center gap-1 text-sm">
-                        <Package size={13} className="text-gray-400" />
-                        {row.productos_vendidos}
-                      </span>
+                      <div className="inline-flex flex-col items-center">
+                        <span className="inline-flex items-center gap-1 text-sm">
+                          <Package size={13} className="text-gray-400" />
+                          {row.productos_vendidos}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {formatDocenas(row.productos_vendidos)}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right text-sm font-semibold">
                       ${row.total_ventas.toFixed(2)}
@@ -287,7 +321,7 @@ export function NominasClient({ data, mes, anio }: Props) {
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>
-              {detalleRow?.nombre} — {MESES[mes - 1]} {anio}
+              {detalleRow?.nombre} — {formatRangoLabel(desde, hasta)}
             </DialogTitle>
             <DialogDescription>
               {ROL_LABELS[detalleRow?.rol ?? ""] ?? detalleRow?.rol}
@@ -308,6 +342,9 @@ export function NominasClient({ data, mes, anio }: Props) {
                     <Package size={16} className="text-gray-400" />
                     <p className="text-2xl font-bold text-gray-900">{detalleRow.productos_vendidos}</p>
                   </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatDocenas(detalleRow.productos_vendidos)}
+                  </p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-gray-500">Total vendido</p>
@@ -389,7 +426,7 @@ export function NominasClient({ data, mes, anio }: Props) {
             <DialogTitle>Confirmar pago de nómina</DialogTitle>
             <DialogDescription>
               ¿Marcar la nómina de <strong>{confirmRow?.nombre}</strong> como pagada
-              para <strong>{MESES[(mes ?? 1) - 1]} {anio}</strong>?
+              para <strong>{formatRangoLabel(desde, hasta)}</strong>?
               <br />
               Comisión a registrar:{" "}
               <strong>

@@ -61,6 +61,7 @@ export type CustomerJSON = {
   name: string;
   lastname: string;
   address: string | null;
+  phone: string | null;
   created_at: string;
   updated_at: string;
   _count?: { orders: number };
@@ -342,8 +343,11 @@ export type EmbalajeShipmentJSON = {
   tracking_number: string | null;
   photo_package: string;
   photo_receipt: string | null;
+  photo_guide: string | null;
   notes: string | null;
+  edited_at: string | null;
   packer: { id: string; name: string };
+  editor: { id: string; name: string } | null;
 };
 
 export type EmbalajeOrdenJSON = {
@@ -403,6 +407,8 @@ export type CartJSON = {
   items: CartItemJSON[];
   total_usd: number;
   has_stock_issues: boolean;
+  mayor_threshold?: number;
+  bundle_threshold?: number;
 };
 
 export type EmbalajeOrdenDetailJSON = {

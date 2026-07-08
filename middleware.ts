@@ -29,7 +29,7 @@ const ALLOWED_PATHS: Record<UserRole, string[]> = {
   admin:             ["/dashboard"],
   inventario:        ["/dashboard"],
   embalador:         ["/dashboard/embalaje"],
-  vendedora_online:  ["/dashboard", "/dashboard/ordenes", "/dashboard/productos", "/dashboard/carritos"],
+  vendedora_online:  ["/dashboard", "/dashboard/ordenes", "/dashboard/productos", "/dashboard/carritos", "/dashboard/embalaje"],
   vendedora_tienda:  ["/dashboard", "/dashboard/ordenes", "/dashboard/productos", "/dashboard/carritos"],
 };
 

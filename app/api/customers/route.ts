@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, withRole } from "@/lib/api-auth";
 
 const DOC_TYPES = ["V", "P", "J", "E"] as const;
+const PHONE_RE = /^0\d{9,10}$/;
 
 // GET /api/customers
 export async function GET(request: NextRequest) {
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { doc_type, doc_number, name, lastname, address } = body;
+  const { doc_type, doc_number, name, lastname, address, phone } = body;
 
   if (!DOC_TYPES.includes(doc_type)) {
     return NextResponse.json({ error: "Tipo de documento inválido" }, { status: 400 });
@@ -60,6 +61,9 @@ export async function POST(request: NextRequest) {
   if (!doc_number?.trim()) return NextResponse.json({ error: "Número de documento requerido" }, { status: 400 });
   if (!name?.trim()) return NextResponse.json({ error: "Nombre requerido" }, { status: 400 });
   if (!lastname?.trim()) return NextResponse.json({ error: "Apellido requerido" }, { status: 400 });
+  if (phone?.trim() && !PHONE_RE.test(phone.trim())) {
+    return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
+  }
 
   const customer = await prisma.customer.upsert({
     where: { doc_type_doc_number: { doc_type, doc_number: doc_number.trim() } },
@@ -67,6 +71,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       lastname: lastname.trim(),
       address: address?.trim() || null,
+      phone: phone?.trim() || null,
     },
     create: {
       doc_type,
@@ -74,6 +79,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       lastname: lastname.trim(),
       address: address?.trim() || null,
+      phone: phone?.trim() || null,
     },
   });
 

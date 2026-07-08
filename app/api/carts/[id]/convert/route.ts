@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference } from "@/lib/order-utils";
 import { getTasa } from "@/lib/tasa-cambio";
+import { resolveUnitPrice } from "@/lib/pricing";
+import { getSetting } from "@/lib/settings";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
@@ -39,13 +41,14 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const {
     customer_name, customer_lastname,
-    doc_type, doc_number, customer_address,
+    doc_type, doc_number, customer_address, customer_phone,
     address, shipping_company, notes,
     payments, is_partial_agreed,
   } = body;
 
   const channel = cart.channel;
   const DOC_TYPES = ["V", "P", "J", "E"] as const;
+  const PHONE_RE = /^0\d{9,10}$/;
   const hasDoc = doc_type && doc_number?.trim();
   const customer_id_doc = hasDoc ? `${doc_type}-${doc_number.trim()}` : "";
 
@@ -56,6 +59,10 @@ export async function POST(request: NextRequest, { params }: Params) {
     if (!DOC_TYPES.includes(doc_type)) return NextResponse.json({ error: "Tipo de documento inválido" }, { status: 400 });
     if (!address?.trim()) return NextResponse.json({ error: "Dirección requerida para canal online" }, { status: 400 });
     if (!shipping_company?.trim()) return NextResponse.json({ error: "Empresa de envío requerida para canal online" }, { status: 400 });
+    if (!customer_phone?.trim()) return NextResponse.json({ error: "Teléfono requerido para canal online" }, { status: 400 });
+  }
+  if (customer_phone?.trim() && !PHONE_RE.test(customer_phone.trim())) {
+    return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
   }
   if (!Array.isArray(payments) || payments.length === 0) return NextResponse.json({ error: "Agrega al menos un pago" }, { status: 400 });
 
@@ -65,6 +72,15 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const tasaResult = await getTasa(auth.session.id).catch(() => null);
   const tasaId = tasaResult?.id ?? null;
+
+  // Total quantity across the whole cart determines the price tier (paquete/mayor)
+  // for every line — recomputed here rather than trusting each CartItem's stored
+  // unit_price_usd, as a defense-in-depth against any staleness.
+  const totalQty = cart.items.reduce((s, i) => s + i.quantity, 0);
+  const [mayorThreshold, bundleThreshold] = await Promise.all([
+    getSetting("mayor_threshold"),
+    getSetting("bundle_threshold"),
+  ]);
 
   // Mark cart as converting to prevent concurrent conversions
   await prisma.cart.update({ where: { id }, data: { status: "converting" } });
@@ -94,7 +110,9 @@ export async function POST(request: NextRequest, { params }: Params) {
           );
         }
 
-        const unitPrice = Number(item.unit_price_usd);
+        const unitPrice = Number(
+          resolveUnitPrice(variant, cart.pricing_method, totalQty, mayorThreshold, bundleThreshold)
+        );
         const subtotal = parseFloat((unitPrice * qty).toFixed(2));
         totalUsd += subtotal;
 
@@ -156,7 +174,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         ? "pago_parcial"
         : "pendiente_pago";
 
-      // 4. Upsert customer if doc provided (address is NOT updated — only admin can change it)
+      // 4. Upsert customer if doc provided (address is NOT updated — only admin can change it;
+      // phone is synced on every order since it's editable in the checkout form even for known customers)
       let customerId: string | null = null;
       if (hasDoc && DOC_TYPES.includes(doc_type)) {
         const savedCustomer = await tx.customer.upsert({
@@ -164,6 +183,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           update: {
             ...(customer_name?.trim() && { name: customer_name.trim() }),
             ...(customer_lastname?.trim() && { lastname: customer_lastname.trim() }),
+            ...(customer_phone?.trim() && { phone: customer_phone.trim() }),
           },
           create: {
             doc_type,
@@ -171,6 +191,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             name: customer_name?.trim() || "",
             lastname: customer_lastname?.trim() || "",
             address: customer_address?.trim() || null,
+            phone: customer_phone?.trim() || null,
           },
         });
         customerId = savedCustomer.id;
@@ -194,6 +215,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           address: channel === "online" ? address?.trim() : null,
           shipping_company: channel === "online" ? shipping_company?.trim() : null,
           total_usd: totalUsd,
+          pricing_method: cart.pricing_method,
           exchange_rate_id: tasaId,
           is_partial_agreed: partialAgreed,
           partial_agreed_by: partialAgreed ? auth.session.id : null,

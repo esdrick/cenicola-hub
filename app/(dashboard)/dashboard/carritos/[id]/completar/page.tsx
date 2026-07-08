@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { getSetting } from "@/lib/settings";
 import { ConvertCartForm } from "@/components/shared/carritos/ConvertCartForm";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
@@ -73,6 +74,11 @@ export default async function CompletarCarritoPage({ params }: Params) {
 
   const total_usd = items.reduce((s, i) => s + i.unit_price_usd * i.quantity, 0);
 
+  const [mayorThreshold, bundleThreshold] = await Promise.all([
+    getSetting("mayor_threshold"),
+    getSetting("bundle_threshold"),
+  ]);
+
   const cartJSON: CartJSON = {
     id: cart.id,
     vendor_id: cart.vendor_id,
@@ -86,6 +92,8 @@ export default async function CompletarCarritoPage({ params }: Params) {
     items,
     total_usd,
     has_stock_issues: items.some((i) => i.stock_warning),
+    mayor_threshold: mayorThreshold,
+    bundle_threshold: bundleThreshold,
   };
 
   return (

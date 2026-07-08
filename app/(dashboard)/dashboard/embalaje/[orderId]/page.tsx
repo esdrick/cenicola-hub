@@ -13,7 +13,7 @@ export default async function EmbalajeDetailPage({
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!["admin", "embalador", "inventario"].includes(session.role)) redirect("/dashboard");
+  if (!["admin", "embalador", "inventario", "vendedora_online"].includes(session.role)) redirect("/dashboard");
 
   const order = await prisma.order.findUnique({
     where: { id: params.orderId },
@@ -33,6 +33,7 @@ export default async function EmbalajeDetailPage({
       shipment: {
         include: {
           packer: { select: { id: true, name: true } },
+          editor: { select: { id: true, name: true } },
         },
       },
     },
@@ -58,8 +59,11 @@ export default async function EmbalajeDetailPage({
       tracking_number: order.shipment.tracking_number,
       photo_package: order.shipment.photo_package,
       photo_receipt: order.shipment.photo_receipt,
+      photo_guide: order.shipment.photo_guide,
       notes: order.shipment.notes,
+      edited_at: order.shipment.edited_at?.toISOString() ?? null,
       packer: order.shipment.packer,
+      editor: order.shipment.editor,
     };
   }
 

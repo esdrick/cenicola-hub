@@ -15,7 +15,7 @@ export const ROLE_ALLOWED_PATHS: Record<UserRole, string[]> = {
   admin: ["/dashboard"],
   inventario: ["/dashboard"],
   embalador: ["/dashboard/embalaje"],
-  vendedora_online: ["/dashboard/ordenes", "/dashboard/productos"],
+  vendedora_online: ["/dashboard/ordenes", "/dashboard/productos", "/dashboard/embalaje"],
   vendedora_tienda: ["/dashboard/ordenes", "/dashboard/productos"],
 };
 

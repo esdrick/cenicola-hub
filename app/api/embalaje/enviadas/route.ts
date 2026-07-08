@@ -6,7 +6,7 @@ import { withRole } from "@/lib/api-auth";
 
 // GET /api/embalaje/enviadas — orders in enviada
 export async function GET(request: NextRequest) {
-  const auth = await withRole(["admin", "embalador", "inventario"]);
+  const auth = await withRole(["admin", "embalador", "inventario", "vendedora_online"]);
   if (!auth.ok) return auth.response;
 
   const sp = request.nextUrl.searchParams;
@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       shipment: {
         include: {
           packer: { select: { id: true, name: true } },
+          editor: { select: { id: true, name: true } },
         },
       },
     },
@@ -67,8 +68,11 @@ export async function GET(request: NextRequest) {
           tracking_number: o.shipment.tracking_number,
           photo_package: o.shipment.photo_package,
           photo_receipt: o.shipment.photo_receipt,
+          photo_guide: o.shipment.photo_guide,
           notes: o.shipment.notes,
+          edited_at: o.shipment.edited_at?.toISOString() ?? null,
           packer: o.shipment.packer,
+          editor: o.shipment.editor,
         }
       : null;
 

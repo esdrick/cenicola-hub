@@ -7,19 +7,19 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { orderId: string } }
 ) {
-  const auth = await withRole(["admin", "embalador", "inventario"]);
+  const auth = await withRole(["admin", "embalador", "inventario", "vendedora_online"]);
   if (!auth.ok) return auth.response;
 
   const { orderId } = params;
 
-  let body: { foto1Url?: string; foto2Url?: string; tracking?: string; notas?: string };
+  let body: { foto1Url?: string; foto2Url?: string; foto3Url?: string; tracking?: string; notas?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
   }
 
-  const { foto1Url, foto2Url, tracking, notas } = body;
+  const { foto1Url, foto2Url, foto3Url, tracking, notas } = body;
 
   if (!foto1Url?.trim()) {
     return NextResponse.json({ error: "La URL de la foto del paquete es requerida" }, { status: 400 });
@@ -42,6 +42,7 @@ export async function POST(
           packed_at: new Date(),
           photo_package: foto1Url.trim(),
           photo_receipt: foto2Url?.trim() || null,
+          photo_guide: foto3Url?.trim() || null,
           tracking_number: tracking?.trim() || null,
           notes: notas?.trim() || null,
         },

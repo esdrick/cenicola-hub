@@ -32,7 +32,10 @@ type EditState = {
   name: string;
   lastname: string;
   address: string;
+  phone: string;
 };
+
+const PHONE_RE = /^0\d{9,10}$/;
 
 type Props = {
   initialData: CustomerJSON[];
@@ -92,6 +95,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
       name: c.name,
       lastname: c.lastname,
       address: c.address ?? "",
+      phone: c.phone ?? "",
     });
     setError(null);
   }
@@ -100,6 +104,10 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
     if (!editing) return;
     if (!editing.name.trim() || !editing.lastname.trim() || !editing.doc_number.trim()) {
       setError("Nombre, apellido y número de documento son requeridos");
+      return;
+    }
+    if (editing.phone.trim() && !PHONE_RE.test(editing.phone.trim())) {
+      setError("Número de teléfono inválido");
       return;
     }
     setSaving(true);
@@ -114,6 +122,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
           name: editing.name,
           lastname: editing.lastname,
           address: editing.address || null,
+          phone: editing.phone || null,
         }),
       });
       const j = await r.json();
@@ -182,6 +191,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
               <TableHead>Documento</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Dirección</TableHead>
+              <TableHead>Teléfono</TableHead>
               <TableHead className="text-center">Órdenes</TableHead>
               <TableHead />
             </TableRow>
@@ -189,14 +199,14 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-gray-400">
+                <TableCell colSpan={6} className="py-10 text-center text-gray-400">
                   <Loader2 size={18} className="animate-spin inline" />
                 </TableCell>
               </TableRow>
             )}
             {!loading && customers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-10 text-center text-sm text-gray-400">
+                <TableCell colSpan={6} className="py-10 text-center text-sm text-gray-400">
                   No hay clientes registrados
                 </TableCell>
               </TableRow>
@@ -241,6 +251,11 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                           onChange={(e) => setEditing((p) => p ? { ...p, address: e.target.value } : p)}
                           placeholder="Dirección" />
                       </TableCell>
+                      <TableCell>
+                        <Input className="h-8 text-xs" value={editing.phone}
+                          onChange={(e) => setEditing((p) => p ? { ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 11) } : p)}
+                          placeholder="04121234567" inputMode="numeric" />
+                      </TableCell>
                       <TableCell className="text-center text-gray-500">
                         {c._count?.orders ?? 0}
                       </TableCell>
@@ -266,6 +281,9 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                       </TableCell>
                       <TableCell className="text-xs text-gray-500 max-w-[200px] truncate">
                         {c.address ?? <span className="italic">Sin dirección</span>}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        {c.phone ?? <span className="italic">Sin teléfono</span>}
                       </TableCell>
                       <TableCell className="text-center text-sm text-gray-600">
                         {c._count?.orders ?? 0}
