@@ -241,13 +241,13 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
 
             {/* Fechas */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label>Desde</Label>
-                <Input type="date" value={tmpDesde} max={today} onChange={(e) => setTmpDesde(e.target.value)} />
+                <Input type="date" value={tmpDesde} max={today} onChange={(e) => setTmpDesde(e.target.value)} className="appearance-none" />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label>Hasta</Label>
-                <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} />
+                <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} className="appearance-none" />
               </div>
             </div>
           </div>

@@ -60,17 +60,17 @@ export async function InventarioStats({ lowStockThreshold }: Props) {
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {CARDS.map((c) => (
         <Card key={c.label}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
-            <div className={`rounded-lg p-2 ${c.bg}`}>
-              <c.icon size={18} className={c.color} />
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardTitle className="text-xs font-medium text-gray-600 sm:text-sm">{c.label}</CardTitle>
+            <div className={`flex-shrink-0 rounded-lg p-1.5 sm:p-2 ${c.bg}`}>
+              <c.icon size={16} className={c.color} />
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-gray-900">{c.value}</p>
+            <p className="text-2xl font-bold text-gray-900 sm:text-3xl">{c.value}</p>
             <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
           </CardContent>
         </Card>

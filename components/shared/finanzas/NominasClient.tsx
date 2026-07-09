@@ -156,22 +156,22 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
             ))}
           </div>
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <Label className="text-xs text-gray-500">Desde</Label>
           <input
             type="date"
             value={selectedDesde}
             onChange={(e) => onFechaChange("desde", e.target.value)}
-            className="h-9 rounded-md border border-input bg-white px-3 text-sm"
+            className="h-9 w-full max-w-full appearance-none rounded-md border border-input bg-white px-3 text-sm"
           />
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <Label className="text-xs text-gray-500">Hasta</Label>
           <input
             type="date"
             value={selectedHasta}
             onChange={(e) => onFechaChange("hasta", e.target.value)}
-            className="h-9 rounded-md border border-input bg-white px-3 text-sm"
+            className="h-9 w-full max-w-full appearance-none rounded-md border border-input bg-white px-3 text-sm"
           />
         </div>
         <Button variant="outline" onClick={applyFilter} className="rounded-full px-4">

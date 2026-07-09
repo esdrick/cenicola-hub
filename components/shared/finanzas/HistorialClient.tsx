@@ -155,24 +155,24 @@ export function HistorialClient({ data }: { data: HistorialData }) {
       {/* Filter bar */}
       <div className="rounded-xl border bg-white px-5 py-4">
         <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs text-gray-500">Desde</Label>
             <Input
               type="date"
               value={desde}
               max={today}
               onChange={(e) => setDesde(e.target.value)}
-              className="w-36 text-sm"
+              className="w-36 max-w-full text-sm appearance-none"
             />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs text-gray-500">Hasta</Label>
             <Input
               type="date"
               value={hasta}
               max={today}
               onChange={(e) => setHasta(e.target.value)}
-              className="w-36 text-sm"
+              className="w-36 max-w-full text-sm appearance-none"
             />
           </div>
           <Button variant="outline" onClick={applyFilter} className="rounded-full px-4">

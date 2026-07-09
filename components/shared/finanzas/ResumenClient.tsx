@@ -210,24 +210,24 @@ export function ResumenClient() {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs text-gray-500">Desde</Label>
             <Input
               type="date"
               value={desde}
               max={today}
               onChange={(e) => { setDesde(e.target.value); setActivePreset("custom"); }}
-              className="w-40 text-sm"
+              className="w-40 max-w-full text-sm appearance-none"
             />
           </div>
-          <div className="space-y-1">
+          <div className="min-w-0 space-y-1">
             <Label className="text-xs text-gray-500">Hasta</Label>
             <Input
               type="date"
               value={hasta}
               max={today}
               onChange={(e) => { setHasta(e.target.value); setActivePreset("custom"); }}
-              className="w-40 text-sm"
+              className="w-40 max-w-full text-sm appearance-none"
             />
           </div>
           <Button

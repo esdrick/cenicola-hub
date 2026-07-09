@@ -146,13 +146,14 @@ export function CuentasPagarClient({ data }: Props) {
                 disabled={isPending}
               />
             </div>
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <Label className="text-xs">Fecha de vencimiento</Label>
               <Input
                 type="date"
                 value={fechaVenc}
                 onChange={(e) => setFechaVenc(e.target.value)}
                 disabled={isPending}
+                className="appearance-none"
               />
             </div>
             {formError && (

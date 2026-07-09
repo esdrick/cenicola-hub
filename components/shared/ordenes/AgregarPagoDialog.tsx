@@ -293,21 +293,23 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
             {!isEfectivo && (
               <>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
+                  <div className="min-w-0 space-y-1.5">
                     <Label>Fecha</Label>
                     <Input
                       type="date"
                       value={form.payment_date}
                       max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value }))}
+                      className="appearance-none"
                     />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="min-w-0 space-y-1.5">
                     <Label>Hora</Label>
                     <Input
                       type="time"
                       value={form.payment_time}
                       onChange={(e) => setForm((p) => ({ ...p, payment_time: e.target.value }))}
+                      className="appearance-none"
                     />
                   </div>
                 </div>
