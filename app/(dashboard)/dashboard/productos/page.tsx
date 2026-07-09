@@ -20,7 +20,7 @@ function sp(v: string | string[] | undefined): string {
   return typeof v === "string" ? v : "";
 }
 
-async function getProducts(params: SearchParams) {
+async function getProducts(params: SearchParams, quickSaleOnly: boolean) {
   const q     = sp(params.q);
   const tipo  = sp(params.tipo);
   const color = sp(params.color);
@@ -30,6 +30,7 @@ async function getProducts(params: SearchParams) {
 
   const where = {
     is_active: true,
+    ...(quickSaleOnly && { quick_sale: true }),
     ...(tipo  && { type:  { equals:   tipo,  mode: "insensitive" as const } }),
     ...(color && { color: { equals:   color, mode: "insensitive" as const } }),
     ...(talla && { variants: { some: { size: talla, is_active: true } } }),
@@ -73,22 +74,22 @@ async function getProducts(params: SearchParams) {
   return { data, total, page, totalPages: Math.ceil(total / pageSize) };
 }
 
-async function getFilterOptions() {
+async function getFilterOptions(quickSaleOnly: boolean) {
   const [tipoRows, colorRows, tallaRows] = await Promise.all([
     prisma.product.findMany({
-      where: { is_active: true, type: { not: "" } },
+      where: { is_active: true, type: { not: "" }, ...(quickSaleOnly && { quick_sale: true }) },
       select: { type: true },
       distinct: ["type"],
       orderBy: { type: "asc" },
     }),
     prisma.product.findMany({
-      where: { is_active: true, color: { not: null } },
+      where: { is_active: true, color: { not: null }, ...(quickSaleOnly && { quick_sale: true }) },
       select: { color: true },
       distinct: ["color"],
       orderBy: { color: "asc" },
     }),
     prisma.productVariant.findMany({
-      where: { is_active: true },
+      where: { is_active: true, ...(quickSaleOnly && { product: { quick_sale: true } }) },
       select: { size: true },
       distinct: ["size"],
       orderBy: { size: "asc" },
@@ -113,10 +114,11 @@ export default async function ProductosPage({
   const canEdit = session.role === "admin" || session.role === "inventario";
   const isVendor = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const channel = session.role === "vendedora_online" ? "online" : "tienda";
+  const quickSaleOnly = session.role === "vendedora_tienda";
 
   const [{ data, total, page, totalPages }, filterOptions, quickSaleLimit] = await Promise.all([
-    getProducts(searchParams),
-    getFilterOptions(),
+    getProducts(searchParams, quickSaleOnly),
+    getFilterOptions(quickSaleOnly),
     getSetting("quick_sale_limit"),
   ]);
 

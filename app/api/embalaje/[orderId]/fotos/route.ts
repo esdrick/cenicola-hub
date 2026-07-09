@@ -16,6 +16,14 @@ export async function POST(
 
   const { orderId } = params;
 
+  if (auth.session.role === "vendedora_online") {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { created_by: true } });
+    if (!order) return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
+    if (order.created_by !== auth.session.id) {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+    }
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();

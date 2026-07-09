@@ -36,6 +36,11 @@ export async function GET(
 
   if (!order) return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
 
+  // Vendedoras online solo pueden ver las órdenes que ellas mismas vendieron.
+  if (auth.session.role === "vendedora_online" && order.created_by !== auth.session.id) {
+    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+  }
+
   const shipment = order.shipment
     ? {
         id: order.shipment.id,

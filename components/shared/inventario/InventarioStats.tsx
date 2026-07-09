@@ -1,0 +1,80 @@
+import { prisma } from "@/lib/prisma";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Package, Layers, DollarSign, AlertTriangle } from "lucide-react";
+
+type Props = {
+  lowStockThreshold: number;
+};
+
+export async function InventarioStats({ lowStockThreshold }: Props) {
+  const [totalProductos, stockAgg, stockBajoCount] = await Promise.all([
+    prisma.product.count({ where: { is_active: true } }),
+    prisma.productVariant.findMany({
+      where: { is_active: true },
+      select: { stock_total: true, price_divisas: true },
+    }),
+    prisma.productVariant.count({
+      where: { is_active: true, stock_total: { lt: lowStockThreshold } },
+    }),
+  ]);
+
+  const totalUnidades = stockAgg.reduce((sum, v) => sum + v.stock_total, 0);
+  const valorInventario = stockAgg.reduce(
+    (sum, v) => sum + v.stock_total * Number(v.price_divisas),
+    0
+  );
+
+  const CARDS = [
+    {
+      label: "Productos activos",
+      value: String(totalProductos),
+      desc: `${stockAgg.length} variante${stockAgg.length !== 1 ? "s" : ""}`,
+      icon: Package,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+    },
+    {
+      label: "Unidades en stock",
+      value: totalUnidades.toLocaleString("es-VE"),
+      desc: "Suma de todas las variantes",
+      icon: Layers,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+    },
+    {
+      label: "Valor de inventario",
+      value: `$${valorInventario.toFixed(2)}`,
+      desc: "A precio de venta en divisas",
+      icon: DollarSign,
+      color: "text-indigo-600",
+      bg: "bg-indigo-50",
+    },
+    {
+      label: "Stock bajo",
+      value: String(stockBajoCount),
+      desc: `Menos de ${lowStockThreshold} unidades`,
+      icon: AlertTriangle,
+      color: stockBajoCount > 0 ? "text-amber-600" : "text-gray-400",
+      bg: stockBajoCount > 0 ? "bg-amber-50" : "bg-gray-50",
+    },
+  ];
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {CARDS.map((c) => (
+        <Card key={c.label}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
+            <div className={`rounded-lg p-2 ${c.bg}`}>
+              <c.icon size={18} className={c.color} />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-gray-900">{c.value}</p>
+            <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}

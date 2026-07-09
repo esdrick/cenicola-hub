@@ -29,8 +29,14 @@ export async function POST(
   if (!payment_date) return NextResponse.json({ error: "Fecha de pago requerida" }, { status: 400 });
 
   const isEfectivo = (payment_type as PaymentType) === "efectivo_bs" || (payment_type as PaymentType) === "efectivo_usd";
-  if (!isEfectivo && !reference?.trim()) {
-    return NextResponse.json({ error: "Referencia requerida para este método de pago" }, { status: 400 });
+  if (!isEfectivo) {
+    const refLength = reference?.trim().length ?? 0;
+    if (refLength === 0) {
+      return NextResponse.json({ error: "Referencia requerida para este método de pago" }, { status: 400 });
+    }
+    if (refLength < 6 || refLength > 30) {
+      return NextResponse.json({ error: "La referencia debe tener entre 6 y 30 caracteres" }, { status: 400 });
+    }
   }
 
   // Fetch pricing thresholds before the transaction

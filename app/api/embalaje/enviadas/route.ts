@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
 
   const where = {
     status: "enviada" as const,
+    // Vendedoras online solo ven las órdenes que ellas mismas vendieron (mismo criterio
+    // que el resto de la sección de embalaje — no importa quién la haya empacado).
+    ...(auth.session.role === "vendedora_online" && { created_by: auth.session.id }),
     ...(q && {
       OR: [
         { order_number: { contains: q, mode: "insensitive" as const } },

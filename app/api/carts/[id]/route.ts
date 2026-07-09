@@ -182,9 +182,16 @@ export async function PUT(request: NextRequest, { params }: Params) {
       // Remove item
       await prisma.cartItem.deleteMany({ where: { cart_id: id, variant_id } });
     } else {
-      const variant = await prisma.productVariant.findUnique({ where: { id: variant_id } });
+      const variant = await prisma.productVariant.findUnique({
+        where: { id: variant_id },
+        include: { product: { select: { quick_sale: true } } },
+      });
       if (!variant || !variant.is_active) {
         return NextResponse.json({ error: "Variante no encontrada" }, { status: 404 });
+      }
+
+      if (auth.session.role === "vendedora_tienda" && !variant.product.quick_sale) {
+        return NextResponse.json({ error: "Este producto no está disponible para venta rápida" }, { status: 403 });
       }
 
       // unit_price_usd is a placeholder here — repriceAllCartItems below immediately

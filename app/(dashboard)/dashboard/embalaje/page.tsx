@@ -110,9 +110,15 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   }
 
   // ── En embalaje (default) ──────────────────────────────────────────────────
+  // Vendedoras online solo empacan las órdenes que ellas mismas vendieron.
+  const embalajeWhere =
+    session.role === "vendedora_online"
+      ? { status: "en_embalaje" as const, created_by: session.id }
+      : { status: "en_embalaje" as const };
+
   const [orders, pendingCount] = await Promise.all([
     prisma.order.findMany({
-      where: { status: "en_embalaje" },
+      where: embalajeWhere,
       include: {
         creator: { select: { id: true, name: true } },
         items: {
@@ -127,7 +133,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
       },
       orderBy: { updated_at: "asc" },
     }),
-    prisma.order.count({ where: { status: "en_embalaje" } }),
+    prisma.order.count({ where: embalajeWhere }),
   ]);
 
   const data: EmbalajeOrdenJSON[] = orders.map((o) => {

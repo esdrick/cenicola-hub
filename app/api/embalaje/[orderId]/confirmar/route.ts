@@ -32,6 +32,9 @@ export async function POST(
       // Validate order exists and has correct status
       const order = await tx.order.findUnique({ where: { id: orderId } });
       if (!order) throw new Error("NOT_FOUND");
+      if (auth.session.role === "vendedora_online" && order.created_by !== auth.session.id) {
+        throw new Error("FORBIDDEN");
+      }
       if (order.status !== "en_embalaje") throw new Error("INVALID_STATUS");
 
       // 1. Create shipment
@@ -73,6 +76,9 @@ export async function POST(
     const msg = err instanceof Error ? err.message : "";
     if (msg === "NOT_FOUND") {
       return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
+    }
+    if (msg === "FORBIDDEN") {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
     }
     if (msg === "INVALID_STATUS") {
       return NextResponse.json({ error: "La orden no está en estado en_embalaje" }, { status: 409 });

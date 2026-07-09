@@ -122,9 +122,16 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
       setError(`El monto excede el límite de redondeo. Máximo $${maxAmount.toFixed(2)}`);
       return;
     }
-    if (form.payment_type !== "efectivo_bs" && form.payment_type !== "efectivo_usd" && !form.reference.trim()) {
-      setError("La referencia es requerida para este método de pago");
-      return;
+    if (form.payment_type !== "efectivo_bs" && form.payment_type !== "efectivo_usd") {
+      const ref = form.reference.trim();
+      if (!ref) {
+        setError("La referencia es requerida para este método de pago");
+        return;
+      }
+      if (ref.length < 6 || ref.length > 30) {
+        setError("La referencia debe tener entre 6 y 30 caracteres");
+        return;
+      }
     }
 
     start(async () => {
@@ -311,7 +318,9 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
                     value={form.reference}
                     onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))}
                     placeholder="Número de confirmación o referencia"
+                    maxLength={30}
                   />
+                  <p className="text-xs text-gray-400">Entre 6 y 30 caracteres</p>
                 </div>
 
                 <div className="space-y-1.5">

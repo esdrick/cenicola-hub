@@ -41,6 +41,11 @@ export default async function EmbalajeDetailPage({
 
   if (!order) notFound();
 
+  // Vendedoras online solo pueden empacar las órdenes que ellas mismas vendieron.
+  if (session.role === "vendedora_online" && order.created_by !== session.id) {
+    redirect("/dashboard/embalaje");
+  }
+
   // Redirect if not in correct status
   if (order.status === "enviada" || order.status === "completada") {
     redirect("/dashboard/embalaje/enviadas");

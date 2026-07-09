@@ -287,6 +287,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
     if (!draftIsCash && !draft.reference.trim()) {
       setError("Referencia requerida para este tipo de pago"); return;
     }
+    if (!draftIsCash && draft.reference.trim().length < 6) {
+      setError("La referencia debe tener entre 6 y 30 caracteres"); return;
+    }
     if (!draftIsCash && draft.reference.trim()) {
       const normRef = draft.reference.toUpperCase().replace(/[\s\-]/g, "");
       const dup = payments.find((p, i) => {
@@ -1052,7 +1055,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                     <Label>Referencia *</Label>
                     <Input value={draft.reference}
                       onChange={(e) => setDraft((p) => ({ ...p, reference: e.target.value }))}
-                      placeholder="Número de confirmación" />
+                      placeholder="Número de confirmación"
+                      maxLength={30} />
+                    <p className="text-xs text-gray-400">Entre 6 y 30 caracteres</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Comprobante</Label>
@@ -1109,7 +1114,6 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
           {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta */}
           {payments.length > 0 && remaining > 0.005 && (
-            (isAdmin || channel === "tienda") &&
             (channel === "tienda"
               ? customer.customer_name.trim() && customer.customer_lastname.trim()
               : customer.doc_number.trim())

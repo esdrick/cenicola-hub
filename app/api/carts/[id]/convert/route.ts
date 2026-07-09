@@ -66,7 +66,9 @@ export async function POST(request: NextRequest, { params }: Params) {
   }
   if (!Array.isArray(payments) || payments.length === 0) return NextResponse.json({ error: "Agrega al menos un pago" }, { status: 400 });
 
-  const canPartial = auth.session.role === "admin" || auth.session.role === "vendedora_tienda";
+  const canPartial = ["admin", "inventario", "vendedora_online", "vendedora_tienda"].includes(
+    auth.session.role
+  );
   const partialAgreed = is_partial_agreed === true && canPartial;
   const ip = getClientIp(request);
 
@@ -138,6 +140,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         if (!payIsCash) {
           const hash = normalizeReference(pay.reference ?? "");
           if (!hash) throw new Error("La referencia del pago es requerida");
+          if (hash.length < 6 || hash.length > 30) {
+            throw new Error("La referencia debe tener entre 6 y 30 caracteres");
+          }
 
           const intraKey = `${pay.payment_type}:${hash}`;
           if (seenHashes.has(intraKey)) throw new Error(`REF_DUP_INTRA:${pay.reference}`);
@@ -342,6 +347,9 @@ export async function POST(request: NextRequest, { params }: Params) {
     await prisma.cart.update({ where: { id }, data: { status: "active" } }).catch(() => null);
 
     const msg = err instanceof Error ? err.message : "Error al crear la orden";
+    if (msg.startsWith("La referencia")) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
     if (msg.startsWith("REF_DUP_INTRA:")) {
       const ref = msg.replace("REF_DUP_INTRA:", "");
       return NextResponse.json({ error: `Referencia duplicada en esta orden: "${ref}"` }, { status: 409 });

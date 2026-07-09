@@ -12,9 +12,12 @@ type Props = {
   variants: ProductVariantJSON[];
   productName: string;
   canEdit: boolean;
+  // When set, the viewer is restricted to one sales channel (vendedora_online /
+  // vendedora_tienda) and must not see the other channel's stock number.
+  viewerChannel?: "online" | "tienda";
 };
 
-export function SizeSelector({ variants, productName, canEdit }: Props) {
+export function SizeSelector({ variants, productName, canEdit, viewerChannel }: Props) {
   const router = useRouter();
   const active = variants.filter((v) => v.is_active);
   const [selectedId, setSelectedId] = useState<string>(active[0]?.id ?? "");
@@ -23,6 +26,13 @@ export function SizeSelector({ variants, productName, canEdit }: Props) {
   const selected = active.find((v) => v.id === selectedId) ?? active[0];
 
   if (active.length === 0) return null;
+
+  const channelStock = selected
+    ? viewerChannel === "online"
+      ? selected.stock_online
+      : selected.stock_store
+    : 0;
+  const noStockForViewer = viewerChannel ? channelStock === 0 : selected?.stock_total === 0;
 
   return (
     <div className="space-y-4">
@@ -34,7 +44,9 @@ export function SizeSelector({ variants, productName, canEdit }: Props) {
         <div className="flex flex-wrap gap-2">
           {active.map((v) => {
             const isSel = v.id === selectedId;
-            const noStock = v.stock_total === 0;
+            const noStock = viewerChannel
+              ? (viewerChannel === "online" ? v.stock_online : v.stock_store) === 0
+              : v.stock_total === 0;
             return (
               <button
                 key={v.id}
@@ -76,37 +88,49 @@ export function SizeSelector({ variants, productName, canEdit }: Props) {
             )}
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-xs text-gray-400">Online</p>
+          {viewerChannel ? (
+            <div className="mt-3 text-center">
+              <p className="text-xs text-gray-400 capitalize">{viewerChannel}</p>
               <p className={cn(
                 "text-lg font-bold",
-                selected.stock_online === 0 ? "text-rose-500" : selected.stock_online < 3 ? "text-amber-600" : "text-gray-900"
+                channelStock === 0 ? "text-rose-500" : channelStock < 3 ? "text-amber-600" : "text-gray-900"
               )}>
-                {selected.stock_online}
+                {channelStock}
               </p>
             </div>
-            <div>
-              <p className="text-xs text-gray-400">Tienda</p>
-              <p className={cn(
-                "text-lg font-bold",
-                selected.stock_store === 0 ? "text-rose-500" : selected.stock_store < 3 ? "text-amber-600" : "text-gray-900"
-              )}>
-                {selected.stock_store}
-              </p>
+          ) : (
+            <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-xs text-gray-400">Online</p>
+                <p className={cn(
+                  "text-lg font-bold",
+                  selected.stock_online === 0 ? "text-rose-500" : selected.stock_online < 3 ? "text-amber-600" : "text-gray-900"
+                )}>
+                  {selected.stock_online}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Tienda</p>
+                <p className={cn(
+                  "text-lg font-bold",
+                  selected.stock_store === 0 ? "text-rose-500" : selected.stock_store < 3 ? "text-amber-600" : "text-gray-900"
+                )}>
+                  {selected.stock_store}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Total</p>
+                <p className={cn(
+                  "text-lg font-bold",
+                  selected.stock_total === 0 ? "text-rose-500" : selected.stock_total < 3 ? "text-amber-600" : "text-gray-900"
+                )}>
+                  {selected.stock_total}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-400">Total</p>
-              <p className={cn(
-                "text-lg font-bold",
-                selected.stock_total === 0 ? "text-rose-500" : selected.stock_total < 3 ? "text-amber-600" : "text-gray-900"
-              )}>
-                {selected.stock_total}
-              </p>
-            </div>
-          </div>
+          )}
 
-          {selected.stock_total === 0 && (
+          {noStockForViewer && (
             <p className="mt-2 text-center text-xs text-rose-500 font-medium">
               Agotado en esta talla
             </p>

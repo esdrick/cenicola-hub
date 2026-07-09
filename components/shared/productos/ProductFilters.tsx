@@ -142,7 +142,7 @@ export function ProductFilters({ tipos, colors, tallas }: Props) {
             <DialogTitle>Filtros</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 py-1">
+          <div className="max-h-[55vh] space-y-5 overflow-y-auto py-1 pr-1">
             {/* Tipo */}
             {tipos.length > 0 && (
               <div className="space-y-2">

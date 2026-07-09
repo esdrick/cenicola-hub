@@ -195,6 +195,7 @@ export default async function ProductoDetailPage({
             variants={product.variants}
             productName={product.name}
             canEdit={canEdit}
+            viewerChannel={isVendor ? channel : undefined}
           />
 
           <div className="text-xs text-gray-400">

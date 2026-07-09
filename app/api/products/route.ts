@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
   const q = sp.get("q")?.trim() ?? "";
   const tipo = sp.get("tipo")?.trim() ?? "";
   const color = sp.get("color")?.trim() ?? "";
-  const quickSale = sp.get("quick_sale") === "true";
+  // vendedora_tienda is restricted to quick-sale products regardless of the query param
+  const quickSale = sp.get("quick_sale") === "true" || auth.session.role === "vendedora_tienda";
   const page = Math.max(1, parseInt(sp.get("page") ?? "1"));
   const pageSize = 24;
 

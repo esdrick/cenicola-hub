@@ -9,8 +9,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/shared/ordenes/OrderStatusBadge";
 import { CancelOrderButton } from "@/components/shared/ordenes/CancelOrderButton";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
+import { AgregarProductosDialog } from "@/components/shared/ordenes/AgregarProductosDialog";
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
 import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrdenButton";
+import { OrderHistorySection } from "@/components/shared/ordenes/OrderHistorySection";
 import { STATUS_LABELS, PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma";
@@ -147,6 +149,19 @@ export default async function OrderDetailPage({
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   if (isRestricted && order.created_by !== session.id) notFound();
 
+  const auditLogs = session.role === "admin"
+    ? await prisma.auditLog.findMany({
+        where: {
+          OR: [
+            { entity_type: "Order", entity_id: order.id },
+            ...(order.shipment ? [{ entity_type: "OrderShipment", entity_id: order.shipment.id }] : []),
+          ],
+        },
+        include: { user: { select: { id: true, name: true } } },
+        orderBy: { created_at: "desc" },
+      })
+    : [];
+
   const canCancel = (session.role === "admin" || session.role === "inventario") &&
     order.status !== "cancelada" && order.status !== "enviada" && order.status !== "completada";
 
@@ -155,6 +170,9 @@ export default async function OrderDetailPage({
 
   const canConfirmar = (session.role === "admin" || session.role === "inventario") &&
     order.channel === "online" && order.status === "pago_verificado";
+
+  const canAddProduct = (session.role === "admin" || session.role === "inventario") &&
+    !["enviada", "completada", "cancelada"].includes(order.status);
 
   const totalUsd = Number(order.total_usd);
 
@@ -233,8 +251,16 @@ export default async function OrderDetailPage({
 
           {/* Items */}
           <div className="rounded-xl border bg-white overflow-hidden">
-            <div className="border-b px-3 sm:px-5 py-3">
+            <div className="border-b px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-gray-700">Productos</h2>
+              {canAddProduct && (
+                <AgregarProductosDialog
+                  orderId={order.id}
+                  orderNumber={order.order_number}
+                  channel={order.channel}
+                  status={order.status}
+                />
+              )}
             </div>
             <div className="divide-y">
               {order.items.map((item) => (
@@ -520,6 +546,9 @@ export default async function OrderDetailPage({
           )}
         </div>
       </div>
+
+      {/* History — admin only */}
+      {session.role === "admin" && <OrderHistorySection logs={auditLogs} />}
 
       {/* Cancel button pinned at bottom on mobile */}
       {canCancel && (

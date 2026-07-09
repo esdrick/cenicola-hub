@@ -288,7 +288,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                 const noStock = stock === 0 && qty === 0;
 
                 return (
-                  <div key={product.id} className="flex items-start gap-3 px-4 py-3">
+                  <div key={product.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-shrink-0">
                       {product.photos[0] ? (
                         <Image
@@ -305,37 +305,37 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 break-words">{product.name}</p>
-                      <p className="text-xs text-gray-400 mb-2">${variant.price_bcv.toFixed(2)} · {stock} disp.</p>
-
-                      {noStock ? (
-                        <p className="text-sm text-orange-600">Sin stock</p>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => updateItem(variant.id, Math.max(0, qty - 1))}
-                            disabled={isUpdating || qty === 0}
-                            className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-                          >
-                            <Minus size={14} />
-                          </button>
-                          {isUpdating ? (
-                            <Loader2 size={16} className="animate-spin w-6 text-center" />
-                          ) : (
-                            <span className="w-6 text-center text-sm font-semibold">{qty}</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => updateItem(variant.id, Math.min(stock, qty + 1))}
-                            disabled={isUpdating || qty >= stock}
-                            className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
-                          >
-                            <Plus size={14} />
-                          </button>
-                        </div>
-                      )}
+                      <p className="text-sm font-medium text-gray-900">{product.name}</p>
+                      <p className="text-xs text-gray-400">${variant.price_bcv.toFixed(2)} · {stock} disp.</p>
                     </div>
+
+                    {noStock ? (
+                      <span className="flex-shrink-0 text-sm text-orange-600">Sin stock</span>
+                    ) : (
+                      <div className="flex flex-shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateItem(variant.id, Math.max(0, qty - 1))}
+                          disabled={isUpdating || qty === 0}
+                          className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        {isUpdating ? (
+                          <Loader2 size={16} className="animate-spin w-6 text-center" />
+                        ) : (
+                          <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => updateItem(variant.id, Math.min(stock, qty + 1))}
+                          disabled={isUpdating || qty >= stock}
+                          className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               }

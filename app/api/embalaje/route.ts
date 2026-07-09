@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
 
   const where = {
     status: "en_embalaje" as const,
+    // Vendedoras online solo empacan las órdenes que ellas mismas vendieron.
+    ...(auth.session.role === "vendedora_online" && { created_by: auth.session.id }),
     ...(q && {
       OR: [
         { order_number: { contains: q, mode: "insensitive" as const } },

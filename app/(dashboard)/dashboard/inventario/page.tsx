@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { MovimientosTable } from "@/components/shared/inventario/MovimientosTable";
 import { StockTable } from "@/components/shared/inventario/StockTable";
 import { InventarioHeader } from "@/components/shared/inventario/InventarioHeader";
+import { InventarioStats } from "@/components/shared/inventario/InventarioStats";
 import { getSetting } from "@/lib/settings";
 import type { MovementJSON, MovementType, MovementChannel, StockVariantJSON } from "@/types";
 
@@ -228,6 +229,8 @@ export default async function InventarioPage({
   return (
     <div className="space-y-6">
       <InventarioHeader subtitle={subtitle} canAdjust={canAdjust} lowStockThreshold={lowStockThreshold} />
+
+      <InventarioStats lowStockThreshold={lowStockThreshold} />
 
       {/* ── Tabs ── */}
       <div className="flex w-full sm:w-fit gap-1 rounded-lg border bg-gray-50 p-1">
