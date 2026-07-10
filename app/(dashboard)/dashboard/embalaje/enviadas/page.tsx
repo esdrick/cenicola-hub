@@ -10,14 +10,12 @@ export default async function EnviadasPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!["admin", "embalador", "inventario", "vendedora_online"].includes(session.role)) redirect("/dashboard");
-  if (session.role === "admin" || session.role === "inventario") redirect("/dashboard/embalaje?tab=historial");
-
-  const isEmbalador = session.role === "embalador" || session.role === "vendedora_online";
+  if (session.role === "admin" || session.role === "inventario" || session.role === "vendedora_online") {
+    redirect("/dashboard/embalaje?tab=historial");
+  }
 
   const orders = await prisma.order.findMany({
-    where: isEmbalador
-      ? { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } }
-      : { status: { in: ["enviada", "completada"] } },
+    where: { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } },
     include: {
       creator: { select: { id: true, name: true } },
       items: {
@@ -88,16 +86,13 @@ export default async function EnviadasPage() {
     };
   });
 
-  const title = isEmbalador ? "Mi Historial de Envíos" : "Historial de Envíos";
-  const subtitle = isEmbalador
-    ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
-    : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`;
-
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
+        <h1 className="text-2xl font-bold text-gray-900">Mi Historial de Envíos</h1>
+        <p className="mt-0.5 text-sm text-gray-500">
+          {data.length} orden{data.length !== 1 ? "es" : ""} en tu historial
+        </p>
       </div>
       <EnviadasTable initialOrders={data} role={session.role} />
     </div>

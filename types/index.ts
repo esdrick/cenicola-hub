@@ -419,6 +419,7 @@ export type EmbalajeOrdenDetailJSON = {
   customer_name: string;
   customer_lastname: string;
   customer_id_doc: string;
+  customer_phone: string | null;
   address: string | null;
   shipping_company: string | null;
   total_usd: number;

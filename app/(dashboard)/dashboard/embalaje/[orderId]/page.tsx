@@ -19,6 +19,7 @@ export default async function EmbalajeDetailPage({
     where: { id: params.orderId },
     include: {
       creator: { select: { id: true, name: true } },
+      customer: { select: { phone: true } },
       items: {
         include: {
           variant: {
@@ -48,7 +49,11 @@ export default async function EmbalajeDetailPage({
 
   // Redirect if not in correct status
   if (order.status === "enviada" || order.status === "completada") {
-    redirect("/dashboard/embalaje/enviadas");
+    redirect(
+      session.role === "vendedora_online"
+        ? "/dashboard/embalaje?tab=historial"
+        : "/dashboard/embalaje/enviadas"
+    );
   }
   if (order.status !== "en_embalaje") {
     redirect("/dashboard/embalaje");
@@ -80,6 +85,7 @@ export default async function EmbalajeDetailPage({
     customer_name: order.customer_name,
     customer_lastname: order.customer_lastname,
     customer_id_doc: order.customer_id_doc,
+    customer_phone: order.customer?.phone ?? null,
     address: order.address,
     shipping_company: order.shipping_company,
     total_usd: Number(order.total_usd),

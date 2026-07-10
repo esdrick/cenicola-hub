@@ -15,14 +15,18 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   if (!session) redirect("/login");
   if (!["admin", "embalador", "inventario", "vendedora_online"].includes(session.role)) redirect("/dashboard");
 
-  const hasHistorialTab = session.role === "admin" || session.role === "inventario";
+  const isVendedoraOnline = session.role === "vendedora_online";
+  const hasHistorialTab = session.role === "admin" || session.role === "inventario" || isVendedoraOnline;
   const tab = hasHistorialTab && searchParams.tab === "historial" ? "historial" : "embalaje";
 
-  // ── Historial de Envíos (admin e inventario, tab=historial) ───────────────
+  // ── Historial de Envíos (admin, inventario y vendedora_online, tab=historial) ──
   if (hasHistorialTab && tab === "historial") {
+    // Vendedoras online solo ven en su historial las órdenes que ellas mismas empacaron.
     const [orders, pendingCount] = await Promise.all([
       prisma.order.findMany({
-        where: { status: { in: ["enviada", "completada"] } },
+        where: isVendedoraOnline
+          ? { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } }
+          : { status: { in: ["enviada", "completada"] } },
         include: {
           creator: { select: { id: true, name: true } },
           items: {
@@ -43,7 +47,11 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
         },
         orderBy: { updated_at: "desc" },
       }),
-      prisma.order.count({ where: { status: "en_embalaje" } }),
+      prisma.order.count({
+        where: isVendedoraOnline
+          ? { status: "en_embalaje", created_by: session.id }
+          : { status: "en_embalaje" },
+      }),
     ]);
 
     const data: EmbalajeOrdenJSON[] = orders.map((o) => {
@@ -100,7 +108,9 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {data.length} orden{data.length !== 1 ? "es" : ""} enviada{data.length !== 1 ? "s" : ""} o completada{data.length !== 1 ? "s" : ""}
+            {isVendedoraOnline
+              ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
+              : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <EmbalajeAdminTabs active="historial" pendingCount={pendingCount} />

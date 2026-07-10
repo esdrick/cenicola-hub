@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Upload, X, AlertCircle, Loader2, ZoomIn } from "lucide-react";
+import { Upload, X, AlertCircle, Loader2, ZoomIn, Copy, Check } from "lucide-react";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const foto1InputRef = useRef<HTMLInputElement>(null);
   const foto2InputRef = useRef<HTMLInputElement>(null);
@@ -192,6 +193,24 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
     }
   }
 
+  async function handleCopyCustomerData() {
+    const lines = [
+      `${order.customer_name} ${order.customer_lastname}`.trim(),
+      `Cédula: ${order.customer_id_doc}`,
+      order.customer_phone && `Teléfono: ${order.customer_phone}`,
+      order.address && `Dirección: ${order.address}`,
+      order.shipping_company && `Envío: ${order.shipping_company}`,
+    ].filter(Boolean).join("\n");
+
+    try {
+      await navigator.clipboard.writeText(lines);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("No se pudo copiar los datos del cliente");
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -216,8 +235,21 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
         <div className="lg:col-span-2 space-y-6">
           {/* Order info card */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <CardTitle className="text-base">Información del cliente</CardTitle>
+              <Button type="button" variant="outline" size="sm" onClick={handleCopyCustomerData}>
+                {copied ? (
+                  <>
+                    <Check size={14} className="mr-1.5 text-emerald-600" />
+                    Copiado
+                  </>
+                ) : (
+                  <>
+                    <Copy size={14} className="mr-1.5" />
+                    Copiar datos
+                  </>
+                )}
+              </Button>
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
@@ -231,6 +263,12 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                   <dt className="text-gray-500">Cédula</dt>
                   <dd className="font-medium">{order.customer_id_doc}</dd>
                 </div>
+                {order.customer_phone && (
+                  <div>
+                    <dt className="text-gray-500">Teléfono</dt>
+                    <dd className="font-medium">{order.customer_phone}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-gray-500">Canal</dt>
                   <dd className="font-medium">{CHANNEL_LABELS[order.channel] ?? order.channel}</dd>
