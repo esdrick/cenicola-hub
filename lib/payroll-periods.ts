@@ -23,6 +23,12 @@ function diasEnMes(y: number, m: number): number {
 
 type Rango = { desde: string; hasta: string };
 
+/** Día actual (`ref`). */
+export function rangoDia(ref: Date): Rango {
+  const d = ymd(ref.getFullYear(), ref.getMonth() + 1, ref.getDate());
+  return { desde: d, hasta: d };
+}
+
 /** Semana calendario actual (lunes a domingo) relativa a `ref`. */
 export function rangoSemana(ref: Date): Rango {
   const day = ref.getDay();
@@ -52,7 +58,8 @@ export function rangoMes(ref: Date): Rango {
   return { desde: ymd(y, m, 1), hasta: ymd(y, m, diasEnMes(y, m)) };
 }
 
-export function rangoPorTipo(tipo: "semana" | "quincena" | "mes", ref: Date): Rango {
+export function rangoPorTipo(tipo: "dia" | "semana" | "quincena" | "mes", ref: Date): Rango {
+  if (tipo === "dia") return rangoDia(ref);
   if (tipo === "semana") return rangoSemana(ref);
   if (tipo === "quincena") return rangoQuincena(ref);
   return rangoMes(ref);

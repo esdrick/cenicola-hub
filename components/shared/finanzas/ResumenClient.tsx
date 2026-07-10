@@ -18,6 +18,7 @@ import {
   Hourglass,
 } from "lucide-react";
 import Link from "next/link";
+import { rangoMes, rangoPorTipo } from "@/lib/payroll-periods";
 
 type IngresoMetodo = {
   metodo: string;
@@ -37,7 +38,7 @@ type Resumen = {
   ingresos_por_metodo: IngresoMetodo[];
 };
 
-type Preset = "mes" | "semana" | "custom";
+type Preset = "dia" | "semana" | "quincena" | "mes" | "custom";
 
 const METODO_LABELS: Record<string, string> = {
   efectivo_bs:   "Efectivo Bs",
@@ -57,31 +58,7 @@ const METODO_COLORS: Record<string, string> = {
   usdt:          "bg-yellow-100 text-yellow-800",
 };
 
-function localDateStr(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function getMonthRange() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return { desde: localDateStr(first), hasta: localDateStr(last) };
-}
-
-function getWeekRange() {
-  const now = new Date();
-  const day = now.getDay();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { desde: localDateStr(monday), hasta: localDateStr(sunday) };
-}
-
-const MONTH = getMonthRange();
+const MONTH = rangoMes(new Date());
 const today = new Date().toISOString().slice(0, 10);
 
 export function ResumenClient() {
@@ -122,8 +99,8 @@ export function ResumenClient() {
     setActivePreset("custom");
   }
 
-  function applyPreset(preset: Preset) {
-    const range = preset === "semana" ? getWeekRange() : getMonthRange();
+  function applyPreset(preset: "dia" | "semana" | "quincena" | "mes") {
+    const range = rangoPorTipo(preset, new Date());
     setDesde(range.desde);
     setHasta(range.hasta);
     setAppliedDesde(range.desde);
@@ -196,16 +173,28 @@ export function ResumenClient() {
       <div className="rounded-xl border bg-white p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <Button
-            variant={activePreset === "mes" ? "default" : "outline"}
-            onClick={() => applyPreset("mes")}
+            variant={activePreset === "dia" ? "default" : "outline"}
+            onClick={() => applyPreset("dia")}
           >
-            Este mes
+            Hoy
           </Button>
           <Button
             variant={activePreset === "semana" ? "default" : "outline"}
             onClick={() => applyPreset("semana")}
           >
             Esta semana
+          </Button>
+          <Button
+            variant={activePreset === "quincena" ? "default" : "outline"}
+            onClick={() => applyPreset("quincena")}
+          >
+            Esta quincena
+          </Button>
+          <Button
+            variant={activePreset === "mes" ? "default" : "outline"}
+            onClick={() => applyPreset("mes")}
+          >
+            Este mes
           </Button>
         </div>
 

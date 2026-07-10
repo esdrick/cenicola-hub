@@ -44,20 +44,22 @@ export async function VendedoraDashboard({ session }: Props) {
   const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [ordenesHoy, vendidoMes, ordenesActivas, ordenesEnProceso, misUltimasOrdenes] = await Promise.all([
+  const [ordenesHoy, unidadesMes, ordenesActivas, ordenesEnProceso, misUltimasOrdenes] = await Promise.all([
     prisma.order.count({
       where: {
         created_by: session.id,
         created_at: { gte: todayStart },
       },
     }),
-    prisma.order.aggregate({
+    prisma.orderItem.aggregate({
       where: {
-        created_by: session.id,
-        status: "completada",
-        created_at: { gte: startOfMonth },
+        order: {
+          created_by: session.id,
+          status: "completada",
+          created_at: { gte: startOfMonth },
+        },
       },
-      _sum: { total_usd: true },
+      _sum: { quantity: true },
     }),
     prisma.order.count({
       where: {
@@ -99,8 +101,8 @@ export async function VendedoraDashboard({ session }: Props) {
     },
     {
       label: "Vendido este mes",
-      value: fmt(Number(vendidoMes._sum.total_usd ?? 0)),
-      desc: "Tus órdenes completadas del mes",
+      value: String(unidadesMes._sum.quantity ?? 0),
+      desc: "Unidades vendidas en tus órdenes completadas",
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",

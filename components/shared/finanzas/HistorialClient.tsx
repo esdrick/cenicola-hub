@@ -15,6 +15,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { rangoDia, rangoSemana, rangoQuincena } from "@/lib/payroll-periods";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,24 @@ export function HistorialClient({ data }: { data: HistorialData }) {
 
   function applyFilter() { nav(desde, hasta); }
 
+  function setToday() {
+    const r = rangoDia(new Date());
+    setDesde(r.desde); setHasta(r.hasta);
+    nav(r.desde, r.hasta);
+  }
+
+  function setThisWeek() {
+    const r = rangoSemana(new Date());
+    setDesde(r.desde); setHasta(r.hasta);
+    nav(r.desde, r.hasta);
+  }
+
+  function setQuincena() {
+    const r = rangoQuincena(new Date());
+    setDesde(r.desde); setHasta(r.hasta);
+    nav(r.desde, r.hasta);
+  }
+
   function setCurrentMonth() {
     const now = new Date();
     const y = now.getFullYear(), m = now.getMonth();
@@ -179,7 +198,10 @@ export function HistorialClient({ data }: { data: HistorialData }) {
             Aplicar
           </Button>
           <Separator orientation="vertical" className="h-9" />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={setToday}>Hoy</Button>
+            <Button variant="outline" onClick={setThisWeek}>Esta semana</Button>
+            <Button variant="outline" onClick={setQuincena}>Esta quincena</Button>
             <Button variant="outline" onClick={setCurrentMonth}>Este mes</Button>
             <Button variant="outline" onClick={setLastMonth}>Mes anterior</Button>
             <Button variant="outline" onClick={setCurrentYear}>Este año</Button>
