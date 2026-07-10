@@ -4,14 +4,15 @@ import { Package, Layers, DollarSign, AlertTriangle } from "lucide-react";
 
 type Props = {
   lowStockThreshold: number;
+  showValue: boolean;
 };
 
-export async function InventarioStats({ lowStockThreshold }: Props) {
+export async function InventarioStats({ lowStockThreshold, showValue }: Props) {
   const [totalProductos, stockAgg, stockBajoCount] = await Promise.all([
     prisma.product.count({ where: { is_active: true } }),
     prisma.productVariant.findMany({
       where: { is_active: true },
-      select: { stock_total: true, price_divisas: true },
+      select: { stock_total: true, price_bcv: true },
     }),
     prisma.productVariant.count({
       where: { is_active: true, stock_total: { lt: lowStockThreshold } },
@@ -19,10 +20,6 @@ export async function InventarioStats({ lowStockThreshold }: Props) {
   ]);
 
   const totalUnidades = stockAgg.reduce((sum, v) => sum + v.stock_total, 0);
-  const valorInventario = stockAgg.reduce(
-    (sum, v) => sum + v.stock_total * Number(v.price_divisas),
-    0
-  );
 
   const CARDS = [
     {
@@ -41,14 +38,20 @@ export async function InventarioStats({ lowStockThreshold }: Props) {
       color: "text-emerald-600",
       bg: "bg-emerald-50",
     },
-    {
-      label: "Valor de inventario",
-      value: `$${valorInventario.toFixed(2)}`,
-      desc: "A precio de venta en divisas",
-      icon: DollarSign,
-      color: "text-indigo-600",
-      bg: "bg-indigo-50",
-    },
+    ...(showValue
+      ? [
+          {
+            label: "Valor de inventario",
+            value: `$${stockAgg
+              .reduce((sum, v) => sum + v.stock_total * Number(v.price_bcv), 0)
+              .toFixed(2)}`,
+            desc: "A precio de venta BCV",
+            icon: DollarSign,
+            color: "text-indigo-600",
+            bg: "bg-indigo-50",
+          },
+        ]
+      : []),
     {
       label: "Stock bajo",
       value: String(stockBajoCount),
@@ -60,7 +63,7 @@ export async function InventarioStats({ lowStockThreshold }: Props) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${showValue ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
       {CARDS.map((c) => (
         <Card key={c.label}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">

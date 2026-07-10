@@ -230,7 +230,7 @@ export default async function InventarioPage({
     <div className="space-y-6">
       <InventarioHeader subtitle={subtitle} canAdjust={canAdjust} lowStockThreshold={lowStockThreshold} />
 
-      <InventarioStats lowStockThreshold={lowStockThreshold} />
+      <InventarioStats lowStockThreshold={lowStockThreshold} showValue={session.role === "admin"} />
 
       {/* ── Tabs ── */}
       <div className="flex w-full sm:w-fit gap-1 rounded-lg border bg-gray-50 p-1">
