@@ -385,6 +385,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_bcv" type="number" min="0.01" step="0.01" value={priceBcv}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceBcv(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -394,6 +395,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_divisas" type="number" min="0" step="0.01" value={priceDivisas}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceDivisas(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -409,6 +411,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_bundle_bcv" type="number" min="0" step="0.01" value={priceBundleBcv}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceBundleBcv(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -418,6 +421,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_bundle_divisas" type="number" min="0" step="0.01" value={priceBundleDivisas}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceBundleDivisas(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -433,6 +437,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_mayor_bcv" type="number" min="0" step="0.01" value={priceMayorBcv}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceMayorBcv(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -442,6 +447,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
                   <Input id="price_mayor_divisas" type="number" min="0" step="0.01" value={priceMayorDivisas}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => setPriceMayorDivisas(e.target.value)}
                     placeholder="0.00" className="pl-6" disabled={loading} />
                 </div>
@@ -589,11 +595,13 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
 
               <Input
                 type="number" min="0" value={v.stock_online}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => updateVariant(i, "stock_online", parseInt(e.target.value) || 0)}
                 disabled={loading || !v.is_active} className="h-8 text-center"
               />
               <Input
                 type="number" min="0" value={v.stock_store}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => updateVariant(i, "stock_store", parseInt(e.target.value) || 0)}
                 disabled={loading || !v.is_active} className="h-8 text-center"
               />
@@ -643,11 +651,13 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
                   </div>
                   <Input
                     type="number" min="0" value={v.stock_online}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => updateVariant(i, "stock_online", parseInt(e.target.value) || 0)}
                     disabled={loading || !v.is_active} className="h-8 text-center"
                   />
                   <Input
                     type="number" min="0" value={v.stock_store}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) => updateVariant(i, "stock_store", parseInt(e.target.value) || 0)}
                     disabled={loading || !v.is_active} className="h-8 text-center"
                   />

@@ -11,6 +11,7 @@ import {
   Truck,
   Users,
   UserCog,
+  Store,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/app/generated/prisma/client";
@@ -30,6 +31,7 @@ const ADMIN_NAV: NavItem[] = [
   { label: "Pagos",       href: "/dashboard/pagos",       icon: CreditCard },
   { label: "Embalaje",    href: "/dashboard/embalaje",    icon: PackageCheck },
   { label: "Finanzas",    href: "/dashboard/finanzas",    icon: BarChart3 },
+  { label: "Cierre de Tienda", href: "/dashboard/cierre-tienda", icon: Store },
   { label: "Usuarios",    href: "/dashboard/usuarios",    icon: UserCog },
 ];
 

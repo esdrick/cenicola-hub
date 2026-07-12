@@ -60,6 +60,7 @@ export function QuickSaleLimitDialog({ open, onClose, current }: Props) {
             min={1}
             max={20}
             value={value}
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => { setValue(e.target.value); setError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             className="w-24 text-center"

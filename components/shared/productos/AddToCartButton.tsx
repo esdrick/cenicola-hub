@@ -208,6 +208,7 @@ export function AddToCartButton({
                     min={1}
                     max={stock}
                     value={q}
+                    onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) =>
                       setQty((p) => ({
                         ...p,

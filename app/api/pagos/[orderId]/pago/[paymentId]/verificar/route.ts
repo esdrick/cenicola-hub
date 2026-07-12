@@ -47,7 +47,10 @@ export async function POST(
       const canAdvance = isFullyPaid;
 
       if (canAdvance) {
-        await tx.order.update({ where: { id: params.orderId }, data: { status: "pago_verificado" } });
+        await tx.order.update({
+          where: { id: params.orderId },
+          data: { status: "pago_verificado", pago_verificado_at: new Date() },
+        });
         await tx.auditLog.create({
           data: {
             user_id: auth.session.id,

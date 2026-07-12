@@ -253,6 +253,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
                           min="0"
                           step="0.01"
                           value={comisiones[row.userId] ?? "0"}
+                          onFocus={(e) => e.currentTarget.select()}
                           onChange={(e) =>
                             setComisiones((prev) => ({
                               ...prev,

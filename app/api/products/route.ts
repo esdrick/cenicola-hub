@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
   const color = sp.get("color")?.trim() ?? "";
   // vendedora_tienda is restricted to quick-sale products regardless of the query param
   const quickSale = sp.get("quick_sale") === "true" || auth.session.role === "vendedora_tienda";
+  const channelParam = sp.get("channel");
+  const channel = channelParam === "tienda" || channelParam === "online" ? channelParam : null;
   const page = Math.max(1, parseInt(sp.get("page") ?? "1"));
   const pageSize = 24;
 
@@ -40,6 +42,14 @@ export async function GET(request: NextRequest) {
   const filtered = q
     ? allMatching.filter((p) => normalizeText(p.name).includes(normalizeText(q)))
     : allMatching;
+
+  // Surface quick-sale products with stock in the selected channel first, so store
+  // staff aren't stuck scrolling past out-of-stock items to find what they usually sell.
+  if (channel) {
+    const hasChannelStock = (p: (typeof filtered)[number]) =>
+      p.quick_sale && p.variants.some((v) => (channel === "tienda" ? v.stock_store : v.stock_online) > 0);
+    filtered.sort((a, b) => Number(!hasChannelStock(a)) - Number(!hasChannelStock(b)));
+  }
 
   const total = filtered.length;
   const products = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);

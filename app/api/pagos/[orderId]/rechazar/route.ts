@@ -37,9 +37,17 @@ export async function POST(
         data: { status: "rechazado", rejection_reason: motivo },
       });
 
+      // El estado post-rechazo depende de si aún queda algún otro pago activo (p.ej. un
+      // efectivo ya verificado que coexistía con el pago rechazado) — nunca asumir
+      // "pendiente_pago" a ciegas, o se pierde el estado "pago_parcial" real.
+      const remainingActive = await tx.orderPayment.count({
+        where: { order_id: order.id, status: { not: "rechazado" } },
+      });
+      const newStatus = remainingActive > 0 ? "pago_parcial" : "pendiente_pago";
+
       await tx.order.update({
         where: { id: order.id },
-        data: { status: "pendiente_pago" },
+        data: { status: newStatus },
       });
 
       await tx.auditLog.create({
@@ -49,7 +57,7 @@ export async function POST(
           entity_type: "Order",
           entity_id: order.id,
           data_before: { status: prevStatus },
-          data_after: { status: "pendiente_pago", motivo },
+          data_after: { status: newStatus, motivo },
           ip_address: ip,
         },
       });

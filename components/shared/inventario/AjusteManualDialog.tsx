@@ -205,11 +205,13 @@ export function AjusteManualDialog({ open, onClose }: Props) {
               <div className="space-y-1.5">
                 <Label>Nuevo online</Label>
                 <Input type="number" min="0" value={newOnline}
+                  onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => setNewOnline(e.target.value)} disabled={saving} />
               </div>
               <div className="space-y-1.5">
                 <Label>Nuevo tienda</Label>
                 <Input type="number" min="0" value={newStore}
+                  onFocus={(e) => e.currentTarget.select()}
                   onChange={(e) => setNewStore(e.target.value)} disabled={saving} />
               </div>
             </div>

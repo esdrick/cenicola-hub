@@ -280,6 +280,7 @@ export function AgregarProductosDialog({ orderId, orderNumber, channel, status }
                                       min={1}
                                       max={stock}
                                       value={qty}
+                                      onFocus={(e) => e.currentTarget.select()}
                                       onChange={(e) =>
                                         setVariantQty((p) => ({
                                           ...p,

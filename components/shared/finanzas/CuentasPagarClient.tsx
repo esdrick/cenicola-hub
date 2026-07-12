@@ -141,6 +141,7 @@ export function CuentasPagarClient({ data }: Props) {
                 min="0.01"
                 step="0.01"
                 value={monto}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => setMonto(e.target.value)}
                 placeholder="0.00"
                 disabled={isPending}

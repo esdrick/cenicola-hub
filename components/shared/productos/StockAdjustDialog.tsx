@@ -118,11 +118,13 @@ export function StockAdjustDialog({
             <div className="space-y-1.5">
               <Label>Nuevo stock online</Label>
               <Input type="number" min="0" value={newOnline}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => setNewOnline(e.target.value)} disabled={loading} />
             </div>
             <div className="space-y-1.5">
               <Label>Nuevo stock tienda</Label>
               <Input type="number" min="0" value={newStore}
+                onFocus={(e) => e.currentTarget.select()}
                 onChange={(e) => setNewStore(e.target.value)} disabled={loading} />
             </div>
           </div>

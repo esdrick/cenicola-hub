@@ -1007,6 +1007,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                           min="0.01"
                           step="0.01"
                           value={draft.amount_usd}
+                          onFocus={(e) => e.currentTarget.select()}
                           onChange={(e) => setDraft((p) => ({ ...p, amount_usd: e.target.value }))}
                           placeholder="0.00"
                           className={`[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none${montoError ? " border-red-400 focus-visible:ring-red-400" : ""}`}

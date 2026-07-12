@@ -341,42 +341,70 @@ export function PagoDetailClient({ order }: Props) {
             </div>
           </div>
 
-          {/* Products */}
-          <div className="rounded-xl border bg-white overflow-x-auto">
-            <div className="border-b px-5 py-3">
+          {/* Products — cards on mobile, table on sm+ */}
+          <div className="rounded-xl border bg-white">
+            <div className="border-b px-4 sm:px-5 py-3">
               <h2 className="font-semibold text-gray-900">Productos</h2>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-center">Talla</TableHead>
-                  <TableHead className="text-center">Cant.</TableHead>
-                  <TableHead className="text-right">P/U</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.items.map((item) => {
-                  const snap = item.variant_snapshot as Record<string, unknown> | null;
-                  const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
-                  const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
-                  const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
-                  return (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <p className="text-sm font-medium">{name}</p>
-                        {color && <p className="text-xs text-gray-400">{color}</p>}
-                      </TableCell>
-                      <TableCell className="text-center text-sm">{size}</TableCell>
-                      <TableCell className="text-center text-sm">{item.quantity}</TableCell>
-                      <TableCell className="text-right text-sm">${item.unit_price_usd.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-semibold text-sm">${item.subtotal_usd.toFixed(2)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+
+            {/* Mobile: card list */}
+            <div className="sm:hidden divide-y">
+              {order.items.map((item) => {
+                const snap = item.variant_snapshot as Record<string, unknown> | null;
+                const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
+                const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
+                const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
+                return (
+                  <div key={item.id} className="flex items-center justify-between gap-2 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{name}</p>
+                      <p className="text-xs text-gray-400">
+                        {[color, `Talla ${size}`].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-semibold">${item.subtotal_usd.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">{item.quantity} × ${item.unit_price_usd.toFixed(2)}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead>Producto</TableHead>
+                    <TableHead className="text-center">Talla</TableHead>
+                    <TableHead className="text-center">Cant.</TableHead>
+                    <TableHead className="text-right">P/U</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {order.items.map((item) => {
+                    const snap = item.variant_snapshot as Record<string, unknown> | null;
+                    const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
+                    const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
+                    const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <p className="text-sm font-medium">{name}</p>
+                          {color && <p className="text-xs text-gray-400">{color}</p>}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">{size}</TableCell>
+                        <TableCell className="text-center text-sm">{item.quantity}</TableCell>
+                        <TableCell className="text-right text-sm">${item.unit_price_usd.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-semibold text-sm">${item.subtotal_usd.toFixed(2)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
 
           {/* Payments — cards on mobile, table on sm+ */}

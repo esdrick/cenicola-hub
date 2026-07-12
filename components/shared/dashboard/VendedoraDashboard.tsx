@@ -102,7 +102,7 @@ export async function VendedoraDashboard({ session }: Props) {
     {
       label: "Vendido este mes",
       value: String(unidadesMes._sum.quantity ?? 0),
-      desc: "Unidades vendidas en tus órdenes completadas",
+      desc: "Unidades en órdenes completadas",
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",

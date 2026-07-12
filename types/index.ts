@@ -429,3 +429,55 @@ export type EmbalajeOrdenDetailJSON = {
   items: OrderItemJSON[];
   shipment: EmbalajeShipmentJSON | null;
 };
+
+export type CierreResumenTotalJSON = { moneda: string; metodoPago: string; monto: number };
+
+export type CierreOrdenRowJSON = {
+  orderId: string;
+  numeroOrden: string;
+  clienteNombre: string;
+  fechaConfirmacion: string;
+  cantidadPiezas: number;
+  monto: number;
+  moneda: string;
+  metodoPago: string;
+  referencia: string;
+};
+
+export type CierrePreviewJSON = {
+  fechaInicio: string;
+  fechaFin: string;
+  ordenes: CierreOrdenRowJSON[];
+  totalPiezas: number;
+  resumenTotales: CierreResumenTotalJSON[];
+};
+
+export type CierreTiendaDetalleJSON = {
+  id: string;
+  cierre_id: string;
+  order_id: string;
+  numero_orden: string;
+  cliente_nombre: string;
+  fecha_confirmacion: string;
+  cantidad_piezas: number;
+  monto: number;
+  moneda: string;
+  metodo_pago: string;
+  referencia_pago: string;
+};
+
+export type CierreTiendaJSON = {
+  id: string;
+  tipo: "diario" | "semanal" | "quincenal" | "mensual";
+  fecha_inicio: string;
+  fecha_fin: string;
+  generado_por_id: string;
+  total_piezas: number;
+  resumen_totales: CierreResumenTotalJSON[];
+  created_at: string;
+  generado_por: { id: string; name: string };
+};
+
+export type CierreTiendaDetailJSON = CierreTiendaJSON & {
+  detalles: CierreTiendaDetalleJSON[];
+};

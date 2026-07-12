@@ -84,6 +84,13 @@ enum PricingMethod {
   divisas
 }
 
+enum TipoCierre {
+  diario
+  semanal
+  quincenal
+  mensual
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -115,6 +122,7 @@ model User {
   accounts_payable     AccountPayable[]
   audit_logs           AuditLog[]
   carts                Cart[]
+  cierres_generados    CierreTienda[]
 
   @@map("users")
 }
@@ -218,6 +226,8 @@ model Order {
   is_partial_agreed    Boolean        @default(false)
   partial_agreed_by   String?
   notes               String?
+  pago_verificado_at    DateTime?
+  incluido_en_cierre_id String?
   created_by          String
   created_at          DateTime    @default(now())
   updated_at          DateTime    @updatedAt
@@ -226,6 +236,7 @@ model Order {
   creator              User                @relation("OrderCreatedBy", fields: [created_by], references: [id])
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
   exchange_rate        ExchangeRate?       @relation(fields: [exchange_rate_id], references: [id])
+  incluido_en_cierre   CierreTienda?       @relation(fields: [incluido_en_cierre_id], references: [id])
   items                OrderItem[]
   payments             OrderPayment[]
   shipment             OrderShipment?
@@ -465,4 +476,41 @@ model CartItem {
   variant ProductVariant @relation(fields: [variant_id], references: [id])
 
   @@map("cart_items")
+}
+
+model CierreTienda {
+  id              String     @id @default(uuid())
+  tipo            TipoCierre
+  fecha_inicio    DateTime
+  fecha_fin       DateTime
+  generado_por_id String
+  total_piezas    Int
+  resumen_totales Json
+  created_at      DateTime   @default(now())
+
+  generado_por User                  @relation(fields: [generado_por_id], references: [id])
+  detalles     CierreTiendaDetalle[]
+  ordenes      Order[]
+
+  @@index([fecha_inicio, fecha_fin])
+  @@map("cierres_tienda")
+}
+
+model CierreTiendaDetalle {
+  id                 String   @id @default(uuid())
+  cierre_id          String
+  order_id           String
+  numero_orden       String
+  cliente_nombre     String
+  fecha_confirmacion DateTime
+  cantidad_piezas    Int
+  monto              Decimal  @db.Decimal(10, 2)
+  moneda             String
+  metodo_pago        String
+  referencia_pago    String
+
+  cierre CierreTienda @relation(fields: [cierre_id], references: [id], onDelete: Cascade)
+
+  @@index([cierre_id])
+  @@map("cierre_tienda_detalles")
 }

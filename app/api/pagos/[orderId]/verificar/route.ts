@@ -40,7 +40,7 @@ export async function POST(
       // Transition to pago_verificado
       await tx.order.update({
         where: { id: order.id },
-        data: { status: "pago_verificado" },
+        data: { status: "pago_verificado", pago_verificado_at: new Date() },
       });
 
       await tx.auditLog.create({

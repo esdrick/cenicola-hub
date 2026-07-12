@@ -37,9 +37,17 @@ export async function POST(
         data: { status: "rechazado", rejection_reason: motivo },
       });
 
+      // Igual que en el rechazo masivo: revisar si queda otro pago activo en vez de forzar
+      // "pendiente_pago" a ciegas, para no perder un "pago_parcial" real cuando coexiste,
+      // por ejemplo, un efectivo ya verificado cubriendo parte de la orden.
+      const remainingActive = await tx.orderPayment.count({
+        where: { order_id: params.orderId, status: { not: "rechazado" } },
+      });
+      const newOrderStatus = remainingActive > 0 ? "pago_parcial" : "pendiente_pago";
+
       await tx.order.update({
         where: { id: params.orderId },
-        data: { status: "pendiente_pago" },
+        data: { status: newOrderStatus },
       });
 
       await tx.auditLog.create({
@@ -49,7 +57,7 @@ export async function POST(
           entity_type: "Order",
           entity_id: params.orderId,
           data_before: { payment_status: "pendiente", order_status: prevOrderStatus },
-          data_after: { payment_id: params.paymentId, payment_status: "rechazado", motivo },
+          data_after: { payment_id: params.paymentId, payment_status: "rechazado", order_status: newOrderStatus, motivo },
           ip_address: ip,
         },
       });

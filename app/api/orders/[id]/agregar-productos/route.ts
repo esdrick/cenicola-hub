@@ -194,6 +194,7 @@ export async function POST(
         data: {
           total_usd: newTotalUsd,
           status: newStatus,
+          ...(isFullyCovered ? { pago_verificado_at: order.pago_verificado_at ?? new Date() } : {}),
           ...(wasReopened ? { is_partial_agreed: false, partial_agreed_by: null } : {}),
         },
       });

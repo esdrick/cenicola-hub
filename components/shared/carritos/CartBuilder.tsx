@@ -57,14 +57,14 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
   const loadProducts = useCallback(async (q: string, p: number) => {
     setLoadingProducts(true);
     try {
-      const url = `/api/products?page=${p}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}${quickSale ? "&quick_sale=true" : ""}`;
+      const url = `/api/products?page=${p}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}${quickSale ? "&quick_sale=true" : ""}&channel=${channel}`;
       const r = await fetch(url);
       const j = await r.json();
       setProducts(j.data ?? []);
       setTotalPages(j.totalPages ?? 1);
     } catch { /* silent */ }
     finally { setLoadingProducts(false); }
-  }, [quickSale]);
+  }, [quickSale, channel]);
 
   // Single effect: immediate load on page change, debounced on search change
   useEffect(() => {
@@ -201,7 +201,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                   <button
                     key={ch}
                     type="button"
-                    onClick={() => setChannel(ch)}
+                    onClick={() => { setChannel(ch); setPage(1); }}
                     className={cn(
                       "flex-1 rounded-lg border py-2 text-sm font-medium capitalize transition-colors",
                       channel === ch
@@ -315,20 +315,45 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                       <div className="flex flex-shrink-0 items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => updateItem(variant.id, Math.max(0, qty - 1))}
+                          onClick={() => {
+                            setVariantQty((p) => { const n = { ...p }; delete n[variant.id]; return n; });
+                            updateItem(variant.id, Math.max(0, qty - 1));
+                          }}
                           disabled={isUpdating || qty === 0}
                           className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
                         >
                           <Minus size={14} />
                         </button>
                         {isUpdating ? (
-                          <Loader2 size={16} className="animate-spin w-6 text-center" />
+                          <Loader2 size={16} className="animate-spin w-10 text-center" />
                         ) : (
-                          <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={stock}
+                            value={variantQty[variant.id] ?? qty}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onChange={(e) =>
+                              setVariantQty((p) => ({
+                                ...p,
+                                [variant.id]: Math.max(0, Math.min(stock, parseInt(e.target.value) || 0)),
+                              }))
+                            }
+                            onBlur={() => {
+                              const draft = variantQty[variant.id];
+                              setVariantQty((p) => { const n = { ...p }; delete n[variant.id]; return n; });
+                              if (draft !== undefined && draft !== qty) updateItem(variant.id, draft);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                            className="h-8 w-12 text-center text-sm font-semibold px-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
                         )}
                         <button
                           type="button"
-                          onClick={() => updateItem(variant.id, Math.min(stock, qty + 1))}
+                          onClick={() => {
+                            setVariantQty((p) => { const n = { ...p }; delete n[variant.id]; return n; });
+                            updateItem(variant.id, Math.min(stock, qty + 1));
+                          }}
                           disabled={isUpdating || qty >= stock}
                           className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
                         >
@@ -438,6 +463,7 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                                     min={1}
                                     max={stock}
                                     value={qty}
+                                    onFocus={(e) => e.currentTarget.select()}
                                     onChange={(e) =>
                                       setVariantQty((p) => ({
                                         ...p,
