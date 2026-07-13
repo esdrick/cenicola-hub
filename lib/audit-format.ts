@@ -94,6 +94,12 @@ export function formatOrderAuditEntry(log: OrderAuditLogEntry): FormattedAuditEn
     case "CANCEL": {
       return { title: "Orden cancelada", details: [`Estado anterior: ${statusLabel(before.status)}`] };
     }
+    case "FORCE_CANCEL": {
+      const motivo = str(after.motivo);
+      const details = [`Estado anterior: ${statusLabel(before.status)}`];
+      if (motivo) details.push(`Motivo: ${motivo}`);
+      return { title: "Orden cancelada por devolución", details };
+    }
     case "enviada": {
       const details = ["Marcada como enviada"];
       const tracking = str(after.tracking);

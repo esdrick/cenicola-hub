@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { buttonVariants } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/shared/ordenes/OrderStatusBadge";
 import { CancelOrderButton } from "@/components/shared/ordenes/CancelOrderButton";
+import { DevolucionForzadaButton } from "@/components/shared/ordenes/DevolucionForzadaButton";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
 import { AgregarProductosDialog } from "@/components/shared/ordenes/AgregarProductosDialog";
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
@@ -141,6 +142,7 @@ export default async function OrderDetailPage({
         orderBy: { created_at: "asc" },
       },
       shipment: { include: { packer: { select: { id: true, name: true } } } },
+      incluido_en_cierre: { select: { id: true, tipo: true, fecha_inicio: true, fecha_fin: true } },
     },
   });
 
@@ -164,6 +166,9 @@ export default async function OrderDetailPage({
 
   const canCancel = (session.role === "admin" || session.role === "inventario") &&
     order.status !== "cancelada" && order.status !== "enviada" && order.status !== "completada";
+
+  const canForceCancel = session.role === "admin" &&
+    (order.status === "enviada" || order.status === "completada");
 
   const canComplete = (session.role === "admin" || session.role === "inventario") &&
     order.status === "enviada";
@@ -223,7 +228,7 @@ export default async function OrderDetailPage({
               Creada por {order.creator.name} · {createdAt}
             </p>
           </div>
-          {(canConfirmar || canComplete || canCancel) && (
+          {(canConfirmar || canComplete || canCancel || canForceCancel) && (
             <div className="flex items-center gap-2 flex-shrink-0">
               {canConfirmar && (
                 <ConfirmarOrdenButton orderId={order.id} orderNumber={order.order_number} />
@@ -234,6 +239,15 @@ export default async function OrderDetailPage({
               {canCancel && (
                 <span className="hidden sm:block">
                   <CancelOrderButton orderId={order.id} orderNumber={order.order_number} />
+                </span>
+              )}
+              {canForceCancel && (
+                <span className="hidden sm:block">
+                  <DevolucionForzadaButton
+                    orderId={order.id}
+                    orderNumber={order.order_number}
+                    incluidoEnCierre={order.incluido_en_cierre}
+                  />
                 </span>
               )}
             </div>
@@ -554,6 +568,15 @@ export default async function OrderDetailPage({
       {canCancel && (
         <div className="sm:hidden">
           <CancelOrderButton orderId={order.id} orderNumber={order.order_number} />
+        </div>
+      )}
+      {canForceCancel && (
+        <div className="sm:hidden">
+          <DevolucionForzadaButton
+            orderId={order.id}
+            orderNumber={order.order_number}
+            incluidoEnCierre={order.incluido_en_cierre}
+          />
         </div>
       )}
     </div>
