@@ -40,6 +40,32 @@ export function resolveUnitPrice(
   }
 }
 
+/**
+ * Splits one order/cart line across the two currency buckets. `totalItems` is still the
+ * quantity-tier signal for the WHOLE order/cart (unaffected by how this one line's quantity
+ * is split) — mayor/paquete pricing keeps depending on total volume, not on which currency
+ * pays for which unit.
+ */
+export function resolveSplitSubtotal(
+  variant: VariantPrices,
+  quantityBcv: number,
+  quantityDivisas: number,
+  totalItems: number,
+  mayorThreshold: number,
+  bundleThreshold: number,
+): { subtotalBcv: number; subtotalDivisas: number } {
+  const subtotalBcv = quantityBcv > 0
+    ? Number(resolveUnitPrice(variant, "bcv", totalItems, mayorThreshold, bundleThreshold)) * quantityBcv
+    : 0;
+  const subtotalDivisas = quantityDivisas > 0
+    ? Number(resolveUnitPrice(variant, "divisas", totalItems, mayorThreshold, bundleThreshold)) * quantityDivisas
+    : 0;
+  return {
+    subtotalBcv: parseFloat(subtotalBcv.toFixed(2)),
+    subtotalDivisas: parseFloat(subtotalDivisas.toFixed(2)),
+  };
+}
+
 export function paymentTypeToPricingMethod(paymentType: PaymentType): "bcv" | "divisas" {
   const divisasMethods: PaymentType[] = ["zelle", "usdt", "efectivo_usd"];
   return divisasMethods.includes(paymentType) ? "divisas" : "bcv";

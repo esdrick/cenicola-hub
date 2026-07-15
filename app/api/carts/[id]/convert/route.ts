@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference } from "@/lib/order-utils";
 import { getTasa } from "@/lib/tasa-cambio";
-import { resolveUnitPrice } from "@/lib/pricing";
+import { resolveSplitSubtotal, paymentTypeToPricingMethod } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   const canPartial = ["admin", "inventario", "vendedora_online", "vendedora_tienda"].includes(
     auth.session.role
   );
-  const partialAgreed = is_partial_agreed === true && canPartial;
+  const outerPartialAgreed = is_partial_agreed === true && canPartial;
   const ip = getClientIp(request);
 
   const tasaResult = await getTasa(auth.session.id).catch(() => null);
@@ -92,9 +92,12 @@ export async function POST(request: NextRequest, { params }: Params) {
       // 1. Build order items from cart items
       const orderItems: Array<{
         variant_id: string; quantity: number; unit_price_usd: number;
-        subtotal_usd: number; variant_snapshot: object;
+        subtotal_usd: number; quantity_bcv: number; quantity_divisas: number;
+        subtotal_bcv_usd: number; subtotal_divisas_usd: number; variant_snapshot: object;
       }> = [];
       let totalUsd = 0;
+      let totalBcvUsd = 0;
+      let totalDivisasUsd = 0;
 
       for (const item of cart.items) {
         const variant = await tx.productVariant.findUnique({
@@ -112,17 +115,26 @@ export async function POST(request: NextRequest, { params }: Params) {
           );
         }
 
-        const unitPrice = Number(
-          resolveUnitPrice(variant, cart.pricing_method, totalQty, mayorThreshold, bundleThreshold)
+        // Defense-in-depth against stale CartItem prices/split, same as before — recompute
+        // fresh from the variant instead of trusting stored subtotal_*_usd.
+        const { subtotalBcv, subtotalDivisas } = resolveSplitSubtotal(
+          variant, item.quantity_bcv, item.quantity_divisas, totalQty, mayorThreshold, bundleThreshold,
         );
-        const subtotal = parseFloat((unitPrice * qty).toFixed(2));
+        const subtotal = parseFloat((subtotalBcv + subtotalDivisas).toFixed(2));
+        const unitPrice = qty > 0 ? parseFloat((subtotal / qty).toFixed(2)) : 0;
         totalUsd += subtotal;
+        totalBcvUsd += subtotalBcv;
+        totalDivisasUsd += subtotalDivisas;
 
         orderItems.push({
           variant_id: variant.id,
           quantity: qty,
           unit_price_usd: unitPrice,
           subtotal_usd: subtotal,
+          quantity_bcv: item.quantity_bcv,
+          quantity_divisas: item.quantity_divisas,
+          subtotal_bcv_usd: subtotalBcv,
+          subtotal_divisas_usd: subtotalDivisas,
           variant_snapshot: {
             product_name: variant.product.name,
             color: variant.product.color,
@@ -131,6 +143,46 @@ export async function POST(request: NextRequest, { params }: Params) {
             price_bcv: unitPrice,
           },
         });
+      }
+      totalBcvUsd = parseFloat(totalBcvUsd.toFixed(2));
+      totalDivisasUsd = parseFloat(totalDivisasUsd.toFixed(2));
+      totalUsd = parseFloat(totalUsd.toFixed(2));
+
+      const isSplitOrder = totalBcvUsd > 0 && totalDivisasUsd > 0;
+
+      // A pedido dividido entre las dos monedas nunca se le permite quedar en pago parcial —
+      // cada moneda debe cubrirse con sus propios pagos antes de cerrar la orden.
+      const partialAgreed = outerPartialAgreed && !isSplitOrder;
+
+      // 1b. Aggregate check: payments need to add up to the order's total, $1 rounding margin.
+      // (Per-currency floor/cap below is what actually enforces paying each bucket in its own
+      // currency — this alone would still allow shifting money between currencies.)
+      const plannedTotal = payments.reduce((s: number, p: { amount_usd: number }) => s + (Number(p.amount_usd) || 0), 0);
+      if (plannedTotal > totalUsd + 1.00) throw new Error("OVERPAYMENT");
+
+      // Per-currency cap AND floor: no single currency's payments can overshoot what that
+      // currency's own portion of the split needs (+ $1 rounding margin), and — once these
+      // payments fully cover the order — each currency must also come close to ITS OWN total,
+      // not just be "present". Without the floor, someone could pay near the BCV ceiling and
+      // barely anything in Divisas (or vice versa) while the aggregate still adds up, silently
+      // shifting real money from one currency to the other.
+      if (isSplitOrder) {
+        const plannedBcv = payments
+          .filter((p: { payment_type: PaymentType }) => paymentTypeToPricingMethod(p.payment_type) === "bcv")
+          .reduce((s: number, p: { amount_usd: number }) => s + (Number(p.amount_usd) || 0), 0);
+        const plannedDivisas = payments
+          .filter((p: { payment_type: PaymentType }) => paymentTypeToPricingMethod(p.payment_type) === "divisas")
+          .reduce((s: number, p: { amount_usd: number }) => s + (Number(p.amount_usd) || 0), 0);
+        if (plannedBcv > totalBcvUsd + 1.00) throw new Error("BUCKET_OVERPAYMENT:bcv");
+        if (plannedDivisas > totalDivisasUsd + 1.00) throw new Error("BUCKET_OVERPAYMENT:divisas");
+
+        // Only enforced when these payments fully cover the order — an intentionally underpaid
+        // split order (rare: it can't be marked partial-agreed, but nothing stops someone from
+        // submitting less) can still be topped up later via agregar-pago, same check there.
+        if (plannedTotal >= totalUsd - 0.005) {
+          if (plannedBcv < totalBcvUsd - 1.00) throw new Error("SPLIT_CURRENCY_MISMATCH:bcv");
+          if (plannedDivisas < totalDivisasUsd - 1.00) throw new Error("SPLIT_CURRENCY_MISMATCH:divisas");
+        }
       }
 
       // 2. Validate reference hashes
@@ -221,6 +273,8 @@ export async function POST(request: NextRequest, { params }: Params) {
           shipping_company: channel === "online" ? shipping_company?.trim() : null,
           total_usd: totalUsd,
           pricing_method: cart.pricing_method,
+          total_bcv_usd: totalBcvUsd,
+          total_divisas_usd: totalDivisasUsd,
           exchange_rate_id: tasaId,
           is_partial_agreed: partialAgreed,
           partial_agreed_by: partialAgreed ? auth.session.id : null,
@@ -238,6 +292,10 @@ export async function POST(request: NextRequest, { params }: Params) {
             quantity: item.quantity,
             unit_price_usd: item.unit_price_usd,
             subtotal_usd: item.subtotal_usd,
+            quantity_bcv: item.quantity_bcv,
+            quantity_divisas: item.quantity_divisas,
+            subtotal_bcv_usd: item.subtotal_bcv_usd,
+            subtotal_divisas_usd: item.subtotal_divisas_usd,
             variant_snapshot: item.variant_snapshot,
           },
         });
@@ -349,6 +407,26 @@ export async function POST(request: NextRequest, { params }: Params) {
     const msg = err instanceof Error ? err.message : "Error al crear la orden";
     if (msg.startsWith("La referencia")) {
       return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    if (msg === "OVERPAYMENT") {
+      return NextResponse.json(
+        { error: "El monto pagado excede el total de la orden. Solo se permite hasta $1.00 de diferencia por redondeo." },
+        { status: 422 }
+      );
+    }
+    if (msg.startsWith("SPLIT_CURRENCY_MISMATCH:")) {
+      const method = msg.replace("SPLIT_CURRENCY_MISMATCH:", "") as "bcv" | "divisas";
+      return NextResponse.json(
+        { error: `Este pedido está dividido entre BCV y Divisas — falta cubrir la parte de ${method === "bcv" ? "BCV" : "Divisas"} con pagos de esa moneda (no se puede compensar con la otra).` },
+        { status: 422 }
+      );
+    }
+    if (msg.startsWith("BUCKET_OVERPAYMENT:")) {
+      const method = msg.replace("BUCKET_OVERPAYMENT:", "") as "bcv" | "divisas";
+      return NextResponse.json(
+        { error: `El monto en ${method === "bcv" ? "BCV" : "Divisas"} excede lo que corresponde a esa moneda en este pedido (con margen de redondeo de $1).` },
+        { status: 422 }
+      );
     }
     if (msg.startsWith("REF_DUP_INTRA:")) {
       const ref = msg.replace("REF_DUP_INTRA:", "");

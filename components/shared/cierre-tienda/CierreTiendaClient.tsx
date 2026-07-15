@@ -19,15 +19,17 @@ import {
 } from "@/components/ui/dialog";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { calcularRangoFechas } from "@/lib/cierre-tienda";
-import { TIPO_CIERRE_LABELS, MONEDA_CLASSES, dateInputValue, formatFechaCorta, formatNumeroOrdenCorto } from "./cierre-format";
+import { TIPO_CIERRE_LABELS, CANAL_LABELS, MONEDA_CLASSES, dateInputValue, formatFechaCorta, formatNumeroOrdenCorto } from "./cierre-format";
 import type { CierrePreviewJSON } from "@/types";
 
 type TipoCierre = "diario" | "semanal" | "quincenal" | "mensual";
+type Canal = "tienda" | "online";
 
 export function CierreTiendaClient() {
   const router = useRouter();
 
   const [tipo, setTipo] = useState<TipoCierre>("diario");
+  const [canal, setCanal] = useState<Canal>("tienda");
   const initialRango = calcularRangoFechas("diario");
   const [fechaInicio, setFechaInicio] = useState(dateInputValue(initialRango.fechaInicio));
   const [fechaFin, setFechaFin] = useState(dateInputValue(initialRango.fechaFin));
@@ -50,12 +52,18 @@ export function CierreTiendaClient() {
     setPreview(null);
   }
 
+  function handleCanalChange(value: string | null) {
+    if (!value) return;
+    setCanal(value as Canal);
+    setPreview(null);
+  }
+
   async function handlePreview() {
     setLoadingPreview(true);
     setPreviewError(null);
     setPreview(null);
     try {
-      const params = new URLSearchParams({ fechaInicio, fechaFin });
+      const params = new URLSearchParams({ fechaInicio, fechaFin, canal });
       const res = await fetch(`/api/cierre-tienda/preview?${params}`);
       const data = await res.json();
       if (!res.ok) {
@@ -77,7 +85,7 @@ export function CierreTiendaClient() {
       const res = await fetch("/api/cierre-tienda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo, fechaInicio, fechaFin }),
+        body: JSON.stringify({ tipo, canal, fechaInicio, fechaFin }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -99,6 +107,19 @@ export function CierreTiendaClient() {
           <CardTitle>Generar cierre</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-gray-500">Canal</Label>
+            <Select value={canal} onValueChange={handleCanalChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue>{CANAL_LABELS[canal]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tienda">Tienda</SelectItem>
+                <SelectItem value="online">Online</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs text-gray-500">Tipo de cierre</Label>
             <Select value={tipo} onValueChange={handleTipoChange}>
@@ -153,7 +174,7 @@ export function CierreTiendaClient() {
           <Card>
             <CardHeader>
               <CardTitle>
-                Vista previa · {formatFechaCorta(preview.fechaInicio)} – {formatFechaCorta(preview.fechaFin)}
+                Vista previa {CANAL_LABELS[canal]} · {formatFechaCorta(preview.fechaInicio)} – {formatFechaCorta(preview.fechaFin)}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
@@ -236,7 +257,7 @@ export function CierreTiendaClient() {
       <Dialog open={confirmOpen} onOpenChange={(v) => !saving && setConfirmOpen(v)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>¿Confirmar cierre {TIPO_CIERRE_LABELS[tipo]}?</DialogTitle>
+            <DialogTitle>¿Confirmar cierre {TIPO_CIERRE_LABELS[tipo]} de {CANAL_LABELS[canal]}?</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-sm text-gray-600">

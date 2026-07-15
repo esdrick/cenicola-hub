@@ -11,6 +11,16 @@ export const MONEDA_CLASSES: Record<string, string> = {
   MIXTO: "bg-amber-100 text-amber-800",
 };
 
+export const CANAL_LABELS: Record<string, string> = {
+  tienda: "Tienda",
+  online: "Online",
+};
+
+export const CANAL_CLASSES: Record<string, string> = {
+  tienda: "bg-gray-100 text-gray-700",
+  online: "bg-sky-100 text-sky-700",
+};
+
 /** Convierte un Date a "YYYY-MM-DD" en hora LOCAL (no usar toISOString: en zonas UTC-N
  * corre la fecha un día para horas cercanas a medianoche). Para poblar <input type="date">. */
 export function dateInputValue(d: Date): string {

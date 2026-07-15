@@ -7,7 +7,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { CierreDetalleView } from "@/components/shared/cierre-tienda/CierreDetalleView";
-import { TIPO_CIERRE_LABELS, formatFechaCorta, formatFechaHora } from "@/components/shared/cierre-tienda/cierre-format";
+import { TIPO_CIERRE_LABELS, CANAL_LABELS, CANAL_CLASSES, formatFechaCorta, formatFechaHora } from "@/components/shared/cierre-tienda/cierre-format";
 import type { CierreTiendaDetailJSON } from "@/types";
 
 export default async function CierreDetallePage({ params }: { params: { id: string } }) {
@@ -28,6 +28,7 @@ export default async function CierreDetallePage({ params }: { params: { id: stri
   const data: CierreTiendaDetailJSON = {
     id: cierre.id,
     tipo: cierre.tipo,
+    canal: cierre.canal,
     fecha_inicio: cierre.fecha_inicio.toISOString(),
     fecha_fin: cierre.fecha_fin.toISOString(),
     generado_por_id: cierre.generado_por_id,
@@ -64,6 +65,9 @@ export default async function CierreDetallePage({ params }: { params: { id: stri
           <h1 className="text-2xl font-bold text-gray-900">
             {formatFechaCorta(data.fecha_inicio)} – {formatFechaCorta(data.fecha_fin)}
           </h1>
+          <Badge className={`border-0 text-xs ${CANAL_CLASSES[data.canal] ?? "bg-gray-100 text-gray-700"}`}>
+            {CANAL_LABELS[data.canal] ?? data.canal}
+          </Badge>
           <Badge className="border-0 bg-gray-100 text-xs text-gray-700">
             {TIPO_CIERRE_LABELS[data.tipo] ?? data.tipo}
           </Badge>

@@ -8,27 +8,34 @@ import {
   buildCierreRows,
   buildResumen,
 } from "@/lib/cierre-tienda";
-import type { TipoCierre } from "@/app/generated/prisma/client";
+import type { TipoCierre, OrderChannel } from "@/app/generated/prisma/client";
 
 const TIPOS_VALIDOS: TipoCierre[] = ["diario", "semanal", "quincenal", "mensual"];
+const CANALES_VALIDOS: OrderChannel[] = ["tienda", "online"];
 
-// GET /api/cierre-tienda — historial de cierres, paginado, más reciente primero
+// GET /api/cierre-tienda?canal=... — historial de cierres, paginado, más reciente primero.
+// `canal` es opcional: sin él devuelve el historial de ambos canales mezclado.
 export async function GET(request: NextRequest) {
   const auth = await withRole(["admin"]);
   if (!auth.ok) return auth.response;
 
   const sp = request.nextUrl.searchParams;
+  const canal = sp.get("canal") as OrderChannel | null;
+  if (canal && !CANALES_VALIDOS.includes(canal)) {
+    return NextResponse.json({ error: "Canal inválido" }, { status: 400 });
+  }
   const page = Math.max(1, parseInt(sp.get("page") ?? "1"));
   const pageSize = 25;
 
   const [cierres, total] = await Promise.all([
     prisma.cierreTienda.findMany({
+      where: canal ? { canal } : undefined,
       include: { generado_por: { select: { id: true, name: true } } },
       orderBy: { fecha_inicio: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
-    prisma.cierreTienda.count(),
+    prisma.cierreTienda.count({ where: canal ? { canal } : undefined }),
   ]);
 
   const data = cierres.map((c) => ({
@@ -50,9 +57,12 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { tipo, fechaInicio, fechaFin } = body;
+  const { tipo, canal, fechaInicio, fechaFin } = body;
   if (!TIPOS_VALIDOS.includes(tipo)) {
     return NextResponse.json({ error: "Tipo de cierre inválido" }, { status: 400 });
+  }
+  if (!CANALES_VALIDOS.includes(canal)) {
+    return NextResponse.json({ error: "Canal inválido" }, { status: 400 });
   }
   const rango = parseRangoFechas(fechaInicio, fechaFin);
   if (!rango) {
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
       // Server-side: nunca confiar en la lista de órdenes que pudiera mandar el cliente —
       // se repite exactamente la misma query que el preview.
       const orders = await tx.order.findMany({
-        where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin),
+        where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, canal as OrderChannel),
         include: cierreOrderInclude,
         orderBy: { pago_verificado_at: "asc" },
       });
@@ -79,6 +89,7 @@ export async function POST(request: NextRequest) {
       const created = await tx.cierreTienda.create({
         data: {
           tipo: tipo as TipoCierre,
+          canal: canal as OrderChannel,
           fecha_inicio: rango.fechaInicio,
           fecha_fin: rango.fechaFin,
           generado_por_id: auth.session.id,
@@ -114,6 +125,7 @@ export async function POST(request: NextRequest) {
           entity_id: created.id,
           data_after: {
             tipo,
+            canal,
             fecha_inicio: rango.fechaInicio.toISOString(),
             fecha_fin: rango.fechaFin.toISOString(),
             total_piezas: totalPiezas,

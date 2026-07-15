@@ -52,6 +52,10 @@ export default async function CartPage({ params }: Params) {
       variant_id: item.variant_id,
       quantity: item.quantity,
       unit_price_usd: Number(item.unit_price_usd),
+      quantity_bcv: item.quantity_bcv,
+      quantity_divisas: item.quantity_divisas,
+      subtotal_bcv_usd: Number(item.subtotal_bcv_usd),
+      subtotal_divisas_usd: Number(item.subtotal_divisas_usd),
       created_at: item.created_at.toISOString(),
       stock_warning: stock < item.quantity,
       stock_available: stock,
@@ -71,7 +75,9 @@ export default async function CartPage({ params }: Params) {
     };
   });
 
-  const total_usd = items.reduce((s, i) => s + i.unit_price_usd * i.quantity, 0);
+  const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
+  const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
+  const total_usd = parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2));
 
   const cartJSON: CartJSON = {
     id: cart.id,
@@ -85,6 +91,8 @@ export default async function CartPage({ params }: Params) {
     vendor: cart.vendor,
     items,
     total_usd,
+    total_bcv_usd,
+    total_divisas_usd,
     has_stock_issues: items.some((i) => i.stock_warning),
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -127,6 +127,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [submitting, setSubmitting] = useState(false);
   const [repricingCart, setRepricingCart] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Reparto por moneda: opcional, apagado por defecto — el flujo de una sola moneda
+  // (ya probado) queda intacto mientras el vendedor no lo active explícitamente.
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splittingVariant, setSplittingVariant] = useState<string | null>(null);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [tasa, setTasa] = useState<TasaInfo | null>(null);
@@ -274,15 +278,42 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   function cancelEdit() {
     setEditingIndex(null);
-    setDraft(makeEmptyPayment(channel));
+    setDraft({ ...makeEmptyPayment(channel), payment_type: nextDefaultPaymentType(payments) });
     setError(null);
+  }
+
+  // Misma regla que la lista de "Agregar pago" usa para armar allowedTypes: sin split, el
+  // primer pago fija la familia de los siguientes; con split, del segundo pago en adelante
+  // solo se ofrece la familia contraria a la del primero. Se usa para que el tipo por defecto
+  // del borrador nunca quede en una opción que el select ya no muestra.
+  function nextDefaultPaymentType(committed: PaymentFormInput[]): PaymentType {
+    if (committed.length === 0) return channel === "tienda" ? "efectivo_bs" : "transferencia";
+    const firstFamily: "bcv" | "divisas" =
+      DIVISAS_TYPES.includes(committed[0].payment_type as PaymentType) ? "divisas" : "bcv";
+    const family = splitEnabled ? (firstFamily === "bcv" ? "divisas" : "bcv") : firstFamily;
+    return family === "divisas" ? "zelle" : (channel === "tienda" ? "efectivo_bs" : "transferencia");
   }
 
   function addPayment() {
     const amt = parseFloat(draft.amount_usd);
     if (isNaN(amt) || amt <= 0) { setError("Monto inválido"); return; }
-    const maxAmt = remaining + 2.00;
+    const draftIsBcv = BCV_TYPES.includes(draft.payment_type as PaymentType);
+    const maxAmt = (draftIsBcv ? remainingBcv : remainingDivisas) + 1.00;
     if (amt > maxAmt) { setError(`El monto excede el límite de redondeo. Máximo $${maxAmt.toFixed(2)}`); return; }
+    // Mismo piso que exige el servidor: si este pago deja el pedido cerrado en total pero una
+    // moneda todavía sin cubrir (más allá del margen), no se deja agregar — se avisa aquí mismo
+    // en vez de dejar que el usuario se entere recién al intentar crear la orden.
+    if (isMixed) {
+      const projRemainingBcv = remainingBcv - (draftIsBcv ? amt : 0);
+      const projRemainingDivisas = remainingDivisas - (!draftIsBcv ? amt : 0);
+      const projRemaining = remaining - amt;
+      if (projRemaining <= 0.005 && (projRemainingBcv > 1.00 || projRemainingDivisas > 1.00)) {
+        const shortCurrency = projRemainingBcv > 1.00 ? "BCV" : "Divisas";
+        const shortAmount = projRemainingBcv > 1.00 ? projRemainingBcv : projRemainingDivisas;
+        setError(`Esto dejaría el total cubierto, pero faltarían $${shortAmount.toFixed(2)} en ${shortCurrency} — agrégalos en esa moneda.`);
+        return;
+      }
+    }
     const draftIsCash = draft.payment_type === "efectivo_bs" || draft.payment_type === "efectivo_usd";
     if (!draftIsCash && !draft.reference.trim()) {
       setError("Referencia requerida para este tipo de pago"); return;
@@ -303,20 +334,70 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       });
       if (dup) { setError(`Referencia duplicada: "${draft.reference}"`); return; }
     }
-    if (editingIndex !== null) {
-      setPayments((prev) => prev.map((p, i) => i === editingIndex ? { ...draft } : p));
-      setEditingIndex(null);
-    } else {
-      setPayments((prev) => [...prev, { ...draft }]);
-    }
-    setDraft(makeEmptyPayment(channel));
+    const newPayments = editingIndex !== null
+      ? payments.map((p, i) => i === editingIndex ? { ...draft } : p)
+      : [...payments, { ...draft }];
+    setPayments(newPayments);
+    setEditingIndex(null);
+    setDraft({ ...makeEmptyPayment(channel), payment_type: nextDefaultPaymentType(newPayments) });
     setError(null);
   }
 
-  const paidTotal = payments
-    .filter((_, i) => i !== editingIndex)
-    .reduce((s, p) => s + parseFloat(p.amount_usd || "0"), 0);
+  // El reparto por moneda (split) solo afecta CUÁNTO cuesta el pedido — no exige que cada
+  // bucket se pague por separado. Una vez calculado el total correcto (mezcla de precios BCV
+  // y Divisas), los pagos se validan en conjunto contra ese total, como siempre.
+  const committedPayments = payments.filter((_, i) => i !== editingIndex);
+  const paidTotal = committedPayments.reduce((s, p) => s + parseFloat(p.amount_usd || "0"), 0);
   const remaining = cartTotal - paidTotal;
+  const noPaymentsYet = committedPayments.length === 0;
+  // Tope por moneda para EL MONTO de cada pago (no para poder cerrar la orden, eso sigue
+  // siendo agregado más abajo): evita escribir, por ejemplo, $30 en un pago BCV cuando la
+  // porción BCV del pedido es de $20 — aunque en conjunto todavía "quepa" en el total.
+  const paidBcv = committedPayments
+    .filter((p) => BCV_TYPES.includes(p.payment_type as PaymentType))
+    .reduce((s, p) => s + parseFloat(p.amount_usd || "0"), 0);
+  const paidDivisas = committedPayments
+    .filter((p) => DIVISAS_TYPES.includes(p.payment_type as PaymentType))
+    .reduce((s, p) => s + parseFloat(p.amount_usd || "0"), 0);
+  const remainingBcv = cartData.total_bcv_usd - paidBcv;
+  const remainingDivisas = cartData.total_divisas_usd - paidDivisas;
+  // "Mixto" de verdad (ambos buckets tienen algo) vs. el caso normal de una sola moneda,
+  // donde el otro bucket simplemente vale 0 — solo informativo (badge), no cambia validación.
+  const isMixed = cartData.total_bcv_usd > 0 && cartData.total_divisas_usd > 0;
+  // Espejo del resguardo del servidor: un pedido dividido no puede cerrarse si a alguna de las
+  // dos monedas todavía le falta más del margen de redondeo ($1) — no basta con que el total
+  // agregado cuadre, cada moneda tiene que cubrirse con pagos de esa misma moneda.
+  const splitNeedsBothCurrencies = isMixed && remaining <= 0.005 && (remainingBcv > 1.00 || remainingDivisas > 1.00);
+
+  // El input nativo type="number" con `max` no bloquea el tecleo — solo invalida el form en
+  // submit. Sin esto, se podía escribir cualquier cantidad aunque no tuviera sentido para el
+  // producto; ahora se recorta al vuelo mientras se escribe, no solo al salir del campo.
+  function clampSplitInput(e: React.ChangeEvent<HTMLInputElement>, max: number) {
+    const raw = e.currentTarget.value;
+    if (raw === "") return;
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(Math.max(0, n), max);
+    if (String(clamped) !== raw) {
+      e.currentTarget.value = String(clamped);
+    }
+  }
+
+  async function applySplit(variantId: string, quantity: number, quantityBcv: number) {
+    const clamped = Math.min(Math.max(0, quantityBcv), quantity);
+    setSplittingVariant(variantId);
+    try {
+      const r = await fetch(`/api/carts/${cart.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          split: { variant_id: variantId, quantity_bcv: clamped, quantity_divisas: quantity - clamped },
+        }),
+      });
+      if (r.ok) setCartData(await r.json());
+    } catch { /* silent */ }
+    finally { setSplittingVariant(null); }
+  }
 
   async function handleSubmit() {
     setError(null);
@@ -712,7 +793,11 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   <span className="text-sm text-gray-600">
                     {cartData.items.length} producto{cartData.items.length !== 1 ? "s" : ""} · {totalQty} unidades
                   </span>
-                  {pm && (
+                  {isMixed ? (
+                    <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none bg-amber-100 text-amber-700">
+                      Mixto
+                    </span>
+                  ) : pm && (
                     <span className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none",
                       pm === "bcv" ? "bg-blue-100 text-blue-700" : "bg-violet-100 text-violet-700"
@@ -859,6 +944,108 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             )
           )}
 
+          {/* Reparto por moneda (opcional) — apagado por defecto, el flujo de una sola
+              moneda de siempre queda igual mientras nadie lo active */}
+          <div className="rounded-xl border bg-white p-4 space-y-3">
+            <label className={cn(
+              "flex items-center justify-between gap-3",
+              payments.length === 0 && "cursor-pointer"
+            )}>
+              <span className="text-sm font-medium text-gray-700">
+                Dividir este pedido entre BCV y Divisas
+              </span>
+              <input
+                type="checkbox"
+                checked={splitEnabled}
+                disabled={payments.length > 0 || repricingCart}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  if (enabled) { setSplitEnabled(true); return; }
+                  // Al apagar el switch, el carrito debe volver a su precio de una sola
+                  // moneda — sin esto, líneas que quedaron divididas seguían bajando el
+                  // total aunque el switch ya estuviera apagado.
+                  setRepricingCart(true);
+                  fetch(`/api/carts/${cart.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reset_split: true }),
+                  })
+                    .then((r) => r.ok ? r.json() : null)
+                    .then((data) => { if (data) setCartData(data); })
+                    .catch(() => null)
+                    .finally(() => { setSplitEnabled(false); setRepricingCart(false); });
+                }}
+                className="h-4 w-4 rounded border-gray-300 disabled:opacity-50"
+              />
+            </label>
+            {payments.length > 0 && (
+              <p className="text-xs text-gray-400">
+                Elimina los pagos registrados para poder ajustar el reparto.
+              </p>
+            )}
+            {splitEnabled && (
+              <div className="border-t pt-3">
+                <div className="grid grid-cols-[1fr_4.5rem_4.5rem] items-center gap-x-2 gap-y-2">
+                  <span className="text-[10px] font-medium uppercase text-gray-400">Producto</span>
+                  <span className="text-center text-[10px] font-medium uppercase text-gray-400">Divisas</span>
+                  <span className="text-center text-[10px] font-medium uppercase text-gray-400">BCV</span>
+                  {cartData.items.map((item) => {
+                    const disabled = payments.length > 0 || splittingVariant === item.variant_id;
+                    return (
+                      <Fragment key={item.variant_id}>
+                        <div className="min-w-0 text-sm">
+                          <p className="truncate font-medium">{item.variant.product.name}</p>
+                          <p className="text-xs text-gray-400">
+                            {item.variant.size} · cantidad: {item.quantity}
+                          </p>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={item.quantity}
+                          key={`d-${item.variant_id}-${item.quantity_divisas}`}
+                          defaultValue={item.quantity_divisas}
+                          disabled={disabled}
+                          onChange={(e) => clampSplitInput(e, item.quantity)}
+                          onBlur={(e) => {
+                            const raw = Math.round(Number(e.currentTarget.value));
+                            const divisas = Number.isFinite(raw) ? Math.min(Math.max(0, raw), item.quantity) : item.quantity_divisas;
+                            applySplit(item.variant_id, item.quantity, item.quantity - divisas);
+                          }}
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none disabled:opacity-50"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          max={item.quantity}
+                          key={`b-${item.variant_id}-${item.quantity_bcv}`}
+                          defaultValue={item.quantity_bcv}
+                          disabled={disabled}
+                          onChange={(e) => clampSplitInput(e, item.quantity)}
+                          onBlur={(e) => {
+                            const raw = Math.round(Number(e.currentTarget.value));
+                            const bcv = Number.isFinite(raw) ? Math.min(Math.max(0, raw), item.quantity) : item.quantity_bcv;
+                            applySplit(item.variant_id, item.quantity, bcv);
+                          }}
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-center text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none disabled:opacity-50"
+                        />
+                      </Fragment>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                  <span className="text-gray-600">
+                    Total Divisas: <strong className="text-gray-900">${cartData.total_divisas_usd.toFixed(2)}</strong>
+                    {" "}· Total BCV: <strong className="text-gray-900">${cartData.total_bcv_usd.toFixed(2)}</strong>
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  En el siguiente paso agrega los pagos correspondientes a cada moneda.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Tasas de referencia */}
           {tasaLoading && (
             <div className="flex items-center gap-1.5 rounded-xl border bg-white px-5 py-3 text-sm text-gray-400">
@@ -922,12 +1109,19 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           )}
 
           {(remaining > 0.005 || editingIndex !== null) && (() => {
-            // Derive locked method from committed payments (excluding the one being edited)
-            const committed = payments.filter((_, i) => i !== editingIndex);
-            const lockedMethod: "bcv" | "divisas" | null = committed.length > 0
-              ? (DIVISAS_TYPES.includes(committed[0].payment_type as PaymentType) ? "divisas" : "bcv")
-              : null;
-            const allowedTypes = lockedMethod === "bcv" ? BCV_TYPES
+            // Sin split: el primer pago fija la familia de moneda de todos los siguientes
+            // (comportamiento de siempre). Con split activo: el primer pago fija una familia,
+            // y a partir del segundo solo se ofrece la OTRA — cada moneda se cubre con pagos
+            // de su propia familia, guiando el flujo típico de un pedido dividido en dos partes.
+            const firstFamily: "bcv" | "divisas" | null = noPaymentsYet
+              ? null
+              : DIVISAS_TYPES.includes(committedPayments[0].payment_type as PaymentType) ? "divisas" : "bcv";
+            const lockedMethod: "bcv" | "divisas" | null = noPaymentsYet
+              ? null
+              : splitEnabled
+                ? (firstFamily === "bcv" ? "divisas" : "bcv")
+                : firstFamily;
+            const allowedTypes: PaymentType[] = lockedMethod === "bcv" ? BCV_TYPES
               : lockedMethod === "divisas" ? DIVISAS_TYPES
               : [...BCV_TYPES, ...DIVISAS_TYPES];
             return (<div className="rounded-xl border bg-white p-5 space-y-4 overflow-hidden">
@@ -963,7 +1157,8 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                       }));
 
                       // Only reprice when there are no committed payments locking the method
-                      if (lockedMethod === null) {
+                      // and the vendor hasn't opted into a per-line split
+                      if (!splitEnabled && noPaymentsYet) {
                         const newMethod = DIVISAS_TYPES.includes(e.target.value as PaymentType) ? "divisas" : "bcv";
                         if (newMethod !== cartData.pricing_method) {
                           setRepricingCart(true);
@@ -992,12 +1187,22 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   <Label>Monto USD *</Label>
                   {(() => {
                     const num = parseFloat(draft.amount_usd);
-                    const maxAmt = remaining + 2.00;
+                    const draftIsBcv = BCV_TYPES.includes(draft.payment_type as PaymentType);
+                    const maxAmt = (draftIsBcv ? remainingBcv : remainingDivisas) + 1.00;
+                    const projRemainingBcv = remainingBcv - (draftIsBcv && !isNaN(num) ? num : 0);
+                    const projRemainingDivisas = remainingDivisas - (!draftIsBcv && !isNaN(num) ? num : 0);
+                    const projRemaining = remaining - (isNaN(num) ? 0 : num);
+                    const wouldCloseShort = isMixed && !isNaN(num) && num > 0 &&
+                      projRemaining <= 0.005 && (projRemainingBcv > 1.00 || projRemainingDivisas > 1.00);
+                    const shortCurrency = projRemainingBcv > 1.00 ? "BCV" : "Divisas";
+                    const shortAmount = projRemainingBcv > 1.00 ? projRemainingBcv : projRemainingDivisas;
                     const montoError =
                       draft.amount_usd && (isNaN(num) || num <= 0)
                         ? "Monto inválido"
                         : draft.amount_usd && num > maxAmt
                         ? `Máximo $${maxAmt.toFixed(2)} (redondeo)`
+                        : draft.amount_usd && wouldCloseShort
+                        ? `Dejaría el total cubierto, pero faltarían $${shortAmount.toFixed(2)} en ${shortCurrency}`
                         : null;
                     const amountBs = tasa && !isNaN(num) && num > 0 ? num * tasa.rate : null;
                     return (
@@ -1113,9 +1318,15 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             </div>);
           })()}
 
-          {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta */}
+          {/* Pago parcial: siempre requiere cliente registrado; admin ve etiqueta distinta.
+              No se permite en pedidos divididos entre dos monedas — cada moneda debe quedar
+              cubierta con sus propios pagos antes de cerrar la orden. */}
           {payments.length > 0 && remaining > 0.005 && (
-            (channel === "tienda"
+            isMixed ? (
+              <p className="text-xs text-gray-400 border rounded-lg px-3 py-2 bg-gray-50">
+                Este pedido está dividido entre BCV y Divisas — no se puede dejar como pago parcial.
+              </p>
+            ) : (channel === "tienda"
               ? customer.customer_name.trim() && customer.customer_lastname.trim()
               : customer.doc_number.trim())
               ? (
@@ -1135,6 +1346,15 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   Para registrar pago parcial en tienda, agrega el nombre del cliente (botón &ldquo;+ Agregar cliente&rdquo;).
                 </p>
               ) : null
+          )}
+
+          {splitNeedsBothCurrencies && (
+            <Alert variant="destructive">
+              <AlertCircle size={14} />
+              <AlertDescription>
+                Este pedido está dividido entre BCV y Divisas — no se puede cerrar pagando todo con una sola moneda. Agrega al menos un pago de la otra.
+              </AlertDescription>
+            </Alert>
           )}
 
           {error && (
@@ -1162,7 +1382,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           </Button>
         ) : (
           <Button
-            disabled={submitting || payments.length === 0 || (!isPartialAgreed && remaining > 0.005) || hasStockIssues}
+            disabled={
+              submitting || payments.length === 0 || (!isPartialAgreed && remaining > 0.005) ||
+              hasStockIssues || splitNeedsBothCurrencies
+            }
             onClick={handleSubmit}>
             {submitting && <Loader2 size={14} className="animate-spin mr-2" />}
             Crear orden

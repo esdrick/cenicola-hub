@@ -99,6 +99,10 @@ export default async function EmbalajeDetailPage({
       quantity: item.quantity,
       unit_price_usd: Number(item.unit_price_usd),
       subtotal_usd: Number(item.subtotal_usd),
+      quantity_bcv: item.quantity_bcv,
+      quantity_divisas: item.quantity_divisas,
+      subtotal_bcv_usd: Number(item.subtotal_bcv_usd),
+      subtotal_divisas_usd: Number(item.subtotal_divisas_usd),
       variant_snapshot: item.variant_snapshot,
       variant: {
         id: item.variant.id,

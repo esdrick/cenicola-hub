@@ -170,7 +170,7 @@ async function main() {
 
   {
     const orders = await prisma.order.findMany({
-      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin),
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "tienda"),
       include: cierreOrderInclude,
     });
     const ids = orders.map((o) => o.id);
@@ -196,7 +196,7 @@ async function main() {
       order_number: `TEST-CIERRE-MIX-${Date.now()}`,
       channel: "tienda", status: "completada",
       customer_name: "Test", customer_lastname: "Mixto", customer_id_doc: "",
-      total_usd: 20, pricing_method: null, pago_verificado_at: now, created_by: user.id,
+      total_usd: 20, total_bcv_usd: 10, total_divisas_usd: 10, pricing_method: null, pago_verificado_at: now, created_by: user.id,
     },
   });
   createdOrderIds.push(ordenMixta.id);
@@ -219,7 +219,7 @@ async function main() {
   console.log("\n4) Exclusividad: crear un cierre real y verificar que la orden no vuelve a aparecer");
   {
     const ordersBefore = await prisma.order.findMany({
-      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin),
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "tienda"),
       include: cierreOrderInclude,
     });
     const rows = buildCierreRows(ordersBefore);
@@ -229,6 +229,7 @@ async function main() {
       const created = await tx.cierreTienda.create({
         data: {
           tipo: "diario",
+          canal: "tienda",
           fecha_inicio: rango.fechaInicio,
           fecha_fin: rango.fechaFin,
           generado_por_id: user.id,
@@ -255,7 +256,7 @@ async function main() {
     assert(includedOrder?.incluido_en_cierre_id === cierre.id, "la orden queda marcada con incluido_en_cierre_id");
 
     const ordersAfter = await prisma.order.findMany({
-      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin),
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "tienda"),
       include: cierreOrderInclude,
     });
     assert(
@@ -267,6 +268,62 @@ async function main() {
     await prisma.order.update({ where: { id: ordenSimpleBcv.id }, data: { customer_name: "Editado" } });
     const detalleGuardado = await prisma.cierreTiendaDetalle.findFirst({ where: { order_id: ordenSimpleBcv.id } });
     assert(detalleGuardado?.cliente_nombre === "Test Cliente", "editar la orden después del cierre no muta el CierreTiendaDetalle ya guardado");
+  }
+
+  console.log("\n5) Separación por canal (tienda vs online)");
+  {
+    const ordenOnline = await makePaidOrder({
+      userId: user.id, variantId: variant.id, quantity: 2, unitPrice: 10,
+      pricingMethod: "bcv", paymentType: "efectivo_bs", pagoVerificadoAt: now, status: "completada",
+      channel: "online",
+    });
+
+    const eligibleTienda = await prisma.order.findMany({
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "tienda"),
+      include: cierreOrderInclude,
+    });
+    assert(!eligibleTienda.some((o) => o.id === ordenOnline.id), "un filtro de canal 'tienda' nunca incluye órdenes 'online'");
+
+    const eligibleOnline = await prisma.order.findMany({
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "online"),
+      include: cierreOrderInclude,
+    });
+    assert(eligibleOnline.some((o) => o.id === ordenOnline.id), "un filtro de canal 'online' sí incluye la orden online");
+    assert(!eligibleOnline.some((o) => o.channel === "tienda"), "un filtro de canal 'online' nunca incluye órdenes 'tienda'");
+
+    // Generar un cierre online para el mismo rango de fecha que el cierre tienda ya creado
+    // en la sección 4 no debe chocar con la exclusividad de ese cierre (canales disjuntos).
+    const rowsOnline = buildCierreRows(eligibleOnline);
+    const { totalPiezas: totalPiezasOnline, resumenTotales: resumenOnline } = buildResumen(rowsOnline);
+    const cierreOnline = await prisma.$transaction(async (tx) => {
+      const created = await tx.cierreTienda.create({
+        data: {
+          tipo: "diario",
+          canal: "online",
+          fecha_inicio: rango.fechaInicio,
+          fecha_fin: rango.fechaFin,
+          generado_por_id: user.id,
+          total_piezas: totalPiezasOnline,
+          resumen_totales: resumenOnline,
+          detalles: {
+            create: rowsOnline.map((r) => ({
+              order_id: r.orderId, numero_orden: r.numeroOrden, cliente_nombre: r.clienteNombre,
+              fecha_confirmacion: r.fechaConfirmacion, cantidad_piezas: r.cantidadPiezas,
+              monto: r.monto, moneda: r.moneda, metodo_pago: r.metodoPago, referencia_pago: r.referencia,
+            })),
+          },
+        },
+      });
+      await tx.order.updateMany({ where: { id: { in: rowsOnline.map((r) => r.orderId) } }, data: { incluido_en_cierre_id: created.id } });
+      return created;
+    });
+    createdCierreIds.push(cierreOnline.id);
+    assert(cierreOnline.canal === "online", "el cierre online se guarda con canal='online'");
+
+    const stillEligibleTienda = await prisma.order.count({
+      where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, "tienda"),
+    });
+    assert(stillEligibleTienda === 0, "generar el cierre online no afecta la elegibilidad (ya vacía) del canal tienda para el mismo rango");
   }
 
   console.log(`\n${passed} pasaron, ${failed} fallaron`);

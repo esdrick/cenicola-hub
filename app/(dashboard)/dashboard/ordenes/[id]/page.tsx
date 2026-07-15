@@ -118,8 +118,10 @@ const PAYMENT_STATUS = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default async function OrderDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams: { from?: string };
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -147,6 +149,10 @@ export default async function OrderDetailPage({
   });
 
   if (!order) notFound();
+
+  const backHref = searchParams.from
+    ? `/dashboard/ordenes?${searchParams.from}`
+    : "/dashboard/ordenes";
 
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   if (isRestricted && order.created_by !== session.id) notFound();
@@ -180,10 +186,18 @@ export default async function OrderDetailPage({
     !["enviada", "completada", "cancelada"].includes(order.status);
 
   const totalUsd = Number(order.total_usd);
+  const totalBcvUsd = Number(order.total_bcv_usd);
+  const totalDivisasUsd = Number(order.total_divisas_usd);
+  const isMixedOrder = totalBcvUsd > 0 && totalDivisasUsd > 0;
 
   // Only count non-rejected payments toward paid total
-  const paidTotal = order.payments
-    .filter((p) => p.status !== "rechazado")
+  const activeOrderPayments = order.payments.filter((p) => p.status !== "rechazado");
+  const paidTotal = activeOrderPayments.reduce((s, p) => s + Number(p.amount_usd), 0);
+  const paidBcvUsd = activeOrderPayments
+    .filter((p) => paymentTypeToPricingMethod(p.payment_type as PaymentType) === "bcv")
+    .reduce((s, p) => s + Number(p.amount_usd), 0);
+  const paidDivisasUsd = activeOrderPayments
+    .filter((p) => paymentTypeToPricingMethod(p.payment_type as PaymentType) === "divisas")
     .reduce((s, p) => s + Number(p.amount_usd), 0);
 
   // Balance not yet covered by any non-rejected payment (verified or pending)
@@ -205,7 +219,7 @@ export default async function OrderDetailPage({
       {/* Header */}
       <div>
         <Link
-          href="/dashboard/ordenes"
+          href={backHref}
           className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "-ml-2 mb-2")}
         >
           <ChevronLeft size={14} className="mr-1" />Órdenes
@@ -298,6 +312,11 @@ export default async function OrderDetailPage({
                     <p className="text-xs text-gray-400">
                       {item.quantity} × ${Number(item.unit_price_usd).toFixed(2)}
                     </p>
+                    {item.quantity_bcv > 0 && item.quantity_divisas > 0 && (
+                      <p className="text-[10px] text-amber-600">
+                        {item.quantity_bcv} BCV + {item.quantity_divisas} Divisas
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -357,7 +376,11 @@ export default async function OrderDetailPage({
             <div className="border-b px-3 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-gray-700">Pagos</h2>
-                {order.pricing_method && (
+                {isMixedOrder ? (
+                  <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
+                    Mixto
+                  </span>
+                ) : order.pricing_method && (
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-xs font-medium",
                     order.pricing_method === "bcv"
@@ -382,6 +405,11 @@ export default async function OrderDetailPage({
                     totalUsd={totalUsd}
                     paidUsd={paidTotal}
                     pricingMethod={order.pricing_method}
+                    isSplit={isMixedOrder}
+                    totalBcvUsd={totalBcvUsd}
+                    totalDivisasUsd={totalDivisasUsd}
+                    paidBcvUsd={paidBcvUsd}
+                    paidDivisasUsd={paidDivisasUsd}
                   />
                 )}
               </div>

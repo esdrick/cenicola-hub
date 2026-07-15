@@ -292,7 +292,10 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
             ) : (
               orders.map((o) => (
                 <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
-                  onClick={() => router.push(`/dashboard/ordenes/${o.id}`)}>
+                  onClick={() => {
+                    const qs = sp.toString();
+                    router.push(`/dashboard/ordenes/${o.id}${qs ? `?from=${encodeURIComponent(qs)}` : ""}`);
+                  }}>
                   <TableCell className="font-mono text-xs font-semibold text-gray-700">
                     {shortOrderNumber(o.order_number)}
                   </TableCell>
@@ -327,6 +330,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
         isPending={isPending}
         onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
         onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
+        onPageChange={(p) => start(() => router.push(buildUrl({ page: p })))}
       />
     </div>
   );

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { TIPO_CIERRE_LABELS, formatFechaCorta, formatFechaHora } from "./cierre-format";
+import { TIPO_CIERRE_LABELS, CANAL_LABELS, CANAL_CLASSES, formatFechaCorta, formatFechaHora } from "./cierre-format";
 import type { CierreTiendaJSON } from "@/types";
 
 type Props = { cierres: CierreTiendaJSON[] };
@@ -26,6 +26,7 @@ export function CierreHistorialTable({ cierres }: Props) {
       <TableHeader>
         <TableRow>
           <TableHead>Rango</TableHead>
+          <TableHead>Canal</TableHead>
           <TableHead>Tipo</TableHead>
           <TableHead className="text-right">Piezas</TableHead>
           <TableHead className="text-right">Total</TableHead>
@@ -44,6 +45,11 @@ export function CierreHistorialTable({ cierres }: Props) {
             >
               <TableCell className="text-sm font-medium">
                 {formatFechaCorta(c.fecha_inicio)} – {formatFechaCorta(c.fecha_fin)}
+              </TableCell>
+              <TableCell>
+                <Badge className={`border-0 text-xs ${CANAL_CLASSES[c.canal] ?? "bg-gray-100 text-gray-700"}`}>
+                  {CANAL_LABELS[c.canal] ?? c.canal}
+                </Badge>
               </TableCell>
               <TableCell>
                 <Badge className="border-0 bg-gray-100 text-xs text-gray-700">

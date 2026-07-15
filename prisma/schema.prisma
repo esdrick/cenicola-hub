@@ -222,6 +222,8 @@ model Order {
   shipping_company    String?
   total_usd            Decimal        @db.Decimal(10, 2)
   pricing_method       PricingMethod?
+  total_bcv_usd        Decimal        @default(0) @db.Decimal(10, 2)
+  total_divisas_usd    Decimal        @default(0) @db.Decimal(10, 2)
   exchange_rate_id     String?
   is_partial_agreed    Boolean        @default(false)
   partial_agreed_by   String?
@@ -253,6 +255,13 @@ model OrderItem {
   quantity        Int
   unit_price_usd  Decimal @db.Decimal(10, 2)
   subtotal_usd    Decimal @db.Decimal(10, 2)
+  // Reparto opcional de esta línea entre las dos monedas — por defecto toda la
+  // cantidad cae en un solo bucket (comportamiento actual). quantity_bcv +
+  // quantity_divisas siempre debe sumar `quantity`, igual que sus subtotales con subtotal_usd.
+  quantity_bcv          Int     @default(0)
+  quantity_divisas      Int     @default(0)
+  subtotal_bcv_usd      Decimal @default(0) @db.Decimal(10, 2)
+  subtotal_divisas_usd  Decimal @default(0) @db.Decimal(10, 2)
   variant_snapshot Json
 
   order   Order          @relation(fields: [order_id], references: [id])
@@ -470,6 +479,11 @@ model CartItem {
   variant_id     String
   quantity       Int
   unit_price_usd Decimal  @db.Decimal(10, 2)
+  // Mismo reparto opcional por moneda que OrderItem — se copia tal cual al convertir el carrito en orden.
+  quantity_bcv          Int     @default(0)
+  quantity_divisas      Int     @default(0)
+  subtotal_bcv_usd      Decimal @default(0) @db.Decimal(10, 2)
+  subtotal_divisas_usd  Decimal @default(0) @db.Decimal(10, 2)
   created_at     DateTime @default(now())
 
   cart    Cart           @relation(fields: [cart_id], references: [id], onDelete: Cascade)
@@ -479,20 +493,22 @@ model CartItem {
 }
 
 model CierreTienda {
-  id              String     @id @default(uuid())
+  id              String       @id @default(uuid())
   tipo            TipoCierre
+  canal           OrderChannel
   fecha_inicio    DateTime
   fecha_fin       DateTime
   generado_por_id String
   total_piezas    Int
   resumen_totales Json
-  created_at      DateTime   @default(now())
+  created_at      DateTime     @default(now())
 
   generado_por User                  @relation(fields: [generado_por_id], references: [id])
   detalles     CierreTiendaDetalle[]
   ordenes      Order[]
 
   @@index([fecha_inicio, fecha_fin])
+  @@index([canal])
   @@map("cierres_tienda")
 }
 

@@ -173,6 +173,10 @@ export type OrderItemJSON = {
   quantity: number;
   unit_price_usd: number;
   subtotal_usd: number;
+  quantity_bcv: number;
+  quantity_divisas: number;
+  subtotal_bcv_usd: number;
+  subtotal_divisas_usd: number;
   variant_snapshot: unknown;
   variant?: {
     id: string;
@@ -212,6 +216,8 @@ export type OrderJSON = {
   shipping_company: string | null;
   total_usd: number;
   pricing_method: "bcv" | "divisas" | null;
+  total_bcv_usd: number;
+  total_divisas_usd: number;
   is_partial_agreed: boolean;
   partial_agreed_by: string | null;
   notes: string | null;
@@ -376,6 +382,10 @@ export type CartItemJSON = {
   variant_id: string;
   quantity: number;
   unit_price_usd: number;
+  quantity_bcv: number;
+  quantity_divisas: number;
+  subtotal_bcv_usd: number;
+  subtotal_divisas_usd: number;
   created_at: string;
   stock_warning: boolean;
   stock_available: number;
@@ -406,6 +416,8 @@ export type CartJSON = {
   vendor: { id: string; name: string };
   items: CartItemJSON[];
   total_usd: number;
+  total_bcv_usd: number;
+  total_divisas_usd: number;
   has_stock_issues: boolean;
   mayor_threshold?: number;
   bundle_threshold?: number;
@@ -469,6 +481,7 @@ export type CierreTiendaDetalleJSON = {
 export type CierreTiendaJSON = {
   id: string;
   tipo: "diario" | "semanal" | "quincenal" | "mensual";
+  canal: OrderChannel;
   fecha_inicio: string;
   fecha_fin: string;
   generado_por_id: string;

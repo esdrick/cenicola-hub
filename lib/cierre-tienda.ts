@@ -1,7 +1,6 @@
 import type { Prisma } from "@/app/generated/prisma";
-import type { TipoCierre } from "@/app/generated/prisma/client";
+import type { TipoCierre, OrderChannel } from "@/app/generated/prisma/client";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
-import { paymentTypeToPricingMethod } from "@/lib/pricing";
 
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
@@ -120,10 +119,12 @@ export const cierreOrderInclude = {
 
 export type CierreEligibleOrder = Prisma.OrderGetPayload<{ include: typeof cierreOrderInclude }>;
 
-/** Filtro Prisma para las órdenes elegibles de un cierre en el rango dado — misma condición
- * usada por el preview y por la creación real, para que nunca diverjan. */
-export function cierreEligibleWhere(fechaInicio: Date, fechaFin: Date): Prisma.OrderWhereInput {
+/** Filtro Prisma para las órdenes elegibles de un cierre en el rango y canal dados — misma
+ * condición usada por el preview y por la creación real, para que nunca diverjan. Un cierre
+ * siempre es de un solo canal (tienda u online) — nunca mezcla ambos. */
+export function cierreEligibleWhere(fechaInicio: Date, fechaFin: Date, canal: OrderChannel): Prisma.OrderWhereInput {
   return {
+    channel: canal,
     pago_verificado_at: { gte: fechaInicio, lte: fechaFin },
     status: { in: [...ESTATUS_ELEGIBLES_CIERRE] },
     incluido_en_cierre_id: null,
@@ -144,11 +145,16 @@ export type CierreRow = {
 
 export type ResumenTotal = { moneda: string; metodoPago: string; monto: number };
 
-function pickMoneda(order: Pick<CierreEligibleOrder, "payments" | "pricing_method">): string {
-  const monedas = new Set(order.payments.map((p) => paymentTypeToPricingMethod(p.payment_type)));
-  if (monedas.size === 0) return (order.pricing_method ?? "bcv").toUpperCase();
-  if (monedas.size > 1) return "MIXTO";
-  return [...monedas][0].toUpperCase();
+function pickMoneda(
+  order: Pick<CierreEligibleOrder, "total_bcv_usd" | "total_divisas_usd" | "pricing_method">,
+): string {
+  const bcv = Number(order.total_bcv_usd);
+  const divisas = Number(order.total_divisas_usd);
+  if (bcv > 0 && divisas > 0) return "MIXTO";
+  if (divisas > 0) return "DIVISAS";
+  if (bcv > 0) return "BCV";
+  // Legacy fallback for any row whose bucket totals never got backfilled.
+  return (order.pricing_method ?? "bcv").toUpperCase();
 }
 
 function pickMetodoPago(order: Pick<CierreEligibleOrder, "payments">): string {

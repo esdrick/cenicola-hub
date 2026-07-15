@@ -26,6 +26,7 @@ type CallbackMode = BaseProps & {
   nextHref?: never;
   onPrev: () => void;
   onNext: () => void;
+  onPageChange?: (page: number) => void;
 };
 
 type PaginationProps = HrefMode | CallbackMode;
@@ -50,6 +51,14 @@ export function Pagination({
   const label = total === 1 ? noun : (nounPlural ?? `${noun}s`);
   const canPrev = page > 1 && !isPending;
   const canNext = page < totalPages && !isPending;
+  const onPageChange = "onPageChange" in nav ? nav.onPageChange : undefined;
+
+  function jumpTo(raw: string) {
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n)) return;
+    const clamped = Math.min(Math.max(1, n), totalPages);
+    if (clamped !== page) onPageChange?.(clamped);
+  }
 
   const PrevBtn =
     "prevHref" in nav ? (
@@ -105,9 +114,29 @@ export function Pagination({
       </span>
       <div className="flex items-center gap-1">
         {PrevBtn}
-        <span className="min-w-[3.5rem] text-center text-xs tabular-nums">
-          {page} / {totalPages}
-        </span>
+        {onPageChange ? (
+          <span className="flex items-center gap-1 text-xs tabular-nums">
+            <input
+              key={page}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={totalPages}
+              defaultValue={page}
+              disabled={isPending}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { jumpTo(e.currentTarget.value); e.currentTarget.blur(); }
+              }}
+              onBlur={(e) => jumpTo(e.currentTarget.value)}
+              className="w-11 rounded border border-gray-200 bg-white py-0.5 text-center focus:border-gray-400 focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <span>/ {totalPages}</span>
+          </span>
+        ) : (
+          <span className="min-w-[3.5rem] text-center text-xs tabular-nums">
+            {page} / {totalPages}
+          </span>
+        )}
         {NextBtn}
       </div>
     </div>

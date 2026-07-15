@@ -36,6 +36,15 @@ type Props = {
   totalUsd: number;
   paidUsd: number;
   pricingMethod: "bcv" | "divisas" | null;
+  // true cuando la orden mezcla precios BCV y Divisas (split activado al crearla) — en ese
+  // caso cualquier método de pago vale, ya que el total ya quedó calculado correctamente.
+  isSplit: boolean;
+  // Para el tope por moneda del MONTO de cada pago (no para poder cerrar la orden, eso sigue
+  // siendo agregado): cuánto corresponde a cada moneda y cuánto de eso ya está pagado.
+  totalBcvUsd: number;
+  totalDivisasUsd: number;
+  paidBcvUsd: number;
+  paidDivisasUsd: number;
 };
 
 function fmtBs(n: number) {
@@ -45,7 +54,10 @@ function fmtBs(n: number) {
   }).format(n);
 }
 
-export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pricingMethod }: Props) {
+export function AgregarPagoDialog({
+  orderId, orderNumber, totalUsd, paidUsd, pricingMethod, isSplit,
+  totalBcvUsd, totalDivisasUsd, paidBcvUsd, paidDivisasUsd,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, start] = useTransition();
@@ -56,15 +68,30 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
   const photoRef = useRef<HTMLInputElement | null>(null);
 
   const remaining = Math.max(0, totalUsd - paidUsd);
-  const maxAmount = remaining + 2.00;
+  const remainingBcv = Math.max(0, totalBcvUsd - paidBcvUsd);
+  const remainingDivisas = Math.max(0, totalDivisasUsd - paidDivisasUsd);
+  // Tope del MONTO de este pago según su propia moneda — evita, ej., escribir $30 en un pago
+  // BCV cuando la porción BCV del pedido es de $20, aunque en conjunto "quepa" en el total.
+  // Sin split, un bucket es el total y el otro 0, así que esto ya coincide con el tope agregado.
+  const maxAmountFor = (family: "bcv" | "divisas") => (family === "bcv" ? remainingBcv : remainingDivisas) + 1.00;
 
+  // Para pedidos divididos, solo se ofrecen las monedas que todavía tienen saldo real —
+  // igual que en el paso 3 de nueva orden. Esto es lo que hace que un pago rechazado se
+  // comporte bien: al rechazarse, ese bucket vuelve a tener saldo (remainingBcv/Divisas ya lo
+  // reflejan) y su moneda reaparece; si la otra moneda ya está cubierta, deja de ofrecerse en
+  // vez de seguir mostrando las 6 opciones sin distinción.
+  const splitAllowedMethods: PaymentType[] = [
+    ...(remainingBcv > 0.005 ? BCV_METHODS : []),
+    ...(remainingDivisas > 0.005 ? DIVISAS_METHODS : []),
+  ];
   const allowedMethods: PaymentType[] =
+    isSplit ? (splitAllowedMethods.length > 0 ? splitAllowedMethods : (Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[])) :
     pricingMethod === "bcv" ? [...BCV_METHODS] :
     pricingMethod === "divisas" ? [...DIVISAS_METHODS] :
     Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[];
 
   const makeEmpty = () => ({
-    payment_type: (pricingMethod === "divisas" ? "zelle" : "transferencia") as PaymentType,
+    payment_type: (allowedMethods[0] ?? (pricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType,
     amount_usd: "",
     payment_date: new Date().toISOString().slice(0, 10),
     payment_time: "",
@@ -73,6 +100,18 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
   });
 
   const [form, setForm] = useState(makeEmpty);
+
+  const draftFamily: "bcv" | "divisas" = BCV_METHODS.includes(form.payment_type as (typeof BCV_METHODS)[number]) ? "bcv" : "divisas";
+  const draftAmt = parseFloat(form.amount_usd) || 0;
+  const wouldClose = paidUsd + draftAmt >= totalUsd - 0.005;
+  // Un pedido dividido no puede quedar cerrado si, sumando este pago, a alguna de las dos
+  // monedas le sigue faltando más del margen de redondeo ($1) — no basta con que el total
+  // agregado cuadre, cada moneda tiene que cubrirse con pagos de esa misma moneda. Mismo
+  // resguardo que ya aplica el servidor.
+  const wouldCloseWithOneCurrency = isSplit && wouldClose && (
+    (remainingBcv - (draftFamily === "bcv" ? draftAmt : 0)) > 1.00 ||
+    (remainingDivisas - (draftFamily === "divisas" ? draftAmt : 0)) > 1.00
+  );
 
   async function handleOpen() {
     setForm(makeEmpty());
@@ -118,8 +157,13 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
     setError(null);
     const amt = parseFloat(form.amount_usd);
     if (isNaN(amt) || amt <= 0) { setError("Monto inválido"); return; }
+    const maxAmount = maxAmountFor(draftFamily);
     if (amt > maxAmount) {
       setError(`El monto excede el límite de redondeo. Máximo $${maxAmount.toFixed(2)}`);
+      return;
+    }
+    if (wouldCloseWithOneCurrency) {
+      setError("Este pedido está dividido entre BCV y Divisas — no se puede cerrar pagando todo con una sola moneda.");
       return;
     }
     if (form.payment_type !== "efectivo_bs" && form.payment_type !== "efectivo_usd") {
@@ -184,6 +228,12 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
               {remaining > 0 && (
                 <> · Saldo pendiente: <strong>${remaining.toFixed(2)} USD</strong></>
               )}
+              {isSplit && (
+                <>
+                  {remainingBcv > 0.005 && <> · BCV: <strong>${remainingBcv.toFixed(2)}</strong></>}
+                  {remainingDivisas > 0.005 && <> · Divisas: <strong>${remainingDivisas.toFixed(2)}</strong></>}
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -238,11 +288,18 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
                 <Label>Monto USD *</Label>
                 {(() => {
                   const num = parseFloat(form.amount_usd);
+                  const maxAmount = maxAmountFor(draftFamily);
+                  const projRemainingBcv = remainingBcv - (draftFamily === "bcv" && !isNaN(num) ? num : 0);
+                  const projRemainingDivisas = remainingDivisas - (draftFamily === "divisas" && !isNaN(num) ? num : 0);
+                  const shortCurrency = projRemainingBcv > 1.00 ? "BCV" : "Divisas";
+                  const shortAmount = projRemainingBcv > 1.00 ? projRemainingBcv : projRemainingDivisas;
                   const montoError =
                     form.amount_usd && (isNaN(num) || num <= 0)
                       ? "Monto inválido"
                       : form.amount_usd && num > maxAmount
                       ? `Máximo $${maxAmount.toFixed(2)} (redondeo)`
+                      : form.amount_usd && wouldCloseWithOneCurrency
+                      ? `Dejaría el total cubierto, pero faltarían $${shortAmount.toFixed(2)} en ${shortCurrency}`
                       : null;
                   return (
                     <div className="space-y-1">
@@ -393,7 +450,8 @@ export function AgregarPagoDialog({ orderId, orderNumber, totalUsd, paidUsd, pri
                   !form.amount_usd ||
                   isNaN(parseFloat(form.amount_usd)) ||
                   parseFloat(form.amount_usd) <= 0 ||
-                  parseFloat(form.amount_usd) > maxAmount
+                  parseFloat(form.amount_usd) > maxAmountFor(draftFamily) ||
+                  wouldCloseWithOneCurrency
                 }
               >
                 {isPending
