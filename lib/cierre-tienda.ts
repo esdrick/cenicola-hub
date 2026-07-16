@@ -21,6 +21,12 @@ export function parseRangoFechas(fechaInicioRaw: unknown, fechaFinRaw: unknown):
   const fechaInicio = startOfDay(inicio);
   const fechaFin = endOfDay(fin);
   if (fechaInicio.getTime() > fechaFin.getTime()) return null;
+  // Ninguna orden puede tener pago_verificado_at en el futuro — un rango cuyo día final sea
+  // posterior al día de hoy es inválido (defensa en profundidad: el <input max> del cliente
+  // ya lo evita, pero esto lo bloquea también si llega una petición directa a la API).
+  // Comparado por DÍA calendario, no por instante exacto: "hoy" siempre debe ser válido, aunque
+  // endOfDay(hoy) caiga más tarde que la hora actual.
+  if (startOfDay(fin).getTime() > startOfDay(new Date()).getTime()) return null;
   return { fechaInicio, fechaFin };
 }
 

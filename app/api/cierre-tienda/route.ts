@@ -10,7 +10,7 @@ import {
 } from "@/lib/cierre-tienda";
 import type { TipoCierre, OrderChannel } from "@/app/generated/prisma/client";
 
-const TIPOS_VALIDOS: TipoCierre[] = ["diario", "semanal", "quincenal", "mensual"];
+const TIPOS_VALIDOS: TipoCierre[] = ["diario", "semanal", "quincenal", "mensual", "personalizado"];
 const CANALES_VALIDOS: OrderChannel[] = ["tienda", "online"];
 
 // GET /api/cierre-tienda?canal=... — historial de cierres, paginado, más reciente primero.

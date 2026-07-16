@@ -75,7 +75,7 @@ export async function POST(
         const finalStatus = cuenta.order.channel === "online" ? "en_embalaje" : "completada";
         await tx.order.update({
           where: { id: cuenta.order_id },
-          data: { status: finalStatus },
+          data: { status: finalStatus, pago_verificado_at: new Date() },
         });
       }
     }

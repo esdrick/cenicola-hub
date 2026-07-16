@@ -480,7 +480,7 @@ export type CierreTiendaDetalleJSON = {
 
 export type CierreTiendaJSON = {
   id: string;
-  tipo: "diario" | "semanal" | "quincenal" | "mensual";
+  tipo: "diario" | "semanal" | "quincenal" | "mensual" | "personalizado";
   canal: OrderChannel;
   fecha_inicio: string;
   fecha_fin: string;

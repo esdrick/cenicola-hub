@@ -265,6 +265,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           order_number: orderNumber,
           channel,
           status: orderStatus,
+          pago_verificado_at: isCompletada || isAutoVerifiedOnline ? new Date() : null,
           customer_id: customerId,
           customer_name: finalCustomerName,
           customer_lastname: customer_lastname?.trim() || "",

@@ -89,6 +89,7 @@ enum TipoCierre {
   semanal
   quincenal
   mensual
+  personalizado
 }
 
 // ─── Models ──────────────────────────────────────────────────────────────────

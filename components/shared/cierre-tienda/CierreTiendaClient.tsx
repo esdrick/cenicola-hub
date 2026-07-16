@@ -25,6 +25,27 @@ import type { CierrePreviewJSON } from "@/types";
 type TipoCierre = "diario" | "semanal" | "quincenal" | "mensual";
 type Canal = "tienda" | "online";
 
+const todayStr = dateInputValue(new Date());
+
+// calcularRangoFechas calcula el período de calendario completo (ej. mes entero) sin
+// importar la fecha de hoy — si hoy cae a mitad del período, su fechaFin puede quedar en el
+// futuro. Un cierre nunca debería filtrar por fechas que aún no ocurrieron, así que aquí sí
+// se recorta al día de hoy (esto es solo para el prellenado de la UI, no para el cálculo
+// general del período, que otros usos como la navegación por offset sí necesitan intacto).
+function clampAFuturo(fecha: string): string {
+  return fecha > todayStr ? todayStr : fecha;
+}
+
+// Si el admin edita Desde/Hasta a mano y el rango ya no coincide con lo que ese tipo
+// generaría automáticamente, el cierre deja de ser un "Diario"/"Semanal"/etc. real — se
+// guarda y se muestra como "Personalizado" en vez de seguir mostrando la etiqueta vieja.
+function esPersonalizado(tipo: TipoCierre, fechaInicio: string, fechaFin: string): boolean {
+  const rango = calcularRangoFechas(tipo);
+  const esperadoInicio = dateInputValue(rango.fechaInicio);
+  const esperadoFin = clampAFuturo(dateInputValue(rango.fechaFin));
+  return fechaInicio !== esperadoInicio || fechaFin !== esperadoFin;
+}
+
 export function CierreTiendaClient() {
   const router = useRouter();
 
@@ -32,7 +53,7 @@ export function CierreTiendaClient() {
   const [canal, setCanal] = useState<Canal>("tienda");
   const initialRango = calcularRangoFechas("diario");
   const [fechaInicio, setFechaInicio] = useState(dateInputValue(initialRango.fechaInicio));
-  const [fechaFin, setFechaFin] = useState(dateInputValue(initialRango.fechaFin));
+  const [fechaFin, setFechaFin] = useState(clampAFuturo(dateInputValue(initialRango.fechaFin)));
 
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -42,13 +63,16 @@ export function CierreTiendaClient() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const tipoEfectivo: TipoCierre | "personalizado" =
+    esPersonalizado(tipo, fechaInicio, fechaFin) ? "personalizado" : tipo;
+
   function handleTipoChange(value: string | null) {
     if (!value) return;
     const next = value as TipoCierre;
     setTipo(next);
     const rango = calcularRangoFechas(next);
     setFechaInicio(dateInputValue(rango.fechaInicio));
-    setFechaFin(dateInputValue(rango.fechaFin));
+    setFechaFin(clampAFuturo(dateInputValue(rango.fechaFin)));
     setPreview(null);
   }
 
@@ -85,7 +109,7 @@ export function CierreTiendaClient() {
       const res = await fetch("/api/cierre-tienda", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo, canal, fechaInicio, fechaFin }),
+        body: JSON.stringify({ tipo: tipoEfectivo, canal, fechaInicio, fechaFin }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -124,7 +148,7 @@ export function CierreTiendaClient() {
             <Label className="text-xs text-gray-500">Tipo de cierre</Label>
             <Select value={tipo} onValueChange={handleTipoChange}>
               <SelectTrigger className="w-40">
-                <SelectValue>{TIPO_CIERRE_LABELS[tipo]}</SelectValue>
+                <SelectValue>{TIPO_CIERRE_LABELS[tipoEfectivo]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="diario">Diario</SelectItem>
@@ -140,6 +164,7 @@ export function CierreTiendaClient() {
             <Input
               type="date"
               value={fechaInicio}
+              max={todayStr}
               onChange={(e) => { setFechaInicio(e.target.value); setPreview(null); }}
               className="w-40 appearance-none text-sm"
             />
@@ -150,6 +175,7 @@ export function CierreTiendaClient() {
             <Input
               type="date"
               value={fechaFin}
+              max={todayStr}
               onChange={(e) => { setFechaFin(e.target.value); setPreview(null); }}
               className="w-40 appearance-none text-sm"
             />
@@ -257,7 +283,7 @@ export function CierreTiendaClient() {
       <Dialog open={confirmOpen} onOpenChange={(v) => !saving && setConfirmOpen(v)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>¿Confirmar cierre {TIPO_CIERRE_LABELS[tipo]} de {CANAL_LABELS[canal]}?</DialogTitle>
+            <DialogTitle>¿Confirmar cierre {TIPO_CIERRE_LABELS[tipoEfectivo]} de {CANAL_LABELS[canal]}?</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-sm text-gray-600">

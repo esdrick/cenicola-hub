@@ -212,7 +212,10 @@ export async function POST(
         if (newOrderStatus) {
           await tx.order.update({
             where: { id: order.id },
-            data: { status: newOrderStatus as never },
+            data: {
+              status: newOrderStatus as never,
+              ...(isFullyPaid ? { pago_verificado_at: new Date() } : {}),
+            },
           });
         }
 

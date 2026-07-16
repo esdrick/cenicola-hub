@@ -3,6 +3,7 @@ export const TIPO_CIERRE_LABELS: Record<string, string> = {
   semanal: "Semanal",
   quincenal: "Quincenal",
   mensual: "Mensual",
+  personalizado: "Personalizado",
 };
 
 export const MONEDA_CLASSES: Record<string, string> = {
