@@ -66,6 +66,7 @@ async function makePaidOrder(opts: {
   pagoVerificadoAt: Date;
   status: "pago_verificado" | "en_embalaje" | "completada";
   channel?: "tienda" | "online";
+  createdAt?: Date;
 }) {
   const totalUsd = opts.unitPrice * opts.quantity;
   const order = await prisma.order.create({
@@ -79,6 +80,7 @@ async function makePaidOrder(opts: {
       total_usd: totalUsd,
       pricing_method: opts.pricingMethod,
       pago_verificado_at: opts.pagoVerificadoAt,
+      created_at: opts.createdAt ?? new Date(),
       created_by: opts.userId,
     },
   });
@@ -165,7 +167,19 @@ async function main() {
   const ordenFueraDeRango = await makePaidOrder({
     userId: user.id, variantId: variant.id, quantity: 1, unitPrice: 10,
     pricingMethod: "bcv", paymentType: "efectivo_bs",
-    pagoVerificadoAt: new Date(now.getTime() - 3 * 86_400_000), status: "completada",
+    pagoVerificadoAt: now, status: "completada",
+    createdAt: new Date(now.getTime() - 3 * 86_400_000),
+  });
+
+  // Caso que motivó el cambio: orden creada dentro del rango pero cuyo pago se confirma
+  // después de que el rango terminó (ej. "orden de ayer, pagada hoy") — debe seguir siendo
+  // elegible para el cierre de su día de creación.
+  const ordenPagadaDespuesDelRango = await makePaidOrder({
+    userId: user.id, variantId: variant.id, quantity: 4, unitPrice: 10,
+    pricingMethod: "bcv", paymentType: "zelle",
+    pagoVerificadoAt: new Date(rango.fechaFin.getTime() + 3_600_000),
+    status: "completada",
+    createdAt: now,
   });
 
   {
@@ -175,8 +189,12 @@ async function main() {
     });
     const ids = orders.map((o) => o.id);
     assert(ids.includes(ordenSimpleBcv.id), "la orden completada con pago dentro del rango es elegible");
-    assert(!ids.includes(ordenCancelada.id), "una orden cancelada NUNCA es elegible aunque tenga pago_verificado_at en rango");
-    assert(!ids.includes(ordenFueraDeRango.id), "una orden con pago_verificado_at fuera del rango no es elegible");
+    assert(!ids.includes(ordenCancelada.id), "una orden cancelada NUNCA es elegible aunque esté creada en rango");
+    assert(!ids.includes(ordenFueraDeRango.id), "una orden con created_at fuera del rango no es elegible aunque su pago se confirmó dentro del rango");
+    assert(
+      ids.includes(ordenPagadaDespuesDelRango.id),
+      "una orden creada dentro del rango sigue siendo elegible aunque su pago se confirme después de que el rango terminó"
+    );
 
     const rows = buildCierreRows(orders.filter((o) => o.id === ordenSimpleBcv.id));
     assert(rows.length === 1, "buildCierreRows produce una fila por orden elegible");

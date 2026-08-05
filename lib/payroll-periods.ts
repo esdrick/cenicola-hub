@@ -1,3 +1,5 @@
+import type { Prisma } from "@/app/generated/prisma";
+
 export type PeriodoTipo = "semana" | "quincena" | "mes" | "personalizado";
 
 export const PERIODO_TIPOS: PeriodoTipo[] = ["semana", "quincena", "mes", "personalizado"];
@@ -78,4 +80,32 @@ export function formatRangoLabel(desdeISO: string, hastaISO: string): string {
     return `${da} – ${db} ${MESES_ABR[ma - 1]} ${ya}`;
   }
   return `${da} ${MESES_ABR[ma - 1]} ${ya} – ${db} ${MESES_ABR[mb - 1]} ${yb}`;
+}
+
+/** Convierte un rango ISO ("YYYY-MM-DD") en límites de día local (00:00 – 23:59:59.999),
+ * para usar contra `created_at` de órdenes. */
+export function rangoADateTime(desdeISO: string, hastaISO: string): { inicio: Date; fin: Date } {
+  const [y1, m1, d1] = desdeISO.split("-").map(Number);
+  const [y2, m2, d2] = hastaISO.split("-").map(Number);
+  return {
+    inicio: new Date(y1, m1 - 1, d1),
+    fin: new Date(y2, m2 - 1, d2, 23, 59, 59, 999),
+  };
+}
+
+/** Filtro Prisma para las órdenes elegibles de nómina en el rango dado — misma condición
+ * usada por el listado y por el endpoint de pago, para que nunca diverjan. `userId` solo
+ * se incluye cuando el filtro va suelto (no anidado bajo la relación `orders_created` de
+ * un `User`, que ya implica el vendedor).
+ *
+ * `incluido_en_nomina_id: null` es lo que hace el corte real: una vez que una orden queda
+ * ligada a un `PayrollRecord` pagado, deja de ser elegible para siempre, sin importar qué
+ * rango de fechas se use después — así las ventas siguientes arrancan limpias. */
+export function nominaEligibleWhere(inicio: Date, fin: Date, userId?: string): Prisma.OrderWhereInput {
+  return {
+    ...(userId ? { created_by: userId } : {}),
+    status: "completada",
+    created_at: { gte: inicio, lte: fin },
+    incluido_en_nomina_id: null,
+  };
 }

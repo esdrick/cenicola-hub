@@ -40,6 +40,14 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
   const canEditPhotos = role === "admin" || role === "inventario";
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState(initialOrders);
+
+  // El componente se mantiene montado al navegar entre la vista por defecto y
+  // "Ver historial completo" (misma ruta, solo cambia ?historial=1) — sin este efecto,
+  // `orders` se queda congelado con el valor del primer montaje y nunca refleja el
+  // nuevo `initialOrders` que manda el servidor.
+  useEffect(() => {
+    setOrders(initialOrders);
+  }, [initialOrders]);
   const [selectedOrder, setSelectedOrder] = useState<EmbalajeOrdenJSON | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [packagePhotoError, setPackagePhotoError] = useState(false);

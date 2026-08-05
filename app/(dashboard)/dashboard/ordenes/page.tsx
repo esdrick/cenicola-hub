@@ -9,8 +9,14 @@ import { OrdersTable } from "@/components/shared/ordenes/OrdersTable";
 import { CartsSection } from "@/components/shared/carritos/CartsSection";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { OrderJSON, CartJSON, CartItemJSON } from "@/types";
-import type { OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
+import type { OrderStatus, OrderChannel, Prisma } from "@/app/generated/prisma/client";
+
+// Estatus que cuentan como "ya resueltos" para el Corte de Sistema — todo lo demás
+// (aún pendiente de pago, en embalaje, enviado…) sigue visible sin importar su fecha,
+// para no perder seguimiento operativo de trabajo abierto.
+const ESTATUS_RESUELTOS: OrderStatus[] = ["completada", "cancelada"];
 
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: string | string[] | undefined) { return typeof v === "string" ? v : ""; }
@@ -27,28 +33,42 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
   const seller   = s(searchParams.seller);
   const desde    = s(searchParams.desde);
   const hasta    = s(searchParams.hasta);
+  const historial = s(searchParams.historial) === "1";
   const page     = Math.max(1, parseInt(s(searchParams.page) || "1"));
 
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const canSeeAll    = !isRestricted;
   const canUseCarts  = isRestricted || session.role === "admin" || session.role === "inventario";
 
-  const where = {
-    ...(isRestricted && { created_by: session.id }),
-    ...(canSeeAll && seller && { created_by: seller }),
-    ...(status  && { status }),
-    ...(channel && { channel }),
-    ...(desde && !hasta && { created_at: { gte: new Date(desde) } }),
-    ...(hasta && !desde && { created_at: { lte: new Date(`${hasta}T23:59:59`) } }),
-    ...(desde && hasta  && { created_at: { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) } }),
-    ...(q && {
-      OR: [
-        { customer_name:     { contains: q, mode: "insensitive" as const } },
-        { customer_lastname: { contains: q, mode: "insensitive" as const } },
-        { customer_id_doc:   { contains: q, mode: "insensitive" as const } },
-        { order_number:      { contains: q, mode: "insensitive" as const } },
-      ],
-    }),
+  const corteActivo = await getCorteActivo();
+  const corte = historial ? null : corteActivo;
+
+  const where: Prisma.OrderWhereInput = {
+    AND: [
+      ...(isRestricted ? [{ created_by: session.id }] : []),
+      ...(canSeeAll && seller ? [{ created_by: seller }] : []),
+      ...(status  ? [{ status }] : []),
+      ...(channel ? [{ channel }] : []),
+      ...(desde && !hasta ? [{ created_at: { gte: new Date(desde) } }] : []),
+      ...(hasta && !desde ? [{ created_at: { lte: new Date(`${hasta}T23:59:59`) } }] : []),
+      ...(desde && hasta  ? [{ created_at: { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) } }] : []),
+      ...(q ? [{
+        OR: [
+          { customer_name:     { contains: q, mode: "insensitive" as const } },
+          { customer_lastname: { contains: q, mode: "insensitive" as const } },
+          { customer_id_doc:   { contains: q, mode: "insensitive" as const } },
+          { order_number:      { contains: q, mode: "insensitive" as const } },
+        ],
+      }] : []),
+      // Corte de Sistema: lo ya resuelto antes del corte queda oculto por defecto
+      // (recuperable con "Ver Historial"); lo aún abierto siempre se muestra.
+      ...(corte ? [{
+        OR: [
+          { status: { notIn: ESTATUS_RESUELTOS } },
+          { created_at: { gte: corte } },
+        ],
+      }] : []),
+    ],
   };
 
   const [orders, total, sellers, rawCarts] = await Promise.all([
@@ -182,6 +202,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
         totalPages={Math.ceil(total / PAGE_SIZE)}
         sellers={sellers}
         isAdmin={canSeeAll}
+        hasCorte={!!corteActivo}
       />
     </div>
   );

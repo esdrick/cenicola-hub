@@ -1,12 +1,16 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
+import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 
-export default async function EnviadasPage() {
+type SP = { [key: string]: string | string[] | undefined };
+
+export default async function EnviadasPage({ searchParams }: { searchParams: SP }) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!["admin", "embalador", "inventario", "vendedora_online"].includes(session.role)) redirect("/dashboard");
@@ -14,8 +18,18 @@ export default async function EnviadasPage() {
     redirect("/dashboard/embalaje?tab=historial");
   }
 
+  const historial = searchParams.historial === "1";
+  const corteActivo = await getCorteActivo();
+  const corte = historial ? null : corteActivo;
+
   const orders = await prisma.order.findMany({
-    where: { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } },
+    where: {
+      status: { in: ["enviada", "completada"] },
+      shipment: {
+        packed_by: session.id,
+        ...(corte && { shipped_at: { gte: corte } }),
+      },
+    },
     include: {
       creator: { select: { id: true, name: true } },
       items: {
@@ -88,12 +102,30 @@ export default async function EnviadasPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Mi Historial de Envíos</h1>
-        <p className="mt-0.5 text-sm text-gray-500">
-          {data.length} orden{data.length !== 1 ? "es" : ""} en tu historial
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Mi Historial de Envíos</h1>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {data.length} orden{data.length !== 1 ? "es" : ""} en tu historial
+          </p>
+        </div>
+        {corteActivo && (
+          historial ? (
+            <Link href="/dashboard/embalaje/enviadas" className="text-sm font-medium text-gray-600 hover:underline">
+              Volver al ciclo actual
+            </Link>
+          ) : (
+            <Link href="/dashboard/embalaje/enviadas?historial=1" className="text-sm font-medium text-gray-600 hover:underline">
+              Ver historial completo
+            </Link>
+          )
+        )}
       </div>
+      {historial && (
+        <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+          Viendo historial completo
+        </span>
+      )}
       <EnviadasTable initialOrders={data} role={session.role} />
     </div>
   );

@@ -124,6 +124,7 @@ model User {
   audit_logs           AuditLog[]
   carts                Cart[]
   cierres_generados    CierreTienda[]
+  cortes_sistema       CierreSistema[]
 
   @@map("users")
 }
@@ -231,6 +232,7 @@ model Order {
   notes               String?
   pago_verificado_at    DateTime?
   incluido_en_cierre_id String?
+  incluido_en_nomina_id String?
   created_by          String
   created_at          DateTime    @default(now())
   updated_at          DateTime    @updatedAt
@@ -240,6 +242,7 @@ model Order {
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
   exchange_rate        ExchangeRate?       @relation(fields: [exchange_rate_id], references: [id])
   incluido_en_cierre   CierreTienda?       @relation(fields: [incluido_en_cierre_id], references: [id])
+  incluido_en_nomina   PayrollRecord?      @relation(fields: [incluido_en_nomina_id], references: [id])
   items                OrderItem[]
   payments             OrderPayment[]
   shipment             OrderShipment?
@@ -348,11 +351,13 @@ model Expense {
   expense_date     DateTime @db.Date
   receipt_photo    String?
   notas            String?
+  payroll_record_id String?
   created_by       String
   created_at       DateTime @default(now())
 
-  exchange_rate ExchangeRate? @relation(fields: [exchange_rate_id], references: [id])
-  creator       User          @relation(fields: [created_by], references: [id])
+  exchange_rate  ExchangeRate?  @relation(fields: [exchange_rate_id], references: [id])
+  creator        User           @relation(fields: [created_by], references: [id])
+  payroll_record PayrollRecord? @relation(fields: [payroll_record_id], references: [id])
 
   @@map("expenses")
 }
@@ -427,7 +432,9 @@ model PayrollRecord {
   paid_at        DateTime?
   created_at     DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user     User      @relation(fields: [userId], references: [id])
+  orders   Order[]
+  expenses Expense[]
 
   @@unique([userId, periodo_inicio, periodo_fin])
   @@map("payroll_records")
@@ -530,4 +537,19 @@ model CierreTiendaDetalle {
 
   @@index([cierre_id])
   @@map("cierre_tienda_detalles")
+}
+
+// Corte de sistema: fecha global de reinicio de ciclo, independiente del cierre
+// financiero por canal (CierreTienda). El registro más reciente es el corte activo —
+// Ventas/Pagos/Envíos lo usan como piso de fecha por defecto para lo ya resuelto.
+model CierreSistema {
+  id                String   @id @default(uuid())
+  fecha_corte       DateTime
+  confirmado_por_id String
+  created_at        DateTime @default(now())
+
+  confirmado_por User @relation(fields: [confirmado_por_id], references: [id])
+
+  @@index([created_at])
+  @@map("cierres_sistema")
 }

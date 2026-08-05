@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { PagosTable } from "@/components/shared/pagos/PagosTable";
 import { PagosVerificadosTable, type PagoVerificadoJSON } from "@/components/shared/pagos/PagosVerificadosTable";
 import { PagosTabs } from "@/components/shared/pagos/PagosTabs";
+import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType, OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
 
@@ -24,6 +25,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
   const metodo = s(searchParams.metodo) as PaymentType | "";
   const desde  = s(searchParams.desde);
   const hasta  = s(searchParams.hasta);
+  const historial = s(searchParams.historial) === "1";
   const page   = Math.max(1, parseInt(s(searchParams.page) || "1"));
 
   const pendingCount = await prisma.order.count({
@@ -37,14 +39,12 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
 
   // ── Historial de pagos confirmados ─────────────────────────────────────────
   if (tab === "verificados") {
-    const dateFilter =
-      desde && hasta
-        ? { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) }
-        : desde
-        ? { gte: new Date(desde) }
-        : hasta
-        ? { lte: new Date(`${hasta}T23:59:59`) }
-        : undefined;
+    const corteActivo = await getCorteActivo();
+    const corte = historial ? null : corteActivo;
+
+    const gte = corte && (!desde || new Date(desde) < corte) ? corte : (desde ? new Date(desde) : undefined);
+    const lte = hasta ? new Date(`${hasta}T23:59:59`) : undefined;
+    const dateFilter = gte || lte ? { ...(gte && { gte }), ...(lte && { lte }) } : undefined;
 
     const where = {
       status: "verificado" as const,
@@ -116,6 +116,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
           total={total}
           page={page}
           totalPages={Math.ceil(total / PAGE_SIZE)}
+          hasCorte={!!corteActivo}
         />
       </div>
     );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
+import { nominaEligibleWhere } from "@/lib/payroll-periods";
 
 export async function GET(request: NextRequest) {
   const auth = await withRole(["admin"]);
@@ -28,13 +29,6 @@ export async function GET(request: NextRequest) {
       id: true,
       name: true,
       role: true,
-      orders_created: {
-        where: {
-          status: "completada",
-          created_at: { gte: inicio, lte: fin },
-        },
-        select: { total_usd: true },
-      },
       payroll_records: {
         where: { mes, anio },
       },
@@ -42,20 +36,32 @@ export async function GET(request: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  const data = sellers.map((u) => {
-    const record = u.payroll_records[0] ?? null;
-    const total_ventas = u.orders_created.reduce((s, o) => s + Number(o.total_usd), 0);
-    return {
-      userId: u.id,
-      nombre: u.name,
-      rol: u.role,
-      ordenes_count: u.orders_created.length,
-      total_ventas,
-      comision: record ? Number(record.comision) : 0,
-      status: record?.status ?? "pendiente",
-      paid_at: record?.paid_at ? record.paid_at.toISOString() : null,
-    };
-  });
+  const data = await Promise.all(
+    sellers.map(async (u) => {
+      const record = u.payroll_records[0] ?? null;
+      const isPaid = record?.status === "pagada";
+
+      const orders = await prisma.order.findMany({
+        where: isPaid ? { incluido_en_nomina_id: record!.id } : nominaEligibleWhere(inicio, fin, u.id),
+        select: { total_usd: true },
+      });
+
+      const total_ventas = isPaid
+        ? Number(record!.total_ventas)
+        : orders.reduce((s, o) => s + Number(o.total_usd), 0);
+
+      return {
+        userId: u.id,
+        nombre: u.name,
+        rol: u.role,
+        ordenes_count: orders.length,
+        total_ventas,
+        comision: record ? Number(record.comision) : 0,
+        status: record?.status ?? "pendiente",
+        paid_at: record?.paid_at ? record.paid_at.toISOString() : null,
+      };
+    })
+  );
 
   return NextResponse.json({ data, mes, anio });
 }

@@ -47,6 +47,7 @@ export default async function GastosPage({ searchParams }: { searchParams: SP })
     notas: g.notas,
     creator: g.creator,
     created_at: g.created_at.toISOString(),
+    payroll_record_id: g.payroll_record_id,
   }));
 
   return (

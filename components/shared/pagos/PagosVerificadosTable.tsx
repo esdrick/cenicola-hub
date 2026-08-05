@@ -60,9 +60,10 @@ type Props = {
   total: number;
   page: number;
   totalPages: number;
+  hasCorte: boolean;
 };
 
-export function PagosVerificadosTable({ payments, total, page, totalPages }: Props) {
+export function PagosVerificadosTable({ payments, total, page, totalPages, hasCorte }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, start] = useTransition();
@@ -74,12 +75,14 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
   const [metodo, setMetodo] = useState(sp.get("metodo") ?? "");
   const [desde,  setDesde]  = useState(sp.get("desde")  ?? "");
   const [hasta,  setHasta]  = useState(sp.get("hasta")  ?? "");
+  const [historial, setHistorial] = useState(sp.get("historial") === "1");
 
   const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tmpMetodo, setTmpMetodo] = useState("");
   const [tmpDesde,  setTmpDesde]  = useState("");
   const [tmpHasta,  setTmpHasta]  = useState("");
+  const [tmpHistorial, setTmpHistorial] = useState(false);
 
   useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
@@ -87,6 +90,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
     const params = new URLSearchParams();
     const vals: Record<string, string> = {
       q, metodo, desde, hasta, tab: "verificados", page: String(page),
+      historial: historial ? "1" : "",
       ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
     };
     Object.entries(vals).forEach(([k, v]) => { if (v && v !== "0") params.set(k, v); });
@@ -101,25 +105,26 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
   }
 
   function openFilters() {
-    setTmpMetodo(metodo); setTmpDesde(desde); setTmpHasta(hasta);
+    setTmpMetodo(metodo); setTmpDesde(desde); setTmpHasta(hasta); setTmpHistorial(historial);
     setFiltersOpen(true);
   }
 
   function applyFilters() {
-    setMetodo(tmpMetodo); setDesde(tmpDesde); setHasta(tmpHasta);
+    setMetodo(tmpMetodo); setDesde(tmpDesde); setHasta(tmpHasta); setHistorial(tmpHistorial);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     params.set("tab", "verificados");
-    if (q)         params.set("q",      q);
-    if (tmpMetodo) params.set("metodo", tmpMetodo);
-    if (tmpDesde)  params.set("desde",  tmpDesde);
-    if (tmpHasta)  params.set("hasta",  tmpHasta);
+    if (q)          params.set("q",      q);
+    if (tmpMetodo)  params.set("metodo", tmpMetodo);
+    if (tmpDesde)   params.set("desde",  tmpDesde);
+    if (tmpHasta)   params.set("hasta",  tmpHasta);
+    if (tmpHistorial) params.set("historial", "1");
     start(() => router.push(`/dashboard/pagos?${params.toString()}`));
   }
 
   function clearFilters() {
-    setTmpMetodo(""); setTmpDesde(""); setTmpHasta("");
-    setMetodo("");    setDesde("");    setHasta("");
+    setTmpMetodo(""); setTmpDesde(""); setTmpHasta(""); setTmpHistorial(false);
+    setMetodo("");    setDesde("");    setHasta("");    setHistorial(false);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     params.set("tab", "verificados");
@@ -127,7 +132,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
     start(() => router.push(`/dashboard/pagos?${params.toString()}`));
   }
 
-  const activeFilterCount = [sp.get("metodo"), sp.get("desde"), sp.get("hasta")].filter(Boolean).length;
+  const activeFilterCount = [sp.get("metodo"), sp.get("desde"), sp.get("hasta"), sp.get("historial")].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -176,6 +181,12 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
           )}
         </Button>
 
+        {historial && (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+            Viendo historial completo
+          </span>
+        )}
+
         {isPending && <Loader2 size={14} className="animate-spin text-gray-400" />}
       </div>
 
@@ -212,10 +223,24 @@ export function PagosVerificadosTable({ payments, total, page, totalPages }: Pro
                 <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} className="appearance-none" />
               </div>
             </div>
+
+            {hasCorte && (
+              <button
+                onClick={() => setTmpHistorial((v) => !v)}
+                className={cn(
+                  "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                  tmpHistorial
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-600 hover:border-gray-400"
+                )}
+              >
+                Ver historial completo (todos los pagos, sin importar el corte de sistema)
+              </button>
+            )}
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="ghost" onClick={clearFilters}
-              disabled={isPending || (!tmpMetodo && !tmpDesde && !tmpHasta && !metodo && !desde && !hasta)}>
+              disabled={isPending || (!tmpMetodo && !tmpDesde && !tmpHasta && !tmpHistorial && !metodo && !desde && !hasta && !historial)}>
               Limpiar
             </Button>
             <Button onClick={applyFilters} disabled={isPending}>

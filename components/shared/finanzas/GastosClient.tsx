@@ -24,6 +24,7 @@ type GastoJSON = {
   notas: string | null;
   creator: { id: string; name: string };
   created_at: string;
+  payroll_record_id: string | null;
 };
 
 type Props = {
@@ -298,14 +299,20 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
                   </TableCell>
                   <TableCell className="text-xs text-gray-500">{g.creator.name}</TableCell>
                   <TableCell className="text-center">
-                    <button
-                      title="Eliminar gasto"
-                      disabled={isPending}
-                      onClick={() => setDeleteTarget(g)}
-                      className="rounded-md border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100 disabled:opacity-40"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {g.payroll_record_id ? (
+                      <span className="text-[11px] text-gray-400" title="Deshazlo desde Nóminas para quitarlo">
+                        Deshacer desde Nóminas
+                      </span>
+                    ) : (
+                      <button
+                        title="Eliminar gasto"
+                        disabled={isPending}
+                        onClick={() => setDeleteTarget(g)}
+                        className="rounded-md border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100 disabled:opacity-40"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

@@ -21,7 +21,7 @@ export function parseRangoFechas(fechaInicioRaw: unknown, fechaFinRaw: unknown):
   const fechaInicio = startOfDay(inicio);
   const fechaFin = endOfDay(fin);
   if (fechaInicio.getTime() > fechaFin.getTime()) return null;
-  // Ninguna orden puede tener pago_verificado_at en el futuro — un rango cuyo día final sea
+  // Ninguna orden puede tener created_at en el futuro — un rango cuyo día final sea
   // posterior al día de hoy es inválido (defensa en profundidad: el <input max> del cliente
   // ya lo evita, pero esto lo bloquea también si llega una petición directa a la API).
   // Comparado por DÍA calendario, no por instante exacto: "hoy" siempre debe ser válido, aunque
@@ -127,11 +127,19 @@ export type CierreEligibleOrder = Prisma.OrderGetPayload<{ include: typeof cierr
 
 /** Filtro Prisma para las órdenes elegibles de un cierre en el rango y canal dados — misma
  * condición usada por el preview y por la creación real, para que nunca diverjan. Un cierre
- * siempre es de un solo canal (tienda u online) — nunca mezcla ambos. */
+ * siempre es de un solo canal (tienda u online) — nunca mezcla ambos.
+ *
+ * El rango filtra por `created_at` (cuándo se hizo la venta), no por `pago_verificado_at`
+ * (cuándo se confirmó el pago) — una orden creada el día del cierre pero pagada después
+ * debe entrar en el cierre de su día de creación. El requisito de `status` pagado ya excluye
+ * cualquier orden aún sin pagar; si sigue sin pagar cuando se genera el cierre de su período,
+ * simplemente no entra en ese cierre (pero tampoco queda excluida para siempre: como la
+ * elegibilidad depende de `incluido_en_cierre_id: null` y no de si el rango ya fue "usado",
+ * basta con volver a generar un cierre con el mismo rango más adelante para capturarla). */
 export function cierreEligibleWhere(fechaInicio: Date, fechaFin: Date, canal: OrderChannel): Prisma.OrderWhereInput {
   return {
     channel: canal,
-    pago_verificado_at: { gte: fechaInicio, lte: fechaFin },
+    created_at: { gte: fechaInicio, lte: fechaFin },
     status: { in: [...ESTATUS_ELEGIBLES_CIERRE] },
     incluido_en_cierre_id: null,
   };

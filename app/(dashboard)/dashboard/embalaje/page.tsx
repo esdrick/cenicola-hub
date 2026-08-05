@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { EmbalajeTable } from "@/components/shared/embalaje/EmbalajeTable";
 import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
 import { EmbalajeAdminTabs } from "@/components/shared/embalaje/EmbalajeAdminTabs";
+import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -18,15 +20,27 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   const isVendedoraOnline = session.role === "vendedora_online";
   const hasHistorialTab = session.role === "admin" || session.role === "inventario" || isVendedoraOnline;
   const tab = hasHistorialTab && searchParams.tab === "historial" ? "historial" : "embalaje";
+  const historial = searchParams.historial === "1";
 
   // ── Historial de Envíos (admin, inventario y vendedora_online, tab=historial) ──
   if (hasHistorialTab && tab === "historial") {
+    const corteActivo = await getCorteActivo();
+    const corte = historial ? null : corteActivo;
+
     // Vendedoras online solo ven en su historial las órdenes que ellas mismas empacaron.
     const [orders, pendingCount] = await Promise.all([
       prisma.order.findMany({
-        where: isVendedoraOnline
-          ? { status: { in: ["enviada", "completada"] }, shipment: { packed_by: session.id } }
-          : { status: { in: ["enviada", "completada"] } },
+        where: {
+          status: { in: ["enviada", "completada"] },
+          // Las ventas de tienda no pasan por embalaje/envío y nunca tienen `shipment` —
+          // `is: {...}` exige que exista el envío real, aunque no haya más condiciones.
+          shipment: {
+            is: {
+              ...(isVendedoraOnline && { packed_by: session.id }),
+              ...(corte && { shipped_at: { gte: corte } }),
+            },
+          },
+        },
         include: {
           creator: { select: { id: true, name: true } },
           items: {
@@ -105,14 +119,32 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
 
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            {isVendedoraOnline
-              ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
-              : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`}
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {isVendedoraOnline
+                ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
+                : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+          {corteActivo && (
+            historial ? (
+              <Link href="/dashboard/embalaje?tab=historial" className="text-sm font-medium text-gray-600 hover:underline">
+                Volver al ciclo actual
+              </Link>
+            ) : (
+              <Link href="/dashboard/embalaje?tab=historial&historial=1" className="text-sm font-medium text-gray-600 hover:underline">
+                Ver historial completo
+              </Link>
+            )
+          )}
         </div>
+        {historial && (
+          <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+            Viendo historial completo
+          </span>
+        )}
         <EmbalajeAdminTabs active="historial" pendingCount={pendingCount} />
         <EnviadasTable initialOrders={data} role={session.role} />
       </div>

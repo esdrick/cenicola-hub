@@ -13,6 +13,12 @@ export async function DELETE(
 
   const gasto = await prisma.expense.findUnique({ where: { id: gastoId } });
   if (!gasto) return NextResponse.json({ error: "Gasto no encontrado" }, { status: 404 });
+  if (gasto.payroll_record_id) {
+    return NextResponse.json(
+      { error: "Este gasto está vinculado a un pago de nómina — deshazlo desde Nóminas" },
+      { status: 400 }
+    );
+  }
 
   const ip = getClientIp(request);
 

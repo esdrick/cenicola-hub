@@ -6,7 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { NominasClient } from "@/components/shared/finanzas/NominasClient";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { rangoMes, rangoPorTipo, PERIODO_TIPOS, type PeriodoTipo } from "@/lib/payroll-periods";
+import {
+  rangoMes,
+  rangoPorTipo,
+  rangoADateTime,
+  nominaEligibleWhere,
+  PERIODO_TIPOS,
+  type PeriodoTipo,
+} from "@/lib/payroll-periods";
 
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: string | string[] | undefined) {
@@ -38,10 +45,7 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
     hasta = r.hasta;
   }
 
-  const [y1, m1, d1] = desde.split("-").map(Number);
-  const [y2, m2, d2] = hasta.split("-").map(Number);
-  const inicio = new Date(y1, m1 - 1, d1);
-  const fin = new Date(y2, m2 - 1, d2, 23, 59, 59, 999);
+  const { inicio, fin } = rangoADateTime(desde, hasta);
   const periodoInicio = new Date(desde);
   const periodoFin = new Date(hasta);
 
@@ -54,22 +58,6 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
       id: true,
       name: true,
       role: true,
-      orders_created: {
-        where: {
-          status: "completada",
-          created_at: { gte: inicio, lte: fin },
-        },
-        select: {
-          id: true,
-          order_number: true,
-          channel: true,
-          customer_name: true,
-          customer_lastname: true,
-          total_usd: true,
-          items: { select: { quantity: true } },
-        },
-        orderBy: { created_at: "desc" },
-      },
       payroll_records: {
         where: { periodo_inicio: periodoInicio, periodo_fin: periodoFin },
       },
@@ -77,35 +65,63 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
     orderBy: { name: "asc" },
   });
 
-  const data = sellers.map((u) => {
-    const record = u.payroll_records[0] ?? null;
-    const total_ventas = u.orders_created.reduce((sum, o) => sum + Number(o.total_usd), 0);
-    const productos_vendidos = u.orders_created.reduce(
-      (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
-      0
-    );
+  const ordenSelect = {
+    id: true,
+    order_number: true,
+    channel: true,
+    customer_name: true,
+    customer_lastname: true,
+    total_usd: true,
+    items: { select: { quantity: true } },
+  } as const;
 
-    return {
-      userId: u.id,
-      nombre: u.name,
-      rol: u.role as string,
-      ordenes_count: u.orders_created.length,
-      productos_vendidos,
-      total_ventas,
-      comision: record ? Number(record.comision) : 0,
-      status: record?.status ?? "pendiente",
-      paid_at: record?.paid_at ? record.paid_at.toISOString() : null,
-      ordenes: u.orders_created.map((o) => ({
-        id: o.id,
-        order_number: o.order_number,
-        channel: o.channel as string,
-        customer_name: o.customer_name,
-        customer_lastname: o.customer_lastname,
-        total_usd: Number(o.total_usd),
-        productos: o.items.reduce((s, i) => s + i.quantity, 0),
-      })),
-    };
-  });
+  const data = await Promise.all(
+    sellers.map(async (u) => {
+      const record = u.payroll_records[0] ?? null;
+      const isPaid = record?.status === "pagada";
+
+      // Si el período ya fue pagado, se muestra la foto histórica real: las órdenes que
+      // quedaron selladas con incluido_en_nomina_id en ese pago (nominaEligibleWhere ya
+      // las excluye a propósito, porque para nóminas futuras están "cortadas"). Si aún
+      // no se pagó, se muestra la vista previa de lo que se pagaría.
+      const orders = await prisma.order.findMany({
+        where: isPaid
+          ? { incluido_en_nomina_id: record!.id }
+          : nominaEligibleWhere(inicio, fin, u.id),
+        select: ordenSelect,
+        orderBy: { created_at: "desc" },
+      });
+
+      const total_ventas = isPaid
+        ? Number(record!.total_ventas)
+        : orders.reduce((sum, o) => sum + Number(o.total_usd), 0);
+      const productos_vendidos = orders.reduce(
+        (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
+        0
+      );
+
+      return {
+        userId: u.id,
+        nombre: u.name,
+        rol: u.role as string,
+        ordenes_count: orders.length,
+        productos_vendidos,
+        total_ventas,
+        comision: record ? Number(record.comision) : 0,
+        status: record?.status ?? "pendiente",
+        paid_at: record?.paid_at ? record.paid_at.toISOString() : null,
+        ordenes: orders.map((o) => ({
+          id: o.id,
+          order_number: o.order_number,
+          channel: o.channel as string,
+          customer_name: o.customer_name,
+          customer_lastname: o.customer_lastname,
+          total_usd: Number(o.total_usd),
+          productos: o.items.reduce((s, i) => s + i.quantity, 0),
+        })),
+      };
+    })
+  );
 
   return (
     <div className="space-y-6">

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       const orders = await tx.order.findMany({
         where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, canal as OrderChannel),
         include: cierreOrderInclude,
-        orderBy: { pago_verificado_at: "asc" },
+        orderBy: { created_at: "asc" },
       });
 
       if (orders.length === 0) throw new Error("NO_ELIGIBLE_ORDERS");

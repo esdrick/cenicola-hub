@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   const orders = await prisma.order.findMany({
     where: cierreEligibleWhere(rango.fechaInicio, rango.fechaFin, canal),
     include: cierreOrderInclude,
-    orderBy: { pago_verificado_at: "asc" },
+    orderBy: { created_at: "asc" },
   });
 
   const ordenes = buildCierreRows(orders);

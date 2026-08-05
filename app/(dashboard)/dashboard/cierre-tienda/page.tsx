@@ -5,11 +5,15 @@ import Link from "next/link";
 import { History } from "lucide-react";
 import { getSession } from "@/lib/session";
 import { CierreTiendaClient } from "@/components/shared/cierre-tienda/CierreTiendaClient";
+import { CorteSistemaClient } from "@/components/shared/cierre-tienda/CorteSistemaClient";
+import { getCorteActivo } from "@/lib/cierre-sistema";
 
 export default async function CierreTiendaPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.role !== "admin") redirect("/dashboard");
+
+  const corteActivo = await getCorteActivo();
 
   return (
     <div className="space-y-6">
@@ -30,6 +34,7 @@ export default async function CierreTiendaPage() {
       </div>
 
       <CierreTiendaClient />
+      <CorteSistemaClient corteActivo={corteActivo?.toISOString() ?? null} />
     </div>
   );
 }

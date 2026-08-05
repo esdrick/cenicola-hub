@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckCircle2, ChevronRight, Loader2, Package, ShoppingBag } from "lucide-react";
+import { CheckCircle2, ChevronRight, History, Loader2, Package, ShoppingBag, Undo2 } from "lucide-react";
 import { formatRangoLabel, rangoPorTipo, type PeriodoTipo } from "@/lib/payroll-periods";
 
 const ROL_LABELS: Record<string, string> = {
@@ -50,6 +50,15 @@ type VendedoraStats = {
   ordenes: OrdenResumen[];
 };
 
+type HistorialRecord = {
+  id: string;
+  periodo_inicio: string;
+  periodo_fin: string;
+  total_ventas: number;
+  comision: number;
+  paid_at: string | null;
+};
+
 type Props = {
   data: VendedoraStats[];
   tipo: PeriodoTipo;
@@ -73,6 +82,13 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
   const [detalleRow,   setDetalleRow]   = useState<VendedoraStats | null>(null);
   const [apiError,     setApiError]     = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const [historialRow,     setHistorialRow]     = useState<VendedoraStats | null>(null);
+  const [historialData,    setHistorialData]    = useState<HistorialRecord[] | null>(null);
+  const [historialLoading, setHistorialLoading] = useState(false);
+  const [historialError,   setHistorialError]   = useState<string | null>(null);
+  const [undoTarget,       setUndoTarget]       = useState<HistorialRecord | null>(null);
+  const [undoProcessingId, setUndoProcessingId] = useState<string | null>(null);
 
   function aplicarPreset(t: "semana" | "quincena" | "mes") {
     const r = rangoPorTipo(t, new Date());
@@ -117,7 +133,6 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
               hasta,
               tipo,
               comision: parseFloat(comisiones[confirmRow.userId] ?? "0") || 0,
-              total_ventas: confirmRow.total_ventas,
             }),
           }
         );
@@ -131,6 +146,53 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
         setApiError("Error de conexión");
       } finally {
         setProcessingId(null);
+      }
+    });
+  }
+
+  async function openHistorial(row: VendedoraStats) {
+    setHistorialRow(row);
+    setHistorialError(null);
+    setHistorialLoading(true);
+    setHistorialData(null);
+    try {
+      const res = await fetch(`/api/finanzas/nominas/${row.userId}/historial`);
+      const json = await res.json();
+      if (!res.ok) {
+        setHistorialError(json.error ?? "Error al cargar el historial");
+      } else {
+        setHistorialData(json.data);
+      }
+    } catch {
+      setHistorialError("Error de conexión");
+    } finally {
+      setHistorialLoading(false);
+    }
+  }
+
+  async function handleUndo() {
+    if (!undoTarget || !historialRow) return;
+    setHistorialError(null);
+    setUndoProcessingId(undoTarget.id);
+
+    start(async () => {
+      try {
+        const res = await fetch(
+          `/api/finanzas/nominas/${historialRow.userId}/pagar?desde=${undoTarget.periodo_inicio}&hasta=${undoTarget.periodo_fin}`,
+          { method: "DELETE" }
+        );
+        const json = await res.json();
+        if (!res.ok) {
+          setHistorialError(json.error ?? "Error al deshacer el pago");
+        } else {
+          setHistorialData((prev) => prev?.filter((r) => r.id !== undoTarget.id) ?? null);
+          router.refresh();
+        }
+      } catch {
+        setHistorialError("Error de conexión");
+      } finally {
+        setUndoProcessingId(null);
+        setUndoTarget(null);
       }
     });
   }
@@ -299,15 +361,26 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs text-gray-500"
-                        disabled={row.ordenes_count === 0}
-                        onClick={() => setDetalleRow(row)}
-                      >
-                        <ChevronRight size={14} />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-gray-500"
+                          title="Historial de pagos"
+                          onClick={() => openHistorial(row)}
+                        >
+                          <History size={14} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs text-gray-500"
+                          disabled={row.ordenes_count === 0}
+                          onClick={() => setDetalleRow(row)}
+                        >
+                          <ChevronRight size={14} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -442,6 +515,112 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
             <Button onClick={handlePagar}>
               <CheckCircle2 size={14} className="mr-2" />
               Confirmar pago
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog historial de pagos */}
+      <Dialog open={historialRow !== null} onOpenChange={(o) => !o && setHistorialRow(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Historial de pagos — {historialRow?.nombre}</DialogTitle>
+            <DialogDescription>
+              {ROL_LABELS[historialRow?.rol ?? ""] ?? historialRow?.rol}
+            </DialogDescription>
+          </DialogHeader>
+
+          {historialError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {historialError}
+            </div>
+          )}
+
+          {historialLoading ? (
+            <div className="py-10 text-center">
+              <Loader2 size={20} className="mx-auto animate-spin text-gray-400" />
+            </div>
+          ) : !historialData || historialData.length === 0 ? (
+            <p className="py-8 text-center text-sm text-gray-400">
+              Esta vendedora todavía no tiene pagos registrados.
+            </p>
+          ) : (
+            <div className="max-h-[55vh] overflow-y-auto rounded-xl border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50 sticky top-0">
+                    <TableHead>Período</TableHead>
+                    <TableHead className="text-right">Total vendido</TableHead>
+                    <TableHead className="text-right">Comisión</TableHead>
+                    <TableHead>Fecha de pago</TableHead>
+                    <TableHead className="text-center">Deshacer</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historialData.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-sm">
+                        {formatRangoLabel(r.periodo_inicio, r.periodo_fin)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-semibold">
+                        ${r.total_ventas.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm">${r.comision.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-gray-500" suppressHydrationWarning>
+                        {r.paid_at ? new Date(r.paid_at).toLocaleDateString("es-VE") : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {undoProcessingId === r.id ? (
+                          <Loader2 size={14} className="mx-auto animate-spin text-gray-400" />
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={isPending}
+                            onClick={() => setUndoTarget(r)}
+                          >
+                            <Undo2 size={13} className="mr-1" />
+                            Deshacer
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistorialRow(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm dialog: deshacer pago */}
+      <Dialog open={undoTarget !== null} onOpenChange={(o) => !o && setUndoTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deshacer pago de nómina</DialogTitle>
+            <DialogDescription>
+              ¿Deshacer el pago de <strong>{historialRow?.nombre}</strong> para el período{" "}
+              <strong>
+                {undoTarget && formatRangoLabel(undoTarget.periodo_inicio, undoTarget.periodo_fin)}
+              </strong>
+              ? Las órdenes de ese período volverán a estar disponibles para pagarse de nuevo, y
+              el gasto de comisión asociado se eliminará. Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUndoTarget(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleUndo}>
+              <Undo2 size={14} className="mr-2" />
+              Deshacer pago
             </Button>
           </DialogFooter>
         </DialogContent>

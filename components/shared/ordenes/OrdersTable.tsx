@@ -26,6 +26,7 @@ type Props = {
   totalPages: number;
   sellers: Seller[];
   isAdmin: boolean;
+  hasCorte: boolean;
 };
 
 const STATUS_OPTIONS = [
@@ -38,7 +39,7 @@ const STATUS_OPTIONS = [
   { value: "cancelada",       label: "Cancelada" },
 ] as const;
 
-export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin }: Props) {
+export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin, hasCorte }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [isPending, start] = useTransition();
@@ -52,6 +53,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
   const [seller,  setSeller]  = useState(sp.get("seller")  ?? "");
   const [desde,   setDesde]   = useState(sp.get("desde")   ?? "");
   const [hasta,   setHasta]   = useState(sp.get("hasta")   ?? "");
+  const [historial, setHistorial] = useState(sp.get("historial") === "1");
 
   const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -60,6 +62,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
   const [tmpSeller,  setTmpSeller]  = useState("");
   const [tmpDesde,   setTmpDesde]   = useState("");
   const [tmpHasta,   setTmpHasta]   = useState("");
+  const [tmpHistorial, setTmpHistorial] = useState(false);
 
   useEffect(() => { if (searchOpen) searchRef.current?.focus(); }, [searchOpen]);
 
@@ -67,6 +70,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
     const params = new URLSearchParams();
     const vals: Record<string, string> = {
       q, status, channel, seller, desde, hasta, page: String(page),
+      historial: historial ? "1" : "",
       ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
     };
     Object.entries(vals).forEach(([k, v]) => { if (v && v !== "0") params.set(k, v); });
@@ -82,27 +86,28 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
 
   function openFilters() {
     setTmpStatus(status); setTmpChannel(channel); setTmpSeller(seller);
-    setTmpDesde(desde);   setTmpHasta(hasta);
+    setTmpDesde(desde);   setTmpHasta(hasta);      setTmpHistorial(historial);
     setFiltersOpen(true);
   }
 
   function applyFilters() {
     setStatus(tmpStatus); setChannel(tmpChannel); setSeller(tmpSeller);
-    setDesde(tmpDesde);   setHasta(tmpHasta);
+    setDesde(tmpDesde);   setHasta(tmpHasta);      setHistorial(tmpHistorial);
     setFiltersOpen(false);
     const params = new URLSearchParams();
-    if (q)          params.set("q",       q);
-    if (tmpStatus)  params.set("status",  tmpStatus);
-    if (tmpChannel) params.set("channel", tmpChannel);
-    if (tmpSeller)  params.set("seller",  tmpSeller);
-    if (tmpDesde)   params.set("desde",   tmpDesde);
-    if (tmpHasta)   params.set("hasta",   tmpHasta);
+    if (q)           params.set("q",       q);
+    if (tmpStatus)   params.set("status",  tmpStatus);
+    if (tmpChannel)  params.set("channel", tmpChannel);
+    if (tmpSeller)   params.set("seller",  tmpSeller);
+    if (tmpDesde)    params.set("desde",   tmpDesde);
+    if (tmpHasta)    params.set("hasta",   tmpHasta);
+    if (tmpHistorial) params.set("historial", "1");
     start(() => router.push(`/dashboard/ordenes?${params.toString()}`));
   }
 
   function clearFilters() {
-    setTmpStatus(""); setTmpChannel(""); setTmpSeller(""); setTmpDesde(""); setTmpHasta("");
-    setStatus("");    setChannel("");    setSeller("");    setDesde("");    setHasta("");
+    setTmpStatus(""); setTmpChannel(""); setTmpSeller(""); setTmpDesde(""); setTmpHasta(""); setTmpHistorial(false);
+    setStatus("");    setChannel("");    setSeller("");    setDesde("");    setHasta("");    setHistorial(false);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -110,7 +115,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
   }
 
   const activeFilterCount = [
-    sp.get("status"), sp.get("channel"), sp.get("seller"), sp.get("desde"), sp.get("hasta"),
+    sp.get("status"), sp.get("channel"), sp.get("seller"), sp.get("desde"), sp.get("hasta"), sp.get("historial"),
   ].filter(Boolean).length;
 
   return (
@@ -162,6 +167,12 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
             </span>
           )}
         </Button>
+
+        {historial && (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+            Viendo historial completo
+          </span>
+        )}
 
         {isPending && <Loader2 size={14} className="animate-spin text-gray-400" />}
       </div>
@@ -250,6 +261,21 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin 
                 <Input type="date" value={tmpHasta} max={today} onChange={(e) => setTmpHasta(e.target.value)} className="appearance-none" />
               </div>
             </div>
+
+            {/* Ver historial completo (ignora el Corte de Sistema) */}
+            {hasCorte && (
+              <button
+                onClick={() => setTmpHistorial((v) => !v)}
+                className={cn(
+                  "w-full rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                  tmpHistorial
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-600 hover:border-gray-400"
+                )}
+              >
+                Ver historial completo (todas las órdenes, sin importar el corte de sistema)
+              </button>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:justify-between">
