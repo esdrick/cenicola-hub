@@ -1,5 +1,5 @@
 import type { Prisma } from "@/app/generated/prisma";
-import { getVenezuelaParts, getVenezuelaDateString } from "@/lib/date-utils";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 
 export type PeriodoTipo = "semana" | "quincena" | "mes" | "personalizado";
 

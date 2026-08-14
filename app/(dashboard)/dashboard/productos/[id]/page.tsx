@@ -15,7 +15,7 @@ import { ColorSelector } from "@/components/shared/productos/ColorSelector";
 import { SizeSelector } from "@/components/shared/productos/SizeSelector";
 import { AddToCartButton } from "@/components/shared/productos/AddToCartButton";
 import { BackButton } from "@/components/shared/BackButton";
-import { ChevronLeft, Pencil, ImageOff } from "lucide-react";
+import { Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CartJSON, CartItemJSON } from "@/types";
 
