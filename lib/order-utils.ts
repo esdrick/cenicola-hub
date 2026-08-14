@@ -1,4 +1,4 @@
-import { getVenezuelaCompactDateString, getVenezuelaStartOfDay, getVenezuelaEndOfDay } from "@/lib/date-utils";
+import { getVenezuelaCompactDateString } from "@/lib/date-utils";
 
 /** Returns a short display reference like #190-001 from ORD-20240619-0001 */
 export function shortOrderNumber(orderNumber: string): string {
@@ -21,13 +21,43 @@ export function formatDocenas(unidades: number): string {
 export async function generateOrderNumber(tx: any): Promise<string> {
   const now = new Date();
   const dateStr = getVenezuelaCompactDateString(now);
+  const prefix = `ORD-${dateStr}-`;
 
-  const dayStart = getVenezuelaStartOfDay(now);
-  const dayEnd = getVenezuelaEndOfDay(now);
-  const count: number = await tx.order.count({
-    where: { created_at: { gte: dayStart, lte: dayEnd } },
+  // Find the order created today with the highest sequence number
+  const lastOrder = await tx.order.findFirst({
+    where: {
+      order_number: { startsWith: prefix },
+    },
+    orderBy: { order_number: "desc" },
+    select: { order_number: true },
   });
-  return `ORD-${dateStr}-${String(count + 1).padStart(4, "0")}`;
+
+  let nextSeq = 1;
+  if (lastOrder?.order_number) {
+    const parts = lastOrder.order_number.split("-");
+    const lastSeq = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(lastSeq)) {
+      nextSeq = lastSeq + 1;
+    }
+  }
+
+  // Ensure candidate does not collide with any existing record
+  let candidate = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+  let exists = await tx.order.findUnique({
+    where: { order_number: candidate },
+    select: { id: true },
+  });
+
+  while (exists) {
+    nextSeq++;
+    candidate = `${prefix}${String(nextSeq).padStart(4, "0")}`;
+    exists = await tx.order.findUnique({
+      where: { order_number: candidate },
+      select: { id: true },
+    });
+  }
+
+  return candidate;
 }
 
 export const STATUS_LABELS: Record<string, string> = {
