@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Upload, AlertCircle, AlertTriangle } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -93,7 +94,7 @@ export function AgregarPagoDialog({
   const makeEmpty = () => ({
     payment_type: (allowedMethods[0] ?? (pricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType,
     amount_usd: "",
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: getVenezuelaDateString(),
     payment_time: "",
     reference: "",
     payment_photo: "",
@@ -264,7 +265,7 @@ export function AgregarPagoDialog({
                       ...p,
                       payment_type: v as PaymentType,
                       reference: ef ? "" : p.reference,
-                      payment_date: ef ? now.toISOString().slice(0, 10) : p.payment_date,
+                      payment_date: ef ? getVenezuelaDateString(now) : p.payment_date,
                       payment_time: ef
                         ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
                         : p.payment_time,
@@ -355,7 +356,7 @@ export function AgregarPagoDialog({
                     <Input
                       type="date"
                       value={form.payment_date}
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={getVenezuelaDateString()}
                       onChange={(e) => setForm((p) => ({ ...p, payment_date: e.target.value }))}
                       className="appearance-none"
                     />

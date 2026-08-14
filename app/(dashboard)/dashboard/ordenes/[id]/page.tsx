@@ -210,6 +210,7 @@ export default async function OrderDetailPage({
     (session.role === "admin" || session.role === "inventario" || order.created_by === session.id) &&
     remainingBalance > 0.01;
   const createdAt  = order.created_at.toLocaleString("es-VE", {
+    timeZone: "America/Caracas",
     day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
@@ -529,6 +530,7 @@ export default async function OrderDetailPage({
                     <p className="text-xs text-gray-400">Fecha embalaje</p>
                     <p className="font-medium" suppressHydrationWarning>
                       {order.shipment.packed_at.toLocaleString("es-VE", {
+                        timeZone: "America/Caracas",
                         day: "2-digit", month: "2-digit", year: "numeric",
                         hour: "2-digit", minute: "2-digit",
                       })}

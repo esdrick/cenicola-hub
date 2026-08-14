@@ -16,6 +16,7 @@ import {
   Plus, ChevronRight, ChevronLeft, Check, Upload, Pencil, X,
 } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { CartJSON, PaymentFormInput } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
@@ -92,7 +93,7 @@ const DIVISAS_TYPES: PaymentType[] = ["efectivo_usd", "zelle", "usdt"];
 const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
   payment_type: channel === "tienda" ? "efectivo_bs" : "transferencia",
   amount_usd: "",
-  payment_date: new Date().toISOString().slice(0, 10),
+  payment_date: getVenezuelaDateString(),
   payment_time: "",
   reference: "",
   payment_photo: "",
@@ -1150,7 +1151,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         ...p,
                         payment_type: e.target.value as PaymentType,
                         reference: isEfectivo ? "" : p.reference,
-                        payment_date: isEfectivo ? now.toISOString().slice(0, 10) : p.payment_date,
+                        payment_date: isEfectivo ? getVenezuelaDateString(now) : p.payment_date,
                         payment_time: isEfectivo
                           ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
                           : p.payment_time,

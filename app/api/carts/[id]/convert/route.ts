@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference } from "@/lib/order-utils";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
 import { resolveSplitSubtotal, paymentTypeToPricingMethod } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
@@ -329,7 +330,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       }
 
       // 6. Create payments
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getVenezuelaDateString();
       const tasaRate = tasaResult?.rate ?? null;
       for (const pay of payments) {
         const isEfectivo = (pay.payment_type as PaymentType) === "efectivo_bs" || (pay.payment_type as PaymentType) === "efectivo_usd";

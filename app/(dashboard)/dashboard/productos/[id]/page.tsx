@@ -14,6 +14,7 @@ import { VariantActions } from "@/components/shared/productos/VariantActions";
 import { ColorSelector } from "@/components/shared/productos/ColorSelector";
 import { SizeSelector } from "@/components/shared/productos/SizeSelector";
 import { AddToCartButton } from "@/components/shared/productos/AddToCartButton";
+import { BackButton } from "@/components/shared/BackButton";
 import { ChevronLeft, Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CartJSON, CartItemJSON } from "@/types";
@@ -33,11 +34,16 @@ async function getSiblings(name: string) {
 
 export default async function ProductoDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const fromParam = typeof searchParams?.from === "string" ? searchParams.from : "";
+  const backHref = fromParam ? decodeURIComponent(fromParam) : "/dashboard/productos";
 
   const [product] = await Promise.all([
     getProduct(params.id),
@@ -137,13 +143,7 @@ export default async function ProductoDetailPage({
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between">
-        <Link
-          href="/dashboard/productos"
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800"
-        >
-          <ChevronLeft size={15} />
-          Productos
-        </Link>
+        <BackButton fallbackHref={backHref} label="Productos" />
         {canEdit && (
           <Link
             href={`/dashboard/productos/${product.id}/editar`}

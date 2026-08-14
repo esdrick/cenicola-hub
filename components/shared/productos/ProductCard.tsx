@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ImageOff } from "lucide-react";
 import type { ProductJSON } from "@/types";
 
-type Props = { product: ProductJSON };
+type Props = { product: ProductJSON; fromUrl?: string };
 
-export function ProductCard({ product }: Props) {
+export function ProductCard({ product, fromUrl }: Props) {
   const [imgError, setImgError] = useState(false);
   const photo = product.photos[0];
   const activeVariants = product.variants.filter((v) => v.is_active);
@@ -16,9 +16,13 @@ export function ProductCard({ product }: Props) {
   const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
   const outOfStock = totalStock === 0;
 
+  const href = fromUrl
+    ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
+    : `/dashboard/productos/${product.id}`;
+
   return (
     <Link
-      href={`/dashboard/productos/${product.id}`}
+      href={href}
       className={`group block rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
         outOfStock
           ? "border-red-300 bg-red-50"

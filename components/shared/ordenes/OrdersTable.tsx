@@ -338,7 +338,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
                   <TableCell className="text-right font-semibold">${o.total_usd.toFixed(2)}</TableCell>
                   <TableCell className="text-sm text-gray-600">{o.creator.name}</TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
-                    {new Date(o.created_at).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    {new Date(o.created_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "2-digit" })}
                   </TableCell>
                 </TableRow>
               ))

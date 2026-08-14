@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { normalizeReference } from "@/lib/order-utils";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -148,7 +149,7 @@ export async function POST(
         if (crossDup) throw new Error(`REF_DUP:${crossDup.order.order_number}`);
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getVenezuelaDateString();
 
       // Cash is immediately verified — no admin confirmation needed
       const paymentStatus = isEfectivo ? "verificado" : "pendiente";

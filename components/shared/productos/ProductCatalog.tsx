@@ -15,9 +15,10 @@ type Props = {
   channel: "online" | "tienda";
   initialCarts: CartJSON[];
   isAdmin?: boolean;
+  fromUrl?: string;
 };
 
-export function ProductCatalog({ products, channel: defaultChannel, initialCarts, isAdmin = false }: Props) {
+export function ProductCatalog({ products, channel: defaultChannel, initialCarts, isAdmin = false, fromUrl }: Props) {
   const [channel, setChannel] = useState<"online" | "tienda">(defaultChannel);
   const [carts, setCarts] = useState<CartJSON[]>(initialCarts);
   const [view, setView] = useState<ViewMode>("grid");
@@ -113,6 +114,10 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
             const outOfStock = totalStock === 0;
 
+            const productHref = fromUrl
+              ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
+              : `/dashboard/productos/${product.id}`;
+
             return (
               <div
                 key={product.id}
@@ -127,7 +132,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                     onCartCreated={handleCartCreated}
                   />
                 )}
-                <Link href={`/dashboard/productos/${product.id}`} className="block">
+                <Link href={productHref} className="block">
                   <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-100">
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -190,13 +195,17 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
             const outOfStock = totalStock === 0;
 
+            const productHref = fromUrl
+              ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
+              : `/dashboard/productos/${product.id}`;
+
             return (
               <div
                 key={product.id}
                 className="flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow-md"
               >
                 {/* Thumbnail */}
-                <Link href={`/dashboard/productos/${product.id}`} className="shrink-0">
+                <Link href={productHref} className="shrink-0">
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-gray-100">
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -211,7 +220,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                 </Link>
 
                 {/* Info */}
-                <Link href={`/dashboard/productos/${product.id}`} className="min-w-0 flex-1">
+                <Link href={productHref} className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary" className="text-[11px]">{product.type}</Badge>

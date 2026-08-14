@@ -14,6 +14,7 @@ import {
   PERIODO_TIPOS,
   type PeriodoTipo,
 } from "@/lib/payroll-periods";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: string | string[] | undefined) {
@@ -44,6 +45,10 @@ export default async function NominasPage({ searchParams }: { searchParams: SP }
     desde = r.desde;
     hasta = r.hasta;
   }
+
+  const todayStr = getVenezuelaDateString();
+  if (hasta > todayStr) hasta = todayStr;
+  if (desde > todayStr) desde = todayStr;
 
   const { inicio, fin } = rangoADateTime(desde, hasta);
   const periodoInicio = new Date(desde);

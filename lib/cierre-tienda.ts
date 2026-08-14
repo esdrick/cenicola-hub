@@ -1,31 +1,37 @@
 import type { Prisma } from "@/app/generated/prisma";
 import type { TipoCierre, OrderChannel } from "@/app/generated/prisma/client";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import {
+  getVenezuelaParts,
+  getVenezuelaStartOfDay,
+  getVenezuelaEndOfDay,
+} from "@/lib/date-utils";
 
 function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+  return getVenezuelaStartOfDay(d);
 }
 
 function endOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  return getVenezuelaEndOfDay(d);
 }
 
 /** Parsea fechaInicio/fechaFin recibidos por query/body (strings "YYYY-MM-DD" de un
- * <input type="date">, o ISO completos) y los normaliza a los límites del día local.
+ * <input type="date">, o ISO completos) y los normaliza a los límites del día local en Venezuela.
  * Devuelve null si alguna fecha es inválida o el rango está invertido. */
 export function parseRangoFechas(fechaInicioRaw: unknown, fechaFinRaw: unknown): RangoFechas | null {
   if (typeof fechaInicioRaw !== "string" || typeof fechaFinRaw !== "string") return null;
-  const inicio = new Date(fechaInicioRaw.length <= 10 ? `${fechaInicioRaw}T00:00:00` : fechaInicioRaw);
-  const fin = new Date(fechaFinRaw.length <= 10 ? `${fechaFinRaw}T00:00:00` : fechaFinRaw);
+  const strInicio = fechaInicioRaw.length <= 10 ? fechaInicioRaw : fechaInicioRaw.slice(0, 10);
+  const strFin = fechaFinRaw.length <= 10 ? fechaFinRaw : fechaFinRaw.slice(0, 10);
+
+  const inicio = new Date(`${strInicio}T00:00:00.000-04:00`);
+  const fin = new Date(`${strFin}T23:59:59.999-04:00`);
   if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime())) return null;
+
   const fechaInicio = startOfDay(inicio);
   const fechaFin = endOfDay(fin);
   if (fechaInicio.getTime() > fechaFin.getTime()) return null;
-  // Ninguna orden puede tener created_at en el futuro — un rango cuyo día final sea
-  // posterior al día de hoy es inválido (defensa en profundidad: el <input max> del cliente
-  // ya lo evita, pero esto lo bloquea también si llega una petición directa a la API).
-  // Comparado por DÍA calendario, no por instante exacto: "hoy" siempre debe ser válido, aunque
-  // endOfDay(hoy) caiga más tarde que la hora actual.
+
+  // Ninguna orden puede tener created_at en el futuro
   if (startOfDay(fin).getTime() > startOfDay(new Date()).getTime()) return null;
   return { fechaInicio, fechaFin };
 }
@@ -38,25 +44,27 @@ export type RangoFechas = { fechaInicio: Date; fechaFin: Date };
 
 /** Calcula el rango [fechaInicio, fechaFin] (límites de día incluidos) para un tipo de
  * cierre, relativo a `fechaReferencia`. `offset` desplaza el período hacia atrás (negativo)
- * o adelante (positivo) en unidades del propio tipo — ej. offset=-1 en SEMANAL da la semana
- * anterior. Es solo un pre-llenado: el admin puede ajustar fechaInicio/fechaFin después. */
+ * o adelante (positivo) en unidades del propio tipo. */
 export function calcularRangoFechas(
   tipo: TipoCierre,
   fechaReferencia: Date = new Date(),
   offset = 0,
 ): RangoFechas {
+  const parts = getVenezuelaParts(fechaReferencia);
+  const dateVET = new Date(parts.year, parts.month - 1, parts.day);
+
   if (tipo === "diario") {
-    const ref = new Date(fechaReferencia.getFullYear(), fechaReferencia.getMonth(), fechaReferencia.getDate() + offset);
+    const ref = new Date(dateVET.getFullYear(), dateVET.getMonth(), dateVET.getDate() + offset);
     return { fechaInicio: startOfDay(ref), fechaFin: endOfDay(ref) };
   }
 
   if (tipo === "semanal") {
-    const day = fechaReferencia.getDay();
+    const day = dateVET.getDay();
     const diffLunes = day === 0 ? -6 : 1 - day;
     const lunes = new Date(
-      fechaReferencia.getFullYear(),
-      fechaReferencia.getMonth(),
-      fechaReferencia.getDate() + diffLunes + offset * 7,
+      dateVET.getFullYear(),
+      dateVET.getMonth(),
+      dateVET.getDate() + diffLunes + offset * 7,
     );
     const domingo = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate() + 6);
     return { fechaInicio: startOfDay(lunes), fechaFin: endOfDay(domingo) };
@@ -64,9 +72,9 @@ export function calcularRangoFechas(
 
   if (tipo === "quincenal") {
     // Cada "unidad" de offset es media quincena (15/16 días).
-    let y = fechaReferencia.getFullYear();
-    let m = fechaReferencia.getMonth() + 1;
-    let primeraMitad = fechaReferencia.getDate() <= 15;
+    let y = dateVET.getFullYear();
+    let m = dateVET.getMonth() + 1;
+    let primeraMitad = dateVET.getDate() <= 15;
 
     let steps = offset;
     while (steps !== 0) {
@@ -98,8 +106,8 @@ export function calcularRangoFechas(
   }
 
   // mensual
-  const y = fechaReferencia.getFullYear();
-  const m = fechaReferencia.getMonth() + 1 + offset;
+  const y = dateVET.getFullYear();
+  const m = dateVET.getMonth() + 1 + offset;
   const base = new Date(y, m - 1, 1);
   const by = base.getFullYear();
   const bm = base.getMonth() + 1;

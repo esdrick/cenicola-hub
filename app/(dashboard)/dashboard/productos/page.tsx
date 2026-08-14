@@ -199,6 +199,28 @@ export default async function ProductosPage({
     });
   }
 
+  const currentCatalogUrl = (() => {
+    const p = new URLSearchParams();
+    if (sp(searchParams.q))     p.set("q",     sp(searchParams.q));
+    if (sp(searchParams.tipo))  p.set("tipo",  sp(searchParams.tipo));
+    if (sp(searchParams.color)) p.set("color", sp(searchParams.color));
+    if (sp(searchParams.talla)) p.set("talla", sp(searchParams.talla));
+    if (page > 1)               p.set("page",  String(page));
+    const query = p.toString();
+    return `/dashboard/productos${query ? `?${query}` : ""}`;
+  })();
+
+  function buildCatalogUrl(targetPage: number) {
+    const p = new URLSearchParams();
+    if (sp(searchParams.q))     p.set("q",     sp(searchParams.q));
+    if (sp(searchParams.tipo))  p.set("tipo",  sp(searchParams.tipo));
+    if (sp(searchParams.color)) p.set("color", sp(searchParams.color));
+    if (sp(searchParams.talla)) p.set("talla", sp(searchParams.talla));
+    if (targetPage > 1)         p.set("page",  String(targetPage));
+    const query = p.toString();
+    return `/dashboard/productos${query ? `?${query}` : ""}`;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -243,12 +265,13 @@ export default async function ProductosPage({
           channel={channel}
           initialCarts={activeCarts}
           isAdmin={session.role === "admin"}
+          fromUrl={currentCatalogUrl}
         />
       ) : (
         // Inventario y embalaje: vista simple sin botón de carrito
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {data.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={product} fromUrl={currentCatalogUrl} />
           ))}
         </div>
       )}
@@ -259,8 +282,8 @@ export default async function ProductosPage({
         totalPages={totalPages}
         total={total}
         noun="producto"
-        prevHref={page > 1 ? `/dashboard/productos?page=${page - 1}` : null}
-        nextHref={page < totalPages ? `/dashboard/productos?page=${page + 1}` : null}
+        prevHref={page > 1 ? buildCatalogUrl(page - 1) : null}
+        nextHref={page < totalPages ? buildCatalogUrl(page + 1) : null}
       />
     </div>
   );

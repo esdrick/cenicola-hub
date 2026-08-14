@@ -1,3 +1,5 @@
+import { getVenezuelaCompactDateString, getVenezuelaStartOfDay, getVenezuelaEndOfDay } from "@/lib/date-utils";
+
 /** Returns a short display reference like #190-001 from ORD-20240619-0001 */
 export function shortOrderNumber(orderNumber: string): string {
   const digits = orderNumber.replace(/\D/g, "").slice(-6).padStart(6, "0");
@@ -18,15 +20,12 @@ export function formatDocenas(unidades: number): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateOrderNumber(tx: any): Promise<string> {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const dateStr = `${y}${m}${d}`;
+  const dateStr = getVenezuelaCompactDateString(now);
 
-  const dayStart = new Date(y, now.getMonth(), now.getDate());
-  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const dayStart = getVenezuelaStartOfDay(now);
+  const dayEnd = getVenezuelaEndOfDay(now);
   const count: number = await tx.order.count({
-    where: { created_at: { gte: dayStart, lt: dayEnd } },
+    where: { created_at: { gte: dayStart, lte: dayEnd } },
   });
   return `ORD-${dateStr}-${String(count + 1).padStart(4, "0")}`;
 }

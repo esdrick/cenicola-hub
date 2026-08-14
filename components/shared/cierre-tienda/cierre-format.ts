@@ -22,22 +22,30 @@ export const CANAL_CLASSES: Record<string, string> = {
   online: "bg-sky-100 text-sky-700",
 };
 
-/** Convierte un Date a "YYYY-MM-DD" en hora LOCAL (no usar toISOString: en zonas UTC-N
- * corre la fecha un día para horas cercanas a medianoche). Para poblar <input type="date">. */
+import { VENEZUELA_TIMEZONE, getVenezuelaDateString } from "@/lib/date-utils";
+
+/** Convierte un Date a "YYYY-MM-DD" en hora de Venezuela (para poblar <input type="date">). */
 export function dateInputValue(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return getVenezuelaDateString(d);
 }
 
 export function formatFechaCorta(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return new Date(iso).toLocaleDateString("es-VE", {
+    timeZone: VENEZUELA_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 export function formatFechaHora(iso: string): string {
   return new Date(iso).toLocaleString("es-VE", {
-    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+    timeZone: VENEZUELA_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 

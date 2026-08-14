@@ -36,6 +36,7 @@ export function OrderHistorySection({ logs }: { logs: OrderAuditLogEntry[] }) {
                   <p className="text-sm font-medium text-gray-800">{title}</p>
                   <span className="text-xs text-gray-400 whitespace-nowrap" suppressHydrationWarning>
                     {log.created_at.toLocaleString("es-VE", {
+                      timeZone: "America/Caracas",
                       day: "2-digit", month: "2-digit", year: "numeric",
                       hour: "2-digit", minute: "2-digit",
                     })}

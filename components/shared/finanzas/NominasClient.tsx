@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, ChevronRight, History, Loader2, Package, ShoppingBag, Undo2 } from "lucide-react";
 import { formatRangoLabel, rangoPorTipo, type PeriodoTipo } from "@/lib/payroll-periods";
+import { getVenezuelaDateString } from "@/lib/date-utils";
 
 const ROL_LABELS: Record<string, string> = {
   vendedora_online: "Online",
@@ -70,9 +71,11 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
   const router = useRouter();
   const [isPending, start] = useTransition();
 
+  const todayStr = getVenezuelaDateString();
+
   const [selectedTipo,  setSelectedTipo]  = useState<PeriodoTipo>(tipo);
-  const [selectedDesde, setSelectedDesde] = useState(desde);
-  const [selectedHasta, setSelectedHasta] = useState(hasta);
+  const [selectedDesde, setSelectedDesde] = useState(desde > todayStr ? todayStr : desde);
+  const [selectedHasta, setSelectedHasta] = useState(hasta > todayStr ? todayStr : hasta);
 
   const [comisiones, setComisiones] = useState<Record<string, string>>(
     Object.fromEntries(data.map((d) => [d.userId, String(d.comision)]))
@@ -92,16 +95,19 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
 
   function aplicarPreset(t: "semana" | "quincena" | "mes") {
     const r = rangoPorTipo(t, new Date());
+    const cappedDesde = r.desde > todayStr ? todayStr : r.desde;
+    const cappedHasta = r.hasta > todayStr ? todayStr : r.hasta;
     setSelectedTipo(t);
-    setSelectedDesde(r.desde);
-    setSelectedHasta(r.hasta);
-    router.push(`/dashboard/finanzas/nominas?tipo=${t}&desde=${r.desde}&hasta=${r.hasta}`);
+    setSelectedDesde(cappedDesde);
+    setSelectedHasta(cappedHasta);
+    router.push(`/dashboard/finanzas/nominas?tipo=${t}&desde=${cappedDesde}&hasta=${cappedHasta}`);
   }
 
   function onFechaChange(campo: "desde" | "hasta", valor: string) {
+    const cappedValue = valor > todayStr ? todayStr : valor;
     setSelectedTipo("personalizado");
-    if (campo === "desde") setSelectedDesde(valor);
-    else setSelectedHasta(valor);
+    if (campo === "desde") setSelectedDesde(cappedValue);
+    else setSelectedHasta(cappedValue);
   }
 
   function applyFilter() {
@@ -223,6 +229,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
           <input
             type="date"
             value={selectedDesde}
+            max={todayStr}
             onChange={(e) => onFechaChange("desde", e.target.value)}
             className="h-9 w-full max-w-full appearance-none rounded-md border border-input bg-white px-3 text-sm"
           />
@@ -232,6 +239,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
           <input
             type="date"
             value={selectedHasta}
+            max={todayStr}
             onChange={(e) => onFechaChange("hasta", e.target.value)}
             className="h-9 w-full max-w-full appearance-none rounded-md border border-input bg-white px-3 text-sm"
           />
@@ -254,7 +262,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
             Nóminas — {formatRangoLabel(desde, hasta)}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Solo órdenes en estado completada
+            Órdenes completadas acumuladas sin nómina pagada hasta la fecha seleccionada
           </p>
         </div>
 
@@ -339,7 +347,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
                       </Badge>
                       {isPaid && row.paid_at && (
                         <p className="mt-0.5 text-[10px] text-gray-400 text-center" suppressHydrationWarning>
-                          {new Date(row.paid_at).toLocaleDateString("es-VE")}
+                          {new Date(row.paid_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas" })}
                         </p>
                       )}
                     </TableCell>
@@ -567,7 +575,7 @@ export function NominasClient({ data, tipo, desde, hasta }: Props) {
                       </TableCell>
                       <TableCell className="text-right text-sm">${r.comision.toFixed(2)}</TableCell>
                       <TableCell className="text-xs text-gray-500" suppressHydrationWarning>
-                        {r.paid_at ? new Date(r.paid_at).toLocaleDateString("es-VE") : "—"}
+                        {r.paid_at ? new Date(r.paid_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas" }) : "—"}
                       </TableCell>
                       <TableCell className="text-center">
                         {undoProcessingId === r.id ? (
