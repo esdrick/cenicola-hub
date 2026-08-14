@@ -8,24 +8,34 @@ type Props = {
 };
 
 export async function InventarioStats({ lowStockThreshold, showValue }: Props) {
-  const [totalProductos, stockAgg, stockBajoCount] = await Promise.all([
+  const [totalProductos, totalUnitsAgg, totalVariantes, stockBajoCount, stockValueRows] = await Promise.all([
     prisma.product.count({ where: { is_active: true } }),
-    prisma.productVariant.findMany({
+    prisma.productVariant.aggregate({
       where: { is_active: true },
-      select: { stock_total: true, price_bcv: true },
+      _sum: { stock_total: true },
     }),
+    prisma.productVariant.count({ where: { is_active: true } }),
     prisma.productVariant.count({
       where: { is_active: true, stock_total: { lt: lowStockThreshold } },
     }),
+    showValue
+      ? prisma.productVariant.findMany({
+          where: { is_active: true, stock_total: { gt: 0 } },
+          select: { stock_total: true, price_bcv: true },
+        })
+      : Promise.resolve([]),
   ]);
 
-  const totalUnidades = stockAgg.reduce((sum, v) => sum + v.stock_total, 0);
+  const totalUnidades = totalUnitsAgg._sum.stock_total ?? 0;
+  const valorInventario = showValue
+    ? stockValueRows.reduce((sum, v) => sum + v.stock_total * Number(v.price_bcv), 0)
+    : 0;
 
   const CARDS = [
     {
       label: "Productos activos",
       value: String(totalProductos),
-      desc: `${stockAgg.length} variante${stockAgg.length !== 1 ? "s" : ""}`,
+      desc: `${totalVariantes} variante${totalVariantes !== 1 ? "s" : ""}`,
       icon: Package,
       color: "text-blue-600",
       bg: "bg-blue-50",
@@ -42,9 +52,7 @@ export async function InventarioStats({ lowStockThreshold, showValue }: Props) {
       ? [
           {
             label: "Valor de inventario",
-            value: `$${stockAgg
-              .reduce((sum, v) => sum + v.stock_total * Number(v.price_bcv), 0)
-              .toFixed(2)}`,
+            value: `$${valorInventario.toFixed(2)}`,
             desc: "A precio de venta BCV",
             icon: DollarSign,
             color: "text-indigo-600",

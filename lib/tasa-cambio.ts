@@ -71,7 +71,23 @@ function toResult(r: {
   };
 }
 
+let cachedTasa: { data: TasaResult | null; timestamp: number } | null = null;
+const TASA_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export async function getTasa(createdBy?: string): Promise<TasaResult | null> {
+  const now = Date.now();
+  if (!createdBy && cachedTasa && now - cachedTasa.timestamp < TASA_CACHE_TTL_MS) {
+    return cachedTasa.data;
+  }
+
+  const result = await fetchTasaInternal(createdBy);
+  if (result) {
+    cachedTasa = { data: result, timestamp: Date.now() };
+  }
+  return result;
+}
+
+async function fetchTasaInternal(createdBy?: string): Promise<TasaResult | null> {
   const today = todayUTC();
 
   // Layer 1: today's record exists
