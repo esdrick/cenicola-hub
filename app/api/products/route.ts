@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
 import { getSetting } from "@/lib/settings";
-import { normalizeText } from "@/lib/text";
 
 // GET /api/products?q=&tipo=&color=&page=1
 export async function GET(request: NextRequest) {
@@ -28,33 +27,111 @@ export async function GET(request: NextRequest) {
     ...(quickSale && { quick_sale: true }),
   };
 
-  // Name search is matched accent/case-insensitively in JS since Postgres
-  // `contains`/`insensitive` only folds case, not diacritics (no `unaccent` extension).
-  const allMatching = await prisma.product.findMany({
-    where,
-    include: {
-      variants: { where: { is_active: true }, orderBy: { size: "asc" } },
-      creator: { select: { id: true, name: true } },
-    },
-    orderBy: { created_at: "desc" },
-  });
+  let productsRaw;
+  let total = 0;
 
-  const filtered = q
-    ? allMatching.filter((p) => normalizeText(p.name).includes(normalizeText(q)))
-    : allMatching;
+  const searchWhere = {
+    ...where,
+    ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
+  };
 
-  // Surface quick-sale products with stock in the selected channel first, so store
-  // staff aren't stuck scrolling past out-of-stock items to find what they usually sell.
   if (channel) {
-    const hasChannelStock = (p: (typeof filtered)[number]) =>
+    // When channel stock sorting is required, fetch candidates matching criteria
+    const candidates = await prisma.product.findMany({
+      where: searchWhere,
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        color: true,
+        description: true,
+        photos: true,
+        is_active: true,
+        quick_sale: true,
+        created_by: true,
+        created_at: true,
+        updated_at: true,
+        creator: { select: { id: true, name: true } },
+        variants: {
+          where: { is_active: true },
+          select: {
+            id: true,
+            product_id: true,
+            size: true,
+            sku: true,
+            stock_total: true,
+            stock_online: true,
+            stock_store: true,
+            price_bcv: true,
+            price_divisas: true,
+            price_bundle_bcv: true,
+            price_bundle_divisas: true,
+            price_mayor_bcv: true,
+            price_mayor_divisas: true,
+            is_active: true,
+            updated_at: true,
+          },
+          orderBy: { size: "asc" },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      take: 100,
+    });
+
+    const hasChannelStock = (p: (typeof candidates)[number]) =>
       p.quick_sale && p.variants.some((v) => (channel === "tienda" ? v.stock_store : v.stock_online) > 0);
-    filtered.sort((a, b) => Number(!hasChannelStock(a)) - Number(!hasChannelStock(b)));
+    candidates.sort((a, b) => Number(!hasChannelStock(a)) - Number(!hasChannelStock(b)));
+
+    total = candidates.length;
+    productsRaw = candidates.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+  } else {
+    [productsRaw, total] = await Promise.all([
+      prisma.product.findMany({
+        where: searchWhere,
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          color: true,
+          description: true,
+          photos: true,
+          is_active: true,
+          quick_sale: true,
+          created_by: true,
+          created_at: true,
+          updated_at: true,
+          creator: { select: { id: true, name: true } },
+          variants: {
+            where: { is_active: true },
+            select: {
+              id: true,
+              product_id: true,
+              size: true,
+              sku: true,
+              stock_total: true,
+              stock_online: true,
+              stock_store: true,
+              price_bcv: true,
+              price_divisas: true,
+              price_bundle_bcv: true,
+              price_bundle_divisas: true,
+              price_mayor_bcv: true,
+              price_mayor_divisas: true,
+              is_active: true,
+              updated_at: true,
+            },
+            orderBy: { size: "asc" },
+          },
+        },
+        orderBy: { created_at: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.product.count({ where: searchWhere }),
+    ]);
   }
 
-  const total = filtered.length;
-  const products = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
-
-  const data = products.map((p) => ({
+  const data = productsRaw.map((p) => ({
     ...p,
     created_at: p.created_at.toISOString(),
     updated_at: p.updated_at.toISOString(),

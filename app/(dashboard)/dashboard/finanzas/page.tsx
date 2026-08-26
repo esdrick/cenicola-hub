@@ -150,7 +150,15 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
     }),
     prisma.expense.findMany({
       where: { expense_date: { gte: desde, lte: hastaD } },
-      include: { creator: { select: { name: true } } },
+      select: {
+        id: true,
+        expense_date: true,
+        description: true,
+        category: true,
+        amount_usd: true,
+        notas: true,
+        creator: { select: { name: true } },
+      },
       orderBy: { expense_date: "desc" },
     }),
     prisma.order.aggregate({
