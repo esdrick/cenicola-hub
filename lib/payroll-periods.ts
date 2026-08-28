@@ -114,7 +114,7 @@ export function nominaEligibleWhere(inicio: Date, fin: Date, userId?: string): P
   return {
     ...(userId ? { created_by: userId } : {}),
     status: "completada",
-    created_at: { gte: inicio, lte: fin },
+    updated_at: { gte: inicio, lte: fin },
     incluido_en_nomina_id: null,
   };
 }
