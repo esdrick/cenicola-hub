@@ -29,7 +29,7 @@ type CuentaJSON = {
     order_number: string;
     customer_name: string;
     customer_lastname: string;
-    manager: { id: string; name: string };
+    manager: { id: string; name: string } | null;
   } | null;
   creator: { id: string; name: string };
   created_at: string;
@@ -183,9 +183,7 @@ export function CuentasCobrarClient({ data }: Props) {
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-gray-700">
-                    {c.order?.manager.name ?? (
-                      <span className="text-xs text-gray-400">—</span>
-                    )}
+                    {c.order?.manager?.name ?? "—"}
                   </TableCell>
                   <TableCell className="text-right text-sm">
                     ${c.amount_usd.toFixed(2)}

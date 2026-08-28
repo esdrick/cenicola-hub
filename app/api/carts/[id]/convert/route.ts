@@ -261,6 +261,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       // so order lists/receipts elsewhere in the system don't show empty customer data.
       const finalCustomerName =
         customer_name?.trim() || (channel === "tienda" ? "Cliente de tienda" : "");
+      const firstPaymentMethod = payments.length > 0 ? paymentTypeToPricingMethod(payments[0].payment_type) : null;
+      const orderPricingMethod = isSplitOrder ? cart.pricing_method : (firstPaymentMethod || cart.pricing_method);
+
       const order = await tx.order.create({
         data: {
           order_number: orderNumber,
@@ -274,7 +277,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           address: channel === "online" ? address?.trim() : null,
           shipping_company: channel === "online" ? shipping_company?.trim() : null,
           total_usd: totalUsd,
-          pricing_method: cart.pricing_method,
+          pricing_method: orderPricingMethod,
           total_bcv_usd: totalBcvUsd,
           total_divisas_usd: totalDivisasUsd,
           exchange_rate_id: tasaId,

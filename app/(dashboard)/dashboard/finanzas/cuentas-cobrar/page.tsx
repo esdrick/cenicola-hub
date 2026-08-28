@@ -44,7 +44,7 @@ export default async function CuentasCobrarPage() {
           order_number: c.order.order_number,
           customer_name: c.order.customer_name,
           customer_lastname: c.order.customer_lastname,
-          manager: c.order.creator,
+          manager: c.order.creator ? { id: c.order.creator.id, name: c.order.creator.name } : null,
         }
       : null,
     creator: c.creator,

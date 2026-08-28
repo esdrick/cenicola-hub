@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +102,7 @@ const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
 
 export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: boolean }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(cart.channel === "tienda" ? 3 : 1);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
 
@@ -117,6 +118,33 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [shippingAddress, setShippingAddress] = useState("");
   const [useCustomerAddress, setUseCustomerAddress] = useState(false);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pre-fill customer from searchParams if arriving from WhatsApp import
+  useEffect(() => {
+    const name = searchParams.get("name");
+    const lastname = searchParams.get("lastname");
+    const docType = searchParams.get("doc_type") as DocType | null;
+    const docNumber = searchParams.get("doc_number");
+    const phone = searchParams.get("phone");
+    const shippingCompany = searchParams.get("shipping_company");
+    const shippingAddressParam = searchParams.get("shipping_address");
+
+    if (name || docNumber) {
+      setCustomer((prev) => ({
+        ...prev,
+        customer_name: name || prev.customer_name,
+        customer_lastname: lastname || prev.customer_lastname,
+        doc_type: docType || prev.doc_type,
+        doc_number: docNumber || prev.doc_number,
+        customer_phone: phone || prev.customer_phone,
+        shipping_company: shippingCompany || prev.shipping_company,
+      }));
+      if (shippingAddressParam) {
+        setShippingAddress(shippingAddressParam);
+      }
+      setStep(2); // Jump straight to customer step for confirmation
+    }
+  }, [searchParams]);
 
   const [payments, setPayments] = useState<PaymentFormInput[]>([]);
   const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment(cart.channel));

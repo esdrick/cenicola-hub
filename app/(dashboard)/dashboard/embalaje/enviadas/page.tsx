@@ -25,10 +25,22 @@ export default async function EnviadasPage({ searchParams }: { searchParams: SP 
   const orders = await prisma.order.findMany({
     where: {
       status: { in: ["enviada", "completada"] },
-      shipment: {
-        packed_by: session.id,
-        ...(corte && { shipped_at: { gte: corte } }),
-      },
+      OR: [
+        { shipment: { packed_by: session.id } },
+        { created_by: session.id },
+        { created_by: null },
+      ],
+      ...(corte && {
+        shipment: {
+          is: {
+            OR: [
+              { shipped_at: { gte: corte } },
+              { packed_at: { gte: corte } },
+              { shipped_at: null },
+            ],
+          },
+        },
+      }),
     },
     include: {
       creator: { select: { id: true, name: true } },

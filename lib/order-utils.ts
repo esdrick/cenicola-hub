@@ -18,10 +18,10 @@ export function formatDocenas(unidades: number): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function generateOrderNumber(tx: any): Promise<string> {
+export async function generateOrderNumber(tx: any, customPrefix = "ORD"): Promise<string> {
   const now = new Date();
   const dateStr = getVenezuelaCompactDateString(now);
-  const prefix = `ORD-${dateStr}-`;
+  const prefix = `${customPrefix}-${dateStr}-`;
 
   // Find the order created today with the highest sequence number
   const lastOrder = await tx.order.findFirst({
@@ -88,3 +88,72 @@ export const PAYMENT_TYPE_LABELS: Record<string, string> = {
   pago_movil:    "Pago Móvil",
   usdt:          "USDT",
 };
+
+export function getPaymentTypeLabel(payment: {
+  payment_type: string;
+  notes?: string | null;
+  reference?: string | null;
+}): string {
+  if (payment.payment_type === "transferencia") {
+    const isPanama =
+      payment.notes?.toLowerCase().includes("panama") ||
+      payment.reference?.toLowerCase().includes("panama");
+    if (isPanama) return "Banesco Panamá";
+    return "Transferencia";
+  }
+  return PAYMENT_TYPE_LABELS[payment.payment_type] || payment.payment_type;
+}
+
+export function isWebOrder(order: {
+  notes?: string | null;
+  order_number?: string | null;
+  created_by?: string | null;
+  creator?: { name: string; lastname?: string | null } | null;
+}): boolean {
+  return Boolean(
+    order.order_number?.toUpperCase().startsWith("WEB-") ||
+    order.notes?.includes("[Correo Web") ||
+    order.notes?.includes("Venta Web") ||
+    (!order.created_by && !order.creator)
+  );
+}
+
+export function getOrderChannelDisplay(order: {
+  channel?: string | null;
+  notes?: string | null;
+  order_number?: string | null;
+  created_by?: string | null;
+  creator?: { name: string; lastname?: string | null } | null;
+}): {
+  label: "WEB" | "Online" | "Tienda";
+  vendedora: string;
+  badgeClass: string;
+} {
+  if (isWebOrder(order)) {
+    return {
+      label: "WEB",
+      vendedora: "Cliente Web",
+      badgeClass: "bg-purple-100 text-purple-800 border-purple-200 font-semibold",
+    };
+  }
+
+  if (order.channel === "online") {
+    const seller = order.creator
+      ? `${order.creator.name} ${order.creator.lastname || ""}`.trim()
+      : "Vendedora Online";
+    return {
+      label: "Online",
+      vendedora: seller,
+      badgeClass: "bg-blue-50 text-blue-700 border-blue-200 font-medium",
+    };
+  }
+
+  const seller = order.creator
+    ? `${order.creator.name} ${order.creator.lastname || ""}`.trim()
+    : "Vendedora Tienda";
+  return {
+    label: "Tienda",
+    vendedora: seller,
+    badgeClass: "bg-gray-100 text-gray-700 border-gray-200 font-medium",
+  };
+}

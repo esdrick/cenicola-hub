@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { CartBuilder } from "@/components/shared/carritos/CartBuilder";
 import { BackToOrdersButton } from "@/components/shared/ordenes/BackToOrdersButton";
+import { ImportWhatsAppModal } from "@/components/shared/ordenes/ImportWhatsAppModal";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,12 @@ export default async function NuevaOrdenPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <BackToOrdersButton />
-        <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <BackToOrdersButton />
+          <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
+        </div>
+        {isAdmin && <ImportWhatsAppModal />}
       </div>
       <CartBuilder
         cart={null}

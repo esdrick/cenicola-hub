@@ -189,7 +189,7 @@ export async function InventarioDashboard() {
                         <p className="text-sm font-medium">{m.variant.product.name}</p>
                         <p className="text-xs text-gray-400">{m.variant.size}</p>
                         <p className="text-xs text-gray-400 sm:hidden">
-                          {m.created_by_user.name.split(" ")[0]} · {fmtDateTime(m.created_at)}
+                          {(m.created_by_user?.name ?? "Cliente Web").split(" ")[0]} · {fmtDateTime(m.created_at)}
                         </p>
                       </TableCell>
                       <TableCell>
@@ -201,7 +201,7 @@ export async function InventarioDashboard() {
                         {m.qty_change > 0 ? "+" : ""}{m.qty_change}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-xs text-gray-500">
-                        {m.created_by_user.name.split(" ")[0]}
+                        {(m.created_by_user?.name ?? "Cliente Web").split(" ")[0]}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-xs text-gray-500 whitespace-nowrap">
                         {fmtDateTime(m.created_at)}

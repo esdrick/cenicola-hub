@@ -27,19 +27,28 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
     const corteActivo = await getCorteActivo();
     const corte = historial ? null : corteActivo;
 
-    // Vendedoras online solo ven en su historial las órdenes que ellas mismas empacaron.
     const [orders, pendingCount] = await Promise.all([
       prisma.order.findMany({
         where: {
           status: { in: ["enviada", "completada"] },
-          // Las ventas de tienda no pasan por embalaje/envío y nunca tienen `shipment` —
-          // `is: {...}` exige que exista el envío real, aunque no haya más condiciones.
-          shipment: {
-            is: {
-              ...(isVendedoraOnline && { packed_by: session.id }),
-              ...(corte && { shipped_at: { gte: corte } }),
+          ...(isVendedoraOnline && {
+            OR: [
+              { created_by: session.id },
+              { created_by: null },
+              { shipment: { is: { packed_by: session.id } } },
+            ],
+          }),
+          ...(corte && {
+            shipment: {
+              is: {
+                OR: [
+                  { shipped_at: { gte: corte } },
+                  { packed_at: { gte: corte } },
+                  { shipped_at: null },
+                ],
+              },
             },
-          },
+          }),
         },
         include: {
           creator: { select: { id: true, name: true } },

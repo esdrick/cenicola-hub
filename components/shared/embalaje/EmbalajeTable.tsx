@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, getOrderChannelDisplay } from "@/lib/order-utils";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -53,6 +53,7 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Orden</TableHead>
+              <TableHead>Canal</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Productos</TableHead>
@@ -63,39 +64,54 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   No hay órdenes en embalaje
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((o) => (
-                <TableRow
-                  key={o.id}
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => router.push(`/dashboard/embalaje/${o.id}`)}
-                >
-                  <TableCell>
-                    <span className="font-mono text-sm font-medium">{shortOrderNumber(o.order_number)}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-                      En embalaje
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {o.customer_name} {o.customer_lastname}
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-gray-500 text-sm truncate max-w-[240px] block">
-                      {o.items_summary}
-                    </span>
-                  </TableCell>
-                  <TableCell>{o.creator.name}</TableCell>
-                  <TableCell>
-                    {new Date(o.created_at).toLocaleDateString("es-VE")}
-                  </TableCell>
-                </TableRow>
-              ))
+              filtered.map((o) => {
+                const channelInfo = getOrderChannelDisplay({
+                  channel: o.channel,
+                  notes: o.notes,
+                  order_number: o.order_number,
+                  created_by: (o as { created_by?: string | null }).created_by,
+                  creator: o.creator,
+                });
+
+                return (
+                  <TableRow
+                    key={o.id}
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => router.push(`/dashboard/embalaje/${o.id}`)}
+                  >
+                    <TableCell>
+                      <span className="font-mono text-sm font-medium">{shortOrderNumber(o.order_number)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
+                        En embalaje
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {o.customer_name} {o.customer_lastname}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-500 text-sm truncate max-w-[240px] block">
+                        {o.items_summary}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-gray-700">{channelInfo.vendedora}</TableCell>
+                    <TableCell>
+                      {new Date(o.created_at).toLocaleDateString("es-VE")}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

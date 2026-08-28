@@ -297,7 +297,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                 )}
                 <div>
                   <dt className="text-gray-500">Vendedora</dt>
-                  <dd className="font-medium">{order.creator.name}</dd>
+                  <dd className="font-medium">{order.creator?.name ?? "Web Directa"}</dd>
                 </div>
               </dl>
             </CardContent>

@@ -143,7 +143,7 @@ export type MovementJSON = {
     sku: string;
     product: { id: string; name: string; color: string | null };
   };
-  created_by_user: { id: string; name: string };
+  created_by_user: { id: string; name: string } | null;
 };
 
 // ─── Form input types ────────────────────────────────────────────────────────
@@ -221,10 +221,10 @@ export type OrderJSON = {
   is_partial_agreed: boolean;
   partial_agreed_by: string | null;
   notes: string | null;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
-  creator: { id: string; name: string };
+  creator: { id: string; name: string } | null;
   items?: OrderItemJSON[];
   payments?: OrderPaymentJSON[];
 };
@@ -260,7 +260,7 @@ export type OrderWithDetails = Order & {
   items: (OrderItem & { variant: ProductVariant })[];
   payments: OrderPayment[];
   shipment: OrderShipment | null;
-  creator: Pick<User, "id" | "name">;
+  creator: Pick<User, "id" | "name"> | null;
 };
 
 // ─── Inventory stock view ────────────────────────────────────────────────────
@@ -317,6 +317,8 @@ export type PagoOrdenJSON = {
   id: string;
   order_number: string;
   channel: OrderChannel;
+  notes?: string | null;
+  created_by?: string | null;
   status: OrderStatus;
   customer_name: string;
   customer_lastname: string;
@@ -331,7 +333,7 @@ export type PagoOrdenJSON = {
     payment_date: string;
     status: PaymentStatus;
   }>;
-  creator: { id: string; name: string };
+  creator: { id: string; name: string } | null;
   created_at: string;
 };
 
@@ -369,7 +371,7 @@ export type EmbalajeOrdenJSON = {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  creator: { id: string; name: string };
+  creator: { id: string; name: string } | null;
   items_summary: string;
   shipment: EmbalajeShipmentJSON | null;
 };
@@ -437,7 +439,7 @@ export type EmbalajeOrdenDetailJSON = {
   total_usd: number;
   notes: string | null;
   created_at: string;
-  creator: { id: string; name: string };
+  creator: { id: string; name: string } | null;
   items: OrderItemJSON[];
   shipment: EmbalajeShipmentJSON | null;
 };

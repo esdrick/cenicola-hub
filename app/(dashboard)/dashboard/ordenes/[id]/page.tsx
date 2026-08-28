@@ -14,11 +14,11 @@ import { AgregarProductosDialog } from "@/components/shared/ordenes/AgregarProdu
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
 import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrdenButton";
 import { OrderHistorySection } from "@/components/shared/ordenes/OrderHistorySection";
-import { STATUS_LABELS, PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { STATUS_LABELS, PAYMENT_TYPE_LABELS, getOrderChannelDisplay } from "@/lib/order-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink } from "lucide-react";
+import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone } from "lucide-react";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 const TIMELINE_ONLINE = ["pendiente_pago", "pago_verificado", "en_embalaje", "enviada", "completada"] as const;
@@ -130,6 +130,7 @@ export default async function OrderDetailPage({
     where: { id: params.id },
     include: {
       creator: { select: { id: true, name: true } },
+      customer: { select: { id: true, phone: true } },
       items: {
         include: {
           variant: {
@@ -226,23 +227,29 @@ export default async function OrderDetailPage({
           <ChevronLeft size={14} className="mr-1" />Órdenes
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold font-mono text-gray-900">{order.order_number}</h1>
-              <OrderStatusBadge status={order.status} />
-              <span className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                order.channel === "online"
-                  ? "bg-blue-50 text-blue-700"
-                  : "bg-gray-100 text-gray-700"
-              )}>
-                {order.channel === "online" ? "Online" : "Tienda"}
-              </span>
-            </div>
-            <p className="text-sm text-gray-500" suppressHydrationWarning>
-              Creada por {order.creator.name} · {createdAt}
-            </p>
-          </div>
+          {(() => {
+            const channelInfo = getOrderChannelDisplay({
+              channel: order.channel,
+              notes: order.notes,
+              order_number: order.order_number,
+              created_by: order.created_by,
+              creator: order.creator,
+            });
+            return (
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-xl sm:text-2xl font-bold font-mono text-gray-900">{order.order_number}</h1>
+                  <OrderStatusBadge status={order.status} />
+                  <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", channelInfo.badgeClass)}>
+                    {channelInfo.label}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500" suppressHydrationWarning>
+                  Creada por {channelInfo.vendedora} · {createdAt}
+                </p>
+              </div>
+            );
+          })()}
           {(canConfirmar || canComplete || canCancel || canForceCancel) && (
             <div className="flex items-center gap-2 flex-shrink-0">
               {canConfirmar && (
@@ -353,6 +360,17 @@ export default async function OrderDetailPage({
             <div className="space-y-1 text-sm">
               <p className="font-medium">{order.customer_name} {order.customer_lastname}</p>
               <p className="text-gray-500">{order.customer_id_doc}</p>
+              {order.customer?.phone && (
+                <div className="flex items-center gap-1.5 text-gray-500">
+                  <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                  <a
+                    href={`tel:${order.customer.phone}`}
+                    className="hover:underline hover:text-gray-700"
+                  >
+                    {order.customer.phone}
+                  </a>
+                </div>
+              )}
             </div>
             {order.channel === "online" && (
               <div className="space-y-2 border-t pt-3 text-sm">
@@ -411,6 +429,7 @@ export default async function OrderDetailPage({
                     totalDivisasUsd={totalDivisasUsd}
                     paidBcvUsd={paidBcvUsd}
                     paidDivisasUsd={paidDivisasUsd}
+                    payments={order.payments}
                   />
                 )}
               </div>

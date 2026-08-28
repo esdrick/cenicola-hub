@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
+import { sendPaymentVerifiedEmail } from "@/lib/emails";
 
 export async function POST(
   request: NextRequest,
@@ -16,6 +17,7 @@ export async function POST(
       const order = await tx.order.findUnique({
         where: { id: params.orderId },
         include: {
+          customer: true,
           payments: { where: { status: { not: "rechazado" } } },
         },
       });
@@ -120,8 +122,16 @@ export async function POST(
         }
       }
 
-      return { finalStatus };
+      return { finalStatus, orderNumber: order.order_number, customerEmail: order.customer?.email, customerName: order.customer_name };
     });
+
+    if (result.customerEmail) {
+      sendPaymentVerifiedEmail({
+        customerEmail: result.customerEmail,
+        customerName: result.customerName,
+        orderNumber: result.orderNumber,
+      }).catch(console.error);
+    }
 
     return NextResponse.json({ success: true, status: result.finalStatus });
   } catch (err) {

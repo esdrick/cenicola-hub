@@ -85,7 +85,7 @@ export async function AdminDashboard() {
     }),
   ]);
 
-  const sellerIds = topSellersRaw.map((s) => s.created_by);
+  const sellerIds = topSellersRaw.map((s) => s.created_by).filter((id): id is string => id !== null);
   const sellerUsers =
     sellerIds.length > 0
       ? await prisma.user.findMany({
@@ -96,7 +96,7 @@ export async function AdminDashboard() {
   const sellerMap = Object.fromEntries(sellerUsers.map((u) => [u.id, u.name]));
 
   const topVendedoras = topSellersRaw.map((s) => ({
-    nombre: sellerMap[s.created_by] ?? "Desconocida",
+    nombre: s.created_by ? (sellerMap[s.created_by] ?? "Desconocida") : "Web Directa",
     total: Number(s._sum.total_usd ?? 0),
   }));
 

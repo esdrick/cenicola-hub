@@ -46,7 +46,7 @@ async function main() {
         due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         status: "pendiente",
         order_id: order.id,
-        created_by: order.created_by,
+        created_by: order.created_by || "system",
       },
     });
 

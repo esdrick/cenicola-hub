@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { buttonVariants } from "@/components/ui/button";
 import { OrdersTable } from "@/components/shared/ordenes/OrdersTable";
 import { CartsSection } from "@/components/shared/carritos/CartsSection";
+import { ImportWhatsAppModal } from "@/components/shared/ordenes/ImportWhatsAppModal";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCorteActivo } from "@/lib/cierre-sistema";
@@ -39,6 +40,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const canSeeAll    = !isRestricted;
   const canUseCarts  = isRestricted || session.role === "admin" || session.role === "inventario";
+  const isWhatsAppImportAllowed = session.role === "admin" || session.role === "inventario";
 
   const corteActivo = await getCorteActivo();
   const corte = historial ? null : corteActivo;
@@ -185,12 +187,15 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
             {total} orden{total !== 1 ? "es" : ""}
           </p>
         </div>
-        {canUseCarts && (
-          <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
-            <Plus size={16} />
-            Nueva orden
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {isWhatsAppImportAllowed && <ImportWhatsAppModal />}
+          {canUseCarts && (
+            <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
+              <Plus size={16} />
+              Nueva orden
+            </Link>
+          )}
+        </div>
       </div>
 
       {carts.length > 0 && <CartsSection initialCarts={carts} />}

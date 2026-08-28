@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { rangoDia, rangoSemana, rangoQuincena } from "@/lib/payroll-periods";
+import { getOrderChannelDisplay } from "@/lib/order-utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -486,20 +487,29 @@ function IngresosTab({ rows }: { rows: IngresosRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
-              <TableRow key={r.id} className="text-sm">
-                <TableCell className="font-mono text-xs text-blue-600">{r.order_number}</TableCell>
-                <TableCell className="text-gray-500">{r.date}</TableCell>
-                <TableCell>{r.customer}</TableCell>
-                <TableCell>
-                  <Badge className={`text-xs border-0 ${r.channel === "online" ? "bg-blue-100 text-blue-800" : "bg-violet-100 text-violet-800"}`}>
-                    {r.channel === "online" ? "Online" : "Tienda"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-gray-600">{r.seller}</TableCell>
-                <TableCell className="text-right font-semibold text-emerald-700">${r.total_usd.toFixed(2)}</TableCell>
-              </TableRow>
-            ))}
+            {rows.map((r) => {
+              const channelInfo = getOrderChannelDisplay({
+                channel: r.channel,
+                order_number: r.order_number,
+                created_by: r.seller === "Cliente Web" ? null : "user",
+                creator: r.seller && r.seller !== "Cliente Web" ? { name: r.seller } : null,
+              });
+
+              return (
+                <TableRow key={r.id} className="text-sm">
+                  <TableCell className="font-mono text-xs text-blue-600">{r.order_number}</TableCell>
+                  <TableCell className="text-gray-500">{r.date}</TableCell>
+                  <TableCell>{r.customer}</TableCell>
+                  <TableCell>
+                    <Badge className={`text-xs border ${channelInfo.badgeClass}`}>
+                      {channelInfo.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-gray-600">{channelInfo.vendedora}</TableCell>
+                  <TableCell className="text-right font-semibold text-emerald-700">${r.total_usd.toFixed(2)}</TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

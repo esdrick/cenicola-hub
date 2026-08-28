@@ -184,26 +184,34 @@ model InventoryMovement {
   qty_after  Int
   reason     String?
   order_id   String?
-  created_by String
+  created_by String?
   created_at DateTime        @default(now())
 
-  variant    ProductVariant @relation(fields: [variant_id], references: [id])
-  order      Order?         @relation(fields: [order_id], references: [id])
-  created_by_user User     @relation(fields: [created_by], references: [id])
+  variant         ProductVariant @relation(fields: [variant_id], references: [id])
+  order           Order?         @relation(fields: [order_id], references: [id])
+  created_by_user User?          @relation(fields: [created_by], references: [id])
 
   @@map("inventory_movements")
 }
 
 model Customer {
-  id         String       @id @default(uuid())
-  doc_type   DocumentType
-  doc_number String
-  name       String
-  lastname   String
-  address    String?
-  phone      String?
-  created_at DateTime     @default(now())
-  updated_at DateTime     @updatedAt
+  id                 String       @id @default(uuid())
+  doc_type           DocumentType
+  doc_number         String
+  name               String
+  lastname           String
+  email              String?      @unique
+  password_hash      String?
+  address            String?
+  phone              String?
+  is_active          Boolean      @default(true)
+  email_verified     Boolean      @default(false)
+  verification_code  String?
+  verification_expiry DateTime?
+  reset_token        String?
+  reset_token_expiry DateTime?
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @updatedAt
 
   orders     Order[]
 
@@ -233,12 +241,12 @@ model Order {
   pago_verificado_at    DateTime?
   incluido_en_cierre_id String?
   incluido_en_nomina_id String?
-  created_by          String
+  created_by          String?
   created_at          DateTime    @default(now())
   updated_at          DateTime    @updatedAt
 
   customer             Customer?           @relation(fields: [customer_id], references: [id])
-  creator              User                @relation("OrderCreatedBy", fields: [created_by], references: [id])
+  creator              User?               @relation("OrderCreatedBy", fields: [created_by], references: [id])
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
   exchange_rate        ExchangeRate?       @relation(fields: [exchange_rate_id], references: [id])
   incluido_en_cierre   CierreTienda?       @relation(fields: [incluido_en_cierre_id], references: [id])
@@ -297,6 +305,7 @@ model OrderPayment {
   exchange_rate ExchangeRate? @relation(fields: [exchange_rate_id], references: [id])
   verifier      User?         @relation(fields: [verified_by], references: [id])
 
+  @@index([reference_hash])
   @@map("order_payments")
 }
 

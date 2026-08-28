@@ -64,13 +64,16 @@ export async function POST(
       // sum of all payments covers total_usd.
       const isSplitOrder = Number(order.total_bcv_usd) > 0 && Number(order.total_divisas_usd) > 0;
       if (!isSplitOrder) {
-        if (order.pricing_method && derivedMethod !== order.pricing_method) {
-          throw new Error(`INCOMPATIBLE_PAYMENT:${order.pricing_method}`);
+        const existingPayment = await tx.orderPayment.findFirst({
+          where: { order_id: order.id },
+          select: { payment_type: true },
+        });
+        const effectiveMethod = order.pricing_method ?? (existingPayment ? paymentTypeToPricingMethod(existingPayment.payment_type) : null);
+
+        if (effectiveMethod && derivedMethod !== effectiveMethod) {
+          throw new Error(`INCOMPATIBLE_PAYMENT:${effectiveMethod}`);
         }
-        // Legacy orders from before pricing_method existed (or before this order ever got a
-        // pricing_method backfilled) — lock it to whatever currency this first payment uses,
-        // same as every other single-currency order, instead of leaving it permanently open.
-        if (!order.pricing_method) {
+        if (order.pricing_method !== derivedMethod) {
           await tx.order.update({ where: { id: order.id }, data: { pricing_method: derivedMethod } });
         }
       }

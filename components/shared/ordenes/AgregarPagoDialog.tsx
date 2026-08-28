@@ -17,6 +17,7 @@ import { Plus, Loader2, Upload, AlertCircle, AlertTriangle } from "lucide-react"
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
+import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 type TasaInfo = {
@@ -46,6 +47,7 @@ type Props = {
   totalDivisasUsd: number;
   paidBcvUsd: number;
   paidDivisasUsd: number;
+  payments?: Array<{ payment_type: PaymentType }>;
 };
 
 function fmtBs(n: number) {
@@ -57,7 +59,7 @@ function fmtBs(n: number) {
 
 export function AgregarPagoDialog({
   orderId, orderNumber, totalUsd, paidUsd, pricingMethod, isSplit,
-  totalBcvUsd, totalDivisasUsd, paidBcvUsd, paidDivisasUsd,
+  totalBcvUsd, totalDivisasUsd, paidBcvUsd, paidDivisasUsd, payments,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -76,6 +78,11 @@ export function AgregarPagoDialog({
   // Sin split, un bucket es el total y el otro 0, así que esto ya coincide con el tope agregado.
   const maxAmountFor = (family: "bcv" | "divisas") => (family === "bcv" ? remainingBcv : remainingDivisas) + 1.00;
 
+  // Derivar método de precio de los pagos existentes (incluidos rechazados) si pricingMethod no está definido
+  const firstPaymentType = payments && payments.length > 0 ? payments[0].payment_type : null;
+  const derivedFromPayments = firstPaymentType ? paymentTypeToPricingMethod(firstPaymentType) : null;
+  const effectivePricingMethod = pricingMethod ?? derivedFromPayments;
+
   // Para pedidos divididos, solo se ofrecen las monedas que todavía tienen saldo real —
   // igual que en el paso 3 de nueva orden. Esto es lo que hace que un pago rechazado se
   // comporte bien: al rechazarse, ese bucket vuelve a tener saldo (remainingBcv/Divisas ya lo
@@ -87,12 +94,12 @@ export function AgregarPagoDialog({
   ];
   const allowedMethods: PaymentType[] =
     isSplit ? (splitAllowedMethods.length > 0 ? splitAllowedMethods : (Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[])) :
-    pricingMethod === "bcv" ? [...BCV_METHODS] :
-    pricingMethod === "divisas" ? [...DIVISAS_METHODS] :
+    effectivePricingMethod === "bcv" ? [...BCV_METHODS] :
+    effectivePricingMethod === "divisas" ? [...DIVISAS_METHODS] :
     Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[];
 
   const makeEmpty = () => ({
-    payment_type: (allowedMethods[0] ?? (pricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType,
+    payment_type: (allowedMethods[0] ?? (effectivePricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType,
     amount_usd: "",
     payment_date: getVenezuelaDateString(),
     payment_time: "",

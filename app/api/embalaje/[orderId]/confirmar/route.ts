@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
+import { sendOrderShippedEmail } from "@/lib/emails";
 
 // POST /api/embalaje/[orderId]/confirmar — confirm shipment
 export async function POST(
@@ -28,9 +29,12 @@ export async function POST(
   const ip = getClientIp(request);
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Validate order exists and has correct status
-      const order = await tx.order.findUnique({ where: { id: orderId } });
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { customer: true },
+      });
       if (!order) throw new Error("NOT_FOUND");
       if (auth.session.role === "vendedora_online" && order.created_by !== auth.session.id) {
         throw new Error("FORBIDDEN");
@@ -38,11 +42,13 @@ export async function POST(
       if (order.status !== "en_embalaje") throw new Error("INVALID_STATUS");
 
       // 1. Create shipment
+      const now = new Date();
       await tx.orderShipment.create({
         data: {
           order_id: orderId,
           packed_by: auth.session.id,
-          packed_at: new Date(),
+          packed_at: now,
+          shipped_at: now,
           photo_package: foto1Url.trim(),
           photo_receipt: foto2Url?.trim() || null,
           photo_guide: foto3Url?.trim() || null,
@@ -69,7 +75,27 @@ export async function POST(
           ip_address: ip,
         },
       });
+
+      return {
+        customerEmail: order.customer?.email,
+        customerName: order.customer_name,
+        orderNumber: order.order_number,
+        shippingCompany: order.shipping_company,
+        trackingNumber: tracking?.trim() || null,
+        packagePhotoUrl: foto1Url.trim(),
+      };
     });
+
+    if (result.customerEmail) {
+      sendOrderShippedEmail({
+        customerEmail: result.customerEmail,
+        customerName: result.customerName,
+        orderNumber: result.orderNumber,
+        shippingCompany: result.shippingCompany,
+        trackingNumber: result.trackingNumber,
+        packagePhotoUrl: result.packagePhotoUrl,
+      }).catch(console.error);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

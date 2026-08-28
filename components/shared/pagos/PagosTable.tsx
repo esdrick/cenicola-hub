@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, getOrderChannelDisplay } from "@/lib/order-utils";
 import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -244,6 +244,14 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                   .filter((p) => p.reference && p.reference !== "EFECTIVO")
                   .map((p) => p.reference).slice(0, 2);
                 const isParcial = o.paid_usd < o.total_usd - 0.01;
+                const channelInfo = getOrderChannelDisplay({
+                  channel: o.channel,
+                  notes: (o as { notes?: string | null }).notes,
+                  order_number: o.order_number,
+                  created_by: (o as { created_by?: string | null }).created_by,
+                  creator: o.creator,
+                });
+
                 return (
                   <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
                     onClick={() => {
@@ -261,8 +269,8 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                       <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
                     </TableCell>
                     <TableCell>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.channel === "online" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-                        {o.channel === "online" ? "Online" : "Tienda"}
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
                       </span>
                     </TableCell>
                     <TableCell>

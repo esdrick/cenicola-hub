@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { PagoOrdenDetailJSON } from "@/types";
+import { getOrderChannelDisplay, isWebOrder } from "@/lib/order-utils";
+import { paymentTypeToPricingMethod } from "@/lib/pricing";
+import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 const METODO_LABELS: Record<PaymentType, string> = {
@@ -73,9 +76,24 @@ export function PagoDetailClient({ order }: Props) {
 
   const totalUsd = order.total_usd;
 
-  const paidUsd = order.payments
-    .filter((p) => p.status !== "rechazado")
+  const activePayments = order.payments.filter((p) => p.status !== "rechazado");
+  const paidUsd = activePayments.reduce((s, p) => s + p.amount_usd, 0);
+
+  const paidBcvUsd = activePayments
+    .filter((p) => paymentTypeToPricingMethod(p.payment_type) === "bcv")
     .reduce((s, p) => s + p.amount_usd, 0);
+  const paidDivisasUsd = activePayments
+    .filter((p) => paymentTypeToPricingMethod(p.payment_type) === "divisas")
+    .reduce((s, p) => s + p.amount_usd, 0);
+
+  const isMixedOrder = order.total_bcv_usd > 0 && order.total_divisas_usd > 0;
+
+  const isWeb = isWebOrder({
+    notes: order.notes,
+    order_number: order.order_number,
+    created_by: order.created_by,
+    creator: order.creator,
+  });
 
   const pendingPayments = order.payments.filter((p) => p.status === "pendiente");
   const pendingUsd      = pendingPayments.reduce((s, p) => s + p.amount_usd, 0);
@@ -85,6 +103,9 @@ export function PagoDetailClient({ order }: Props) {
 
   // Only orders actively awaiting payment allow verify/reject actions
   const isActionable = order.status === "pendiente_pago" || order.status === "pago_parcial";
+
+  // Web sales awaiting payment with remaining debt allow adding new payments
+  const canAddPayment = isWeb && isActionable && debtUsd > 0.01;
 
   // Global verify: all pending payments together cover the remaining balance
   const canVerifyAll = isActionable && (isFullyPaid || order.is_partial_agreed) && pendingPayments.length > 0;
@@ -309,27 +330,42 @@ export function PagoDetailClient({ order }: Props) {
                 <p className="font-medium">{order.customer_name} {order.customer_lastname}</p>
                 <p className="text-gray-500">{order.customer_id_doc}</p>
               </div>
-              <div>
-                <p className="text-gray-500">Canal</p>
-                <p className="font-medium capitalize">{order.channel}</p>
-              </div>
-              {order.address && (
-                <div className="col-span-2">
-                  <p className="text-gray-500">Dirección</p>
-                  <p className="font-medium">{order.address}</p>
-                  {order.shipping_company && <p className="text-gray-400">{order.shipping_company}</p>}
-                </div>
-              )}
-              {order.notes && (
-                <div className="col-span-2">
-                  <p className="text-gray-500">Notas</p>
-                  <p className="font-medium">{order.notes}</p>
-                </div>
-              )}
-              <div>
-                <p className="text-gray-500">Creado por</p>
-                <p className="font-medium">{order.creator.name}</p>
-              </div>
+              {(() => {
+                const channelInfo = getOrderChannelDisplay({
+                  channel: order.channel,
+                  notes: order.notes,
+                  order_number: order.order_number,
+                  created_by: order.created_by,
+                  creator: order.creator,
+                });
+                return (
+                  <>
+                    <div>
+                      <p className="text-gray-500">Canal</p>
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
+                      </span>
+                    </div>
+                    {order.address && (
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Dirección</p>
+                        <p className="font-medium">{order.address}</p>
+                        {order.shipping_company && <p className="text-gray-400">{order.shipping_company}</p>}
+                      </div>
+                    )}
+                    {order.notes && (
+                      <div className="col-span-2">
+                        <p className="text-gray-500">Notas</p>
+                        <p className="font-medium">{order.notes}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-gray-500">Creado por</p>
+                      <p className="font-medium">{channelInfo.vendedora}</p>
+                    </div>
+                  </>
+                );
+              })()}
               <div>
                 <p className="text-gray-500">Fecha</p>
                 <p className="font-medium" suppressHydrationWarning>
@@ -409,7 +445,7 @@ export function PagoDetailClient({ order }: Props) {
 
           {/* Payments — cards on mobile, table on sm+ */}
           <div className="rounded-xl border bg-white">
-            <div className="border-b px-4 sm:px-5 py-3">
+            <div className="border-b px-4 sm:px-5 py-3 flex items-center justify-between">
               <h2 className="font-semibold text-gray-900">
                 Pagos registrados
                 {isActionable && (
@@ -418,6 +454,21 @@ export function PagoDetailClient({ order }: Props) {
                   </span>
                 )}
               </h2>
+              {canAddPayment && (
+                <AgregarPagoDialog
+                  orderId={order.id}
+                  orderNumber={order.order_number}
+                  totalUsd={totalUsd}
+                  paidUsd={paidUsd}
+                  pricingMethod={order.pricing_method}
+                  isSplit={isMixedOrder}
+                  totalBcvUsd={order.total_bcv_usd}
+                  totalDivisasUsd={order.total_divisas_usd}
+                  paidBcvUsd={paidBcvUsd}
+                  paidDivisasUsd={paidDivisasUsd}
+                  payments={order.payments}
+                />
+              )}
             </div>
 
             {/* Mobile: card list */}

@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const SESSION_COOKIE = "cenicola_session";
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/checkout",
+  "/buscar-pedido",
+  "/mis-pedidos",
+  "/catalogo",
+  "/tienda",
+];
 
 function getSecret() {
   const secret = process.env.NEXTAUTH_SECRET;

@@ -12,11 +12,15 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const q = sp.get("q")?.trim() ?? "";
 
-  const where = {
-    status: "enviada" as const,
-    // Vendedoras online solo ven las órdenes que ellas mismas vendieron (mismo criterio
-    // que el resto de la sección de embalaje — no importa quién la haya empacado).
-    ...(auth.session.role === "vendedora_online" && { created_by: auth.session.id }),
+  const where: Record<string, unknown> = {
+    status: { in: ["enviada", "completada"] },
+    ...(auth.session.role === "vendedora_online" && {
+      OR: [
+        { created_by: auth.session.id },
+        { created_by: null },
+        { shipment: { is: { packed_by: auth.session.id } } },
+      ],
+    }),
     ...(q && {
       OR: [
         { order_number: { contains: q, mode: "insensitive" as const } },

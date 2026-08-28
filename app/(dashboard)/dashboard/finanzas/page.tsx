@@ -180,12 +180,14 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
   ]);
 
   let topVendedora: { nombre: string; total: number } | null = null;
-  if (topVendedoraRaw.length > 0) {
+  if (topVendedoraRaw.length > 0 && topVendedoraRaw[0].created_by) {
     const u = await prisma.user.findUnique({
       where: { id: topVendedoraRaw[0].created_by },
       select: { name: true },
     });
     if (u) topVendedora = { nombre: u.name, total: Number(topVendedoraRaw[0]._sum.total_usd ?? 0) };
+  } else if (topVendedoraRaw.length > 0) {
+    topVendedora = { nombre: "Web Directa", total: Number(topVendedoraRaw[0]._sum.total_usd ?? 0) };
   }
 
   const totalIngresos  = ordenes.reduce((s, o) => s + Number(o.total_usd), 0);
@@ -248,7 +250,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
       id: o.id, order_number: o.order_number,
       date: o.created_at.toISOString().slice(0, 10),
       customer: `${o.customer_name} ${o.customer_lastname}`,
-      channel: o.channel, seller: o.creator.name,
+      channel: o.channel, seller: o.creator?.name ?? "Web Directa",
       total_usd: Number(o.total_usd),
     })),
     egresos: gastos.map(g => ({

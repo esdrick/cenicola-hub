@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, getOrderChannelDisplay } from "@/lib/order-utils";
 import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -316,32 +316,42 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
                 </TableCell>
               </TableRow>
             ) : (
-              orders.map((o) => (
-                <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
-                  onClick={() => {
-                    const qs = sp.toString();
-                    router.push(`/dashboard/ordenes/${o.id}${qs ? `?from=${encodeURIComponent(qs)}` : ""}`);
-                  }}>
-                  <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    {shortOrderNumber(o.order_number)}
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
-                    <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${o.channel === "online" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-                      {o.channel === "online" ? "Online" : "Tienda"}
-                    </span>
-                  </TableCell>
-                  <TableCell><OrderStatusBadge status={o.status} /></TableCell>
-                  <TableCell className="text-right font-semibold">${o.total_usd.toFixed(2)}</TableCell>
-                  <TableCell className="text-sm text-gray-600">{o.creator.name}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
-                    {new Date(o.created_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "2-digit" })}
-                  </TableCell>
-                </TableRow>
-              ))
+              orders.map((o) => {
+                const channelInfo = getOrderChannelDisplay({
+                  channel: o.channel,
+                  notes: o.notes,
+                  order_number: o.order_number,
+                  created_by: o.created_by,
+                  creator: o.creator,
+                });
+
+                return (
+                  <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
+                    onClick={() => {
+                      const qs = sp.toString();
+                      router.push(`/dashboard/ordenes/${o.id}${qs ? `?from=${encodeURIComponent(qs)}` : ""}`);
+                    }}>
+                    <TableCell className="font-mono text-xs font-semibold text-gray-700">
+                      {shortOrderNumber(o.order_number)}
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
+                      <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
+                      </span>
+                    </TableCell>
+                    <TableCell><OrderStatusBadge status={o.status} /></TableCell>
+                    <TableCell className="text-right font-semibold">${o.total_usd.toFixed(2)}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{channelInfo.vendedora}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
+                      {new Date(o.created_at).toLocaleDateString("es-VE", { timeZone: "America/Caracas", day: "2-digit", month: "2-digit", year: "2-digit" })}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

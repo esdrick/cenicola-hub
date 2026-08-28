@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, getOrderChannelDisplay } from "@/lib/order-utils";
 import { useTransition, useState, useRef, useEffect } from "react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -51,7 +51,7 @@ export type PagoVerificadoJSON = {
     channel: string;
     customer_name: string;
     customer_lastname: string;
-    creator: { id: string; name: string };
+    creator: { id: string; name: string } | null;
   };
 };
 
@@ -275,24 +275,33 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
                 </TableCell>
               </TableRow>
             ) : (
-              payments.map((p) => (
-                <TableRow key={p.id} className="cursor-pointer hover:bg-gray-50/50"
-                  onClick={() => {
-                    const qs = sp.toString();
-                    router.push(`/dashboard/pagos/${p.order.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
-                  }}>
-                  <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    {shortOrderNumber(p.order.order_number)}
-                  </TableCell>
-                  <TableCell>
-                    <p className="text-sm font-medium">{p.order.customer_name} {p.order.customer_lastname}</p>
-                  </TableCell>
-                  <TableCell className="text-sm text-gray-600">{p.order.creator.name}</TableCell>
-                  <TableCell>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${p.order.channel === "online" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-                      {p.order.channel === "online" ? "Online" : "Tienda"}
-                    </span>
-                  </TableCell>
+              payments.map((p) => {
+                const channelInfo = getOrderChannelDisplay({
+                  channel: p.order.channel,
+                  notes: (p.order as { notes?: string | null }).notes,
+                  order_number: p.order.order_number,
+                  created_by: (p.order as { created_by?: string | null }).created_by,
+                  creator: p.order.creator,
+                });
+
+                return (
+                  <TableRow key={p.id} className="cursor-pointer hover:bg-gray-50/50"
+                    onClick={() => {
+                      const qs = sp.toString();
+                      router.push(`/dashboard/pagos/${p.order.id}?from=${encodeURIComponent("/dashboard/pagos" + (qs ? "?" + qs : ""))}`);
+                    }}>
+                    <TableCell className="font-mono text-xs font-semibold text-gray-700">
+                      {shortOrderNumber(p.order.order_number)}
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm font-medium">{p.order.customer_name} {p.order.customer_lastname}</p>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">{channelInfo.vendedora}</TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
+                      </span>
+                    </TableCell>
                   <TableCell>
                     <Badge className={`text-xs border-0 ${METODO_CLASSES[p.payment_type]}`}>
                       {METODO_LABELS[p.payment_type]}
@@ -323,7 +332,8 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
                     })}
                   </TableCell>
                 </TableRow>
-              ))
+              );
+            })
             )}
           </TableBody>
         </Table>

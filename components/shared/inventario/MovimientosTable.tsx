@@ -341,7 +341,7 @@ export function MovimientosTable({ movements, total, page, totalPages, tallas }:
                     <p className="truncate text-xs text-gray-500">{m.reason ?? "—"}</p>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-xs text-gray-600">
-                    {m.created_by_user.name}
+                    {m.created_by_user?.name ?? "Cliente Web"}
                   </TableCell>
                 </TableRow>
               ))
