@@ -316,23 +316,33 @@ export async function POST(request: NextRequest) {
         // 2. Upsert Customer
         let customerId: string | null = null;
         if (docNumber && docNumber !== "00000000") {
-          const savedCust = await tx.customer.upsert({
-            where: { doc_type_doc_number: { doc_type: docType, doc_number: docNumber } },
-            update: {
-              name: customerName,
-              lastname: customerLastname,
-              ...(phone && { phone }),
-              address,
-            },
-            create: {
-              doc_type: docType,
-              doc_number: docNumber,
-              name: customerName,
-              lastname: customerLastname,
-              phone: phone || null,
-              address,
-            },
+          const existingCust = await tx.customer.findFirst({
+            where: { doc_type: docType, doc_number: docNumber },
           });
+
+          let savedCust;
+          if (existingCust) {
+            savedCust = await tx.customer.update({
+              where: { id: existingCust.id },
+              data: {
+                name: customerName,
+                lastname: customerLastname,
+                ...(phone && { phone }),
+                address,
+              },
+            });
+          } else {
+            savedCust = await tx.customer.create({
+              data: {
+                doc_type: docType,
+                doc_number: docNumber,
+                name: customerName,
+                lastname: customerLastname,
+                phone: phone || null,
+                address,
+              },
+            });
+          }
           customerId = savedCust.id;
         }
 

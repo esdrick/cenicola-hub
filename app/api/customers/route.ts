@@ -65,23 +65,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
   }
 
-  const customer = await prisma.customer.upsert({
-    where: { doc_type_doc_number: { doc_type, doc_number: doc_number.trim() } },
-    update: {
-      name: name.trim(),
-      lastname: lastname.trim(),
-      address: address?.trim() || null,
-      phone: phone?.trim() || null,
-    },
-    create: {
-      doc_type,
-      doc_number: doc_number.trim(),
-      name: name.trim(),
-      lastname: lastname.trim(),
-      address: address?.trim() || null,
-      phone: phone?.trim() || null,
-    },
+  const cleanDocNumber = doc_number.trim();
+  const existingCustomer = await prisma.customer.findFirst({
+    where: { doc_type, doc_number: cleanDocNumber },
   });
+
+  let customer;
+  if (existingCustomer) {
+    customer = await prisma.customer.update({
+      where: { id: existingCustomer.id },
+      data: {
+        name: name.trim(),
+        lastname: lastname.trim(),
+        address: address?.trim() || null,
+        phone: phone?.trim() || null,
+      },
+    });
+  } else {
+    customer = await prisma.customer.create({
+      data: {
+        doc_type,
+        doc_number: cleanDocNumber,
+        name: name.trim(),
+        lastname: lastname.trim(),
+        address: address?.trim() || null,
+        phone: phone?.trim() || null,
+      },
+    });
+  }
 
   return NextResponse.json({
     ...customer,

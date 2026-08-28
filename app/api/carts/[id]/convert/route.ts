@@ -236,23 +236,34 @@ export async function POST(request: NextRequest, { params }: Params) {
       // phone is synced on every order since it's editable in the checkout form even for known customers)
       let customerId: string | null = null;
       if (hasDoc && DOC_TYPES.includes(doc_type)) {
-        const savedCustomer = await tx.customer.upsert({
-          where: { doc_type_doc_number: { doc_type, doc_number: doc_number.trim() } },
-          update: {
-            ...(customer_name?.trim() && { name: customer_name.trim() }),
-            ...(customer_lastname?.trim() && { lastname: customer_lastname.trim() }),
-            ...(customer_phone?.trim() && { phone: customer_phone.trim() }),
-          },
-          create: {
-            doc_type,
-            doc_number: doc_number.trim(),
-            name: customer_name?.trim() || "",
-            lastname: customer_lastname?.trim() || "",
-            address: customer_address?.trim() || null,
-            phone: customer_phone?.trim() || null,
-          },
+        const cleanDocNumber = doc_number.trim();
+        const existingCustomer = await tx.customer.findFirst({
+          where: { doc_type, doc_number: cleanDocNumber },
         });
-        customerId = savedCustomer.id;
+
+        if (existingCustomer) {
+          const updatedCustomer = await tx.customer.update({
+            where: { id: existingCustomer.id },
+            data: {
+              ...(customer_name?.trim() && { name: customer_name.trim() }),
+              ...(customer_lastname?.trim() && { lastname: customer_lastname.trim() }),
+              ...(customer_phone?.trim() && { phone: customer_phone.trim() }),
+            },
+          });
+          customerId = updatedCustomer.id;
+        } else {
+          const createdCustomer = await tx.customer.create({
+            data: {
+              doc_type,
+              doc_number: cleanDocNumber,
+              name: customer_name?.trim() || "",
+              lastname: customer_lastname?.trim() || "",
+              address: customer_address?.trim() || null,
+              phone: customer_phone?.trim() || null,
+            },
+          });
+          customerId = createdCustomer.id;
+        }
       }
 
       // 5. Create order
@@ -448,6 +459,6 @@ export async function POST(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: msg }, { status: 422 });
     }
     console.error("POST /api/carts/[id]/convert:", err);
-    return NextResponse.json({ error: "Error interno al crear la orden" }, { status: 500 });
+    return NextResponse.json({ error: msg ? `Error al crear la orden: ${msg}` : "Error interno al crear la orden" }, { status: 500 });
   }
 }
