@@ -232,8 +232,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         ? "pago_parcial"
         : "pendiente_pago";
 
-      // 4. Upsert customer if doc provided (address is NOT updated — only admin can change it;
-      // phone is synced on every order since it's editable in the checkout form even for known customers)
+      // 4. Resolve customer if doc provided:
+      // Existing customer master records remain protected and unchanged; new customers are created.
       let customerId: string | null = null;
       if (hasDoc && DOC_TYPES.includes(doc_type)) {
         const cleanDocNumber = doc_number.trim();
@@ -242,16 +242,10 @@ export async function POST(request: NextRequest, { params }: Params) {
         });
 
         if (existingCustomer) {
-          const updatedCustomer = await tx.customer.update({
-            where: { id: existingCustomer.id },
-            data: {
-              ...(customer_name?.trim() && { name: customer_name.trim() }),
-              ...(customer_lastname?.trim() && { lastname: customer_lastname.trim() }),
-              ...(customer_phone?.trim() && { phone: customer_phone.trim() }),
-            },
-          });
-          customerId = updatedCustomer.id;
+          // Cliente registrado existente: se asocia la orden a su ficha sin alterar sus datos maestros.
+          customerId = existingCustomer.id;
         } else {
+          // Cliente nuevo: se crea la ficha maestra en el sistema.
           const createdCustomer = await tx.customer.create({
             data: {
               doc_type,

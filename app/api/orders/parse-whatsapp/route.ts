@@ -313,26 +313,17 @@ export async function POST(request: NextRequest) {
         // 1. Generate Order Number
         const orderNumber = await generateOrderNumber(tx, "ORD");
 
-        // 2. Upsert Customer
+        // 2. Resolve Customer
         let customerId: string | null = null;
         if (docNumber && docNumber !== "00000000") {
           const existingCust = await tx.customer.findFirst({
             where: { doc_type: docType, doc_number: docNumber },
           });
 
-          let savedCust;
           if (existingCust) {
-            savedCust = await tx.customer.update({
-              where: { id: existingCust.id },
-              data: {
-                name: customerName,
-                lastname: customerLastname,
-                ...(phone && { phone }),
-                address,
-              },
-            });
+            customerId = existingCust.id;
           } else {
-            savedCust = await tx.customer.create({
+            const createdCust = await tx.customer.create({
               data: {
                 doc_type: docType,
                 doc_number: docNumber,
@@ -342,8 +333,8 @@ export async function POST(request: NextRequest) {
                 address,
               },
             });
+            customerId = createdCust.id;
           }
-          customerId = savedCust.id;
         }
 
         // 3. Compute totals & verify stock
