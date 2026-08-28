@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { created_at: "desc" },
-      take: 100,
+      take: Math.min(pageSize * 2, 48),
     });
 
     const hasChannelStock = (p: (typeof candidates)[number]) =>

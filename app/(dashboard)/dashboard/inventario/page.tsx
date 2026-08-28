@@ -186,15 +186,14 @@ export default async function InventarioPage({
 
   const SIZE_ORDER = ["XS", "S", "M", "L", "XL", "XXL", "UNIQUE"];
   const [rawSizes, rawTipos] = await Promise.all([
-    prisma.productVariant.findMany({
-      select: { size: true },
-      distinct: ["size"],
+    prisma.productVariant.groupBy({
+      by: ["size"],
+      where: { is_active: true },
       orderBy: { size: "asc" },
     }),
-    prisma.product.findMany({
+    prisma.product.groupBy({
+      by: ["type"],
       where: { is_active: true, type: { not: "" } },
-      select: { type: true },
-      distinct: ["type"],
       orderBy: { type: "asc" },
     }),
   ]);

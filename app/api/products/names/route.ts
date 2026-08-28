@@ -9,10 +9,9 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ names: [] });
 
-  const rows = await prisma.product.findMany({
-    where: { name: { contains: q, mode: "insensitive" } },
-    select: { name: true },
-    distinct: ["name"],
+  const rows = await prisma.product.groupBy({
+    by: ["name"],
+    where: { name: { contains: q, mode: "insensitive" }, is_active: true },
     orderBy: { name: "asc" },
     take: 8,
   });

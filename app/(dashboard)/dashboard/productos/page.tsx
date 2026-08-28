@@ -94,22 +94,19 @@ async function getProducts(params: SearchParams, quickSaleOnly: boolean) {
 
 async function getFilterOptions(quickSaleOnly: boolean) {
   const [tipoRows, colorRows, tallaRows] = await Promise.all([
-    prisma.product.findMany({
+    prisma.product.groupBy({
+      by: ["type"],
       where: { is_active: true, type: { not: "" }, ...(quickSaleOnly && { quick_sale: true }) },
-      select: { type: true },
-      distinct: ["type"],
       orderBy: { type: "asc" },
     }),
-    prisma.product.findMany({
+    prisma.product.groupBy({
+      by: ["color"],
       where: { is_active: true, color: { not: null }, ...(quickSaleOnly && { quick_sale: true }) },
-      select: { color: true },
-      distinct: ["color"],
       orderBy: { color: "asc" },
     }),
-    prisma.productVariant.findMany({
+    prisma.productVariant.groupBy({
+      by: ["size"],
       where: { is_active: true, ...(quickSaleOnly && { product: { quick_sale: true } }) },
-      select: { size: true },
-      distinct: ["size"],
       orderBy: { size: "asc" },
     }),
   ]);
