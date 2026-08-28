@@ -180,19 +180,27 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Órdenes</h1>
           <p className="mt-0.5 text-sm text-gray-500">
             {total} orden{total !== 1 ? "es" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {isWhatsAppImportAllowed && <ImportWhatsAppModal />}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {isWhatsAppImportAllowed && (
+            <ImportWhatsAppModal className="flex-1 sm:flex-initial justify-center text-xs sm:text-sm px-2.5 sm:px-4 py-2" />
+          )}
           {canUseCarts && (
-            <Link href="/dashboard/ordenes/nueva" className={cn(buttonVariants())}>
-              <Plus size={16} />
-              Nueva orden
+            <Link
+              href="/dashboard/ordenes/nueva"
+              className={cn(
+                buttonVariants(),
+                "flex-1 sm:flex-initial justify-center text-xs sm:text-sm px-2.5 sm:px-4 py-2 shrink-0 whitespace-nowrap"
+              )}
+            >
+              <Plus size={16} className="shrink-0" />
+              <span>Nueva orden</span>
             </Link>
           )}
         </div>

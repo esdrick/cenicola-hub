@@ -276,9 +276,9 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
     >
       <DialogTrigger
         render={
-          <Button variant="outline" className={cn("gap-2 border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 font-medium", className)}>
-            <MessageSquareText size={16} className="text-emerald-600" />
-            Importar de WhatsApp
+          <Button variant="outline" className={cn("gap-2 border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 font-medium shrink-0 whitespace-nowrap", className)}>
+            <MessageSquareText size={16} className="text-emerald-600 shrink-0" />
+            <span>Importar de WhatsApp</span>
           </Button>
         }
       />

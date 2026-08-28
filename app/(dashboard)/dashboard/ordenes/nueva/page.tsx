@@ -21,12 +21,14 @@ export default async function NuevaOrdenPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <BackToOrdersButton />
           <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
         </div>
-        {isAdmin && <ImportWhatsAppModal />}
+        {isAdmin && (
+          <ImportWhatsAppModal className="w-full sm:w-auto justify-center text-xs sm:text-sm px-3 py-2" />
+        )}
       </div>
       <CartBuilder
         cart={null}
