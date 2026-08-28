@@ -30,8 +30,6 @@ import {
   RefreshCw,
   Zap,
   ShoppingCart,
-  ShieldAlert,
-  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ParsedWhatsAppCustomer } from "@/lib/whatsapp-parser";
