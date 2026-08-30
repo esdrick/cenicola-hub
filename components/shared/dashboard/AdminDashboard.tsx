@@ -78,7 +78,7 @@ export async function AdminDashboard() {
     }),
     prisma.order.groupBy({
       by: ["created_by"],
-      where: { status: "completada", created_at: { gte: startOfMonth, lte: endOfMonth } },
+      where: { status: { in: ["enviada", "completada"] }, created_at: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { total_usd: true },
       orderBy: { _sum: { total_usd: "desc" } },
       take: 3,
@@ -202,11 +202,11 @@ export async function AdminDashboard() {
         <div className="rounded-xl border bg-white">
           <div className="border-b px-5 py-3">
             <h2 className="font-semibold text-gray-900">Top vendedoras del mes</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Órdenes completadas en el mes actual</p>
+            <p className="text-xs text-gray-500 mt-0.5">Órdenes enviadas o completadas en el mes actual</p>
           </div>
           {topVendedoras.length === 0 ? (
             <p className="py-10 text-center text-sm text-gray-500">
-              Sin ventas completadas este mes
+              Sin ventas enviadas o completadas este mes
             </p>
           ) : (
             <Table>

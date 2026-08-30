@@ -55,7 +55,7 @@ export async function VendedoraDashboard({ session }: Props) {
       where: {
         order: {
           created_by: session.id,
-          status: "completada",
+          status: { in: ["enviada", "completada"] },
           created_at: { gte: startOfMonth },
         },
       },
@@ -64,7 +64,7 @@ export async function VendedoraDashboard({ session }: Props) {
     prisma.order.count({
       where: {
         created_by: session.id,
-        status: { notIn: ["completada", "cancelada"] },
+        status: { notIn: ["enviada", "completada", "cancelada"] },
       },
     }),
     prisma.cart.count({
@@ -102,7 +102,7 @@ export async function VendedoraDashboard({ session }: Props) {
     {
       label: "Vendido este mes",
       value: String(unidadesMes._sum.quantity ?? 0),
-      desc: "Unidades en órdenes completadas",
+      desc: "Unidades enviadas o completadas",
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",

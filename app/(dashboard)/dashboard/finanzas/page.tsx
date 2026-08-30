@@ -8,6 +8,8 @@ import { HistorialClient } from "@/components/shared/finanzas/HistorialClient";
 import { FinanzasTabs } from "@/components/shared/finanzas/FinanzasTabs";
 import type { HistorialData, InsightType } from "@/components/shared/finanzas/HistorialClient";
 
+import { ProductosAnalisisClient } from "@/components/shared/finanzas/ProductosAnalisisClient";
+
 type SP = { [key: string]: string | string[] | undefined };
 function s(v: SP[string]) { return typeof v === "string" ? v : ""; }
 
@@ -91,7 +93,7 @@ function generateInsights(d: {
   }
 
   if (d.topVendedora)
-    out.push({ type: "positive", text: `Mejor vendedora del período: ${d.topVendedora.nombre} con $${d.topVendedora.total.toFixed(2)} en ventas completadas.` });
+    out.push({ type: "positive", text: `Mejor vendedora del período: ${d.topVendedora.nombre} con $${d.topVendedora.total.toFixed(2)} en ventas enviadas o completadas.` });
 
   if (d.totalIngresos > 0 && d.totalEgresos === 0)
     out.push({ type: "info", text: "No se registraron gastos en este período. Considera registrarlos para un análisis completo." });
@@ -105,6 +107,20 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
   if (session.role !== "admin") redirect("/dashboard");
 
   const tab = s(searchParams.tab) || "resumen";
+
+  // ── Productos tab ────────────────────────────────────────────────────────────
+  if (tab === "productos") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Finanzas</h1>
+          <p className="mt-0.5 text-sm text-gray-500">Análisis interactivo de productos y rotación de inventario</p>
+        </div>
+        <FinanzasTabs active="productos" />
+        <ProductosAnalisisClient />
+      </div>
+    );
+  }
 
   // ── Resumen tab ─────────────────────────────────────────────────────────────
   if (tab !== "historial") {
@@ -172,7 +188,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
     }),
     prisma.order.groupBy({
       by: ["created_by"],
-      where: { status: "completada", created_at: { gte: desde, lte: hastaD } },
+      where: { status: { in: ["enviada", "completada"] }, created_at: { gte: desde, lte: hastaD } },
       _sum: { total_usd: true },
       orderBy: { _sum: { total_usd: "desc" } },
       take: 1,

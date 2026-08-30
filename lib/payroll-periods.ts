@@ -113,7 +113,7 @@ export function rangoADateTime(desdeISO: string, hastaISO: string): { inicio: Da
 export function nominaEligibleWhere(inicio: Date, fin: Date, userId?: string): Prisma.OrderWhereInput {
   return {
     ...(userId ? { created_by: userId } : {}),
-    status: "completada",
+    status: { in: ["enviada", "completada"] },
     updated_at: { gte: inicio, lte: fin },
     incluido_en_nomina_id: null,
   };
