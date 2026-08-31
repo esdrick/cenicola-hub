@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
         description: true,
         photos: true,
         quick_sale: true,
+        created_at: true,
         updated_at: true,
         variants: {
           where: {
@@ -85,6 +86,13 @@ export async function GET(request: NextRequest) {
         };
       });
 
+      const availableSizes = formattedVariants
+        .filter((v) => v.stock_total > 0)
+        .map((v) => v.size);
+
+      const fourteenDaysAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const isNew = product.created_at.getTime() >= fourteenDaysAgo;
+
       return {
         id: product.id,
         name: product.name,
@@ -93,6 +101,10 @@ export async function GET(request: NextRequest) {
         description: product.description,
         photos: product.photos,
         quick_sale: product.quick_sale,
+        is_new: isNew,
+        has_stock: availableSizes.length > 0,
+        available_sizes: availableSizes,
+        created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
         variants: formattedVariants,
       };
