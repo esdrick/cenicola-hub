@@ -5,6 +5,7 @@ const SESSION_COOKIE = "cenicola_session";
 const PUBLIC_PATHS = [
   "/login",
   "/api/auth",
+  "/api/v1/bot",
   "/checkout",
   "/buscar-pedido",
   "/mis-pedidos",
