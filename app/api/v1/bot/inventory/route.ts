@@ -109,8 +109,7 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
-          Vary: "x-api-key",
+          "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
         },
       }
     );
