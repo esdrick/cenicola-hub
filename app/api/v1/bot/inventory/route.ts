@@ -10,7 +10,12 @@ export async function GET(request: NextRequest) {
   if (!expectedApiKey || apiKey !== expectedApiKey) {
     return NextResponse.json(
       { status: "error", error: "Unauthorized" },
-      { status: 401 }
+      {
+        status: 401,
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
     );
   }
 
@@ -105,6 +110,7 @@ export async function GET(request: NextRequest) {
         status: 200,
         headers: {
           "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+          Vary: "x-api-key",
         },
       }
     );
