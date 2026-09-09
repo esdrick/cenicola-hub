@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 export async function GET(request: NextRequest) {
   const apiKey = request.headers.get("x-api-key") || request.headers.get("X-API-Key");
@@ -121,7 +121,9 @@ export async function GET(request: NextRequest) {
       {
         status: 200,
         headers: {
-          "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+          "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1200",
+          "CDN-Cache-Control": "public, s-maxage=600",
+          "Vercel-CDN-Cache-Control": "public, s-maxage=600",
         },
       }
     );
