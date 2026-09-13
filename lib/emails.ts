@@ -11,9 +11,10 @@ interface SendEmailParams {
  */
 export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.EMAIL_FROM || "Cenicola Hub <notificaciones@cenicolas.com>";
+  const fromEmail = process.env.EMAIL_FROM || "Cenicola Hub <onboarding@resend.dev>";
 
   if (!apiKey) {
+    console.warn("[EMAIL WARNING] RESEND_API_KEY no configurada en las variables de entorno.");
     console.log("--------------------------------------------------");
     console.log(`[EMAIL SIMULADO - DEV]`);
     console.log(`Para: ${to}`);
@@ -22,7 +23,8 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
     console.log(`Cuerpo HTML (primeros 200 caracteres):`);
     console.log(html.replace(/<[^>]*>?/gm, "").slice(0, 200) + "...");
     console.log("--------------------------------------------------");
-    return true;
+    // En producción, si no hay API key, retornar false para avisar que el correo no se envió
+    return process.env.NODE_ENV !== "production";
   }
 
   try {
@@ -222,10 +224,10 @@ export async function sendOrderShippedEmail({
             : ""
         }
 
-        <p>Gracias por comprar en Cenicola. ¡Esperamos que disfrutes tus productos!</p>
+        <p>Gracias por comprar en Q´ FRANELAS. ¡Esperamos que disfrutes tus productos!</p>
       </div>
       <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Cenicola Hub.
+        © ${new Date().getFullYear()} Q´ FRANELAS. Todos los derechos reservados.
       </div>
     </div>
   `;
