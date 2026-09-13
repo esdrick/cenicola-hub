@@ -11,7 +11,7 @@ interface SendEmailParams {
  */
 export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.EMAIL_FROM || "Cenicola Hub <onboarding@resend.dev>";
+  const fromEmail = process.env.EMAIL_FROM || "Q´ FRANELAS <onboarding@resend.dev>";
 
   if (!apiKey) {
     console.warn("[EMAIL WARNING] RESEND_API_KEY no configurada en las variables de entorno.");
@@ -23,7 +23,6 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
     console.log(`Cuerpo HTML (primeros 200 caracteres):`);
     console.log(html.replace(/<[^>]*>?/gm, "").slice(0, 200) + "...");
     console.log("--------------------------------------------------");
-    // En producción, si no hay API key, retornar false para avisar que el correo no se envió
     return process.env.NODE_ENV !== "production";
   }
 
@@ -55,31 +54,97 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
   }
 }
 
-// ─── Plantillas de Correo HTML ──────────────────────────────────────────────
+// ─── Estilos Globales Minimalistas Tipo Zara / Lefties ────────────────────────
+
+const BASE_STYLES = `
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #111111;
+  background-color: #f7f7f7;
+  margin: 0;
+  padding: 40px 15px;
+  -webkit-font-smoothing: antialiased;
+`;
+
+const CARD_STYLES = `
+  max-width: 580px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  padding: 40px 32px;
+`;
+
+const HEADER_STYLES = `
+  text-align: center;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #111111;
+  margin-bottom: 32px;
+`;
+
+const CONTENT_STYLES = `
+  line-height: 1.6;
+  font-size: 13px;
+  color: #222222;
+`;
+
+const BUTTON_STYLES = `
+  display: inline-block;
+  background-color: #000000;
+  color: #ffffff !important;
+  text-decoration: none;
+  padding: 14px 32px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 24px;
+  text-align: center;
+  border-radius: 0px;
+`;
+
+const FOOTER_STYLES = `
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e5e5;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #888888;
+`;
+
+// ─── Plantillas de Correo HTML Minimalistas ──────────────────────────────────────────────
 
 export async function sendWelcomeEmail(customerName: string, customerEmail: string) {
-  const subject = "¡Bienvenid@ a Cenicola! Tu cuenta ha sido creada";
+  const subject = "¡Bienvenid@ a Q´ FRANELAS! Tu cuenta ha sido creada";
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #111827; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 1px;">CENICOLA</h1>
-        <p style="margin: 4px 0 0 0; color: #9ca3af; font-size: 14px;">Moda y Calidad</p>
-      </div>
-      <div style="padding: 24px; color: #374151; line-height: 1.6;">
-        <h2 style="color: #111827; margin-top: 0;">¡Hola, ${customerName}!</h2>
-        <p>Tu cuenta ha sido registrada con éxito en nuestra tienda. Ahora puedes acceder a tu panel para explorar nuestras colecciones y realizar tus pedidos de forma rápida y segura.</p>
-        <p style="margin-top: 24px;">Desde tu cuenta podrás:</p>
-        <ul>
-          <li>Ver los precios de mayor y detalle.</li>
-          <li>Consultar las cuentas bancarias oficiales (Pago Móvil, Zelle, Banesco Panamá, USDT).</li>
-          <li>Hacer seguimiento en tiempo real al estado de tu pedido y guía de envío.</li>
-        </ul>
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}" style="background: #111827; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir a la Tienda</a>
+    <div style="${BASE_STYLES}">
+      <div style="${CARD_STYLES}">
+        <div style="${HEADER_STYLES}">
+          <h1 style="margin:0; font-size: 20px; letter-spacing: 4px; font-weight: 900; color: #000000; text-transform: uppercase;">Q´ FRANELAS</h1>
+          <p style="margin:6px 0 0; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666666;">BIENVENID@ A NUESTRA TIENDA</p>
         </div>
-      </div>
-      <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Cenicola Hub. Todos los derechos reservados.
+        
+        <div style="${CONTENT_STYLES}">
+          <h2 style="margin:0 0 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000000;">¡HOLA, ${customerName.toUpperCase()}!</h2>
+          <p style="margin:0 0 16px; color: #444444;">Tu cuenta ha sido registrada con éxito. Ahora puedes explorar nuestras colecciones y realizar tus pedidos de forma rápida y segura.</p>
+          
+          <div style="border: 1px solid #e5e5e5; padding: 20px; margin: 24px 0;">
+            <p style="margin: 0 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #000000;">DESDE TU CUENTA PODRÁS:</p>
+            <ul style="margin: 0; padding-left: 20px; color: #444444; font-size: 12px;">
+              <li style="margin-bottom: 6px;">Ver precios de mayor y detal.</li>
+              <li style="margin-bottom: 6px;">Consultar cuentas bancarias oficiales (Pago Móvil, Zelle, Banesco Panamá, USDT).</li>
+              <li>Hacer seguimiento en tiempo real a tu pedido y guía de envío.</li>
+            </ul>
+          </div>
+
+          <div style="text-align:center;">
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://quefranelas.com"}" style="${BUTTON_STYLES}">IR A LA TIENDA</a>
+          </div>
+        </div>
+
+        <div style="${FOOTER_STYLES}">
+          <p style="margin:0;">Q´ FRANELAS STORE — VENEZUELA</p>
+        </div>
       </div>
     </div>
   `;
@@ -105,30 +170,48 @@ export async function sendOrderCreatedEmail({
   reference: string;
 }) {
   const shortNum = shortOrderNumber(orderNumber);
-  const subject = `Pedido Recibido ${shortNum} - Cenicola`;
+  const subject = `Confirmación de Pedido ${shortNum} — Q´ FRANELAS`;
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #111827; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">CENICOLA</h1>
-        <p style="margin: 4px 0 0 0; color: #9ca3af; font-size: 14px;">Confirmación de Orden ${shortNum}</p>
-      </div>
-      <div style="padding: 24px; color: #374151; line-height: 1.6;">
-        <h2 style="color: #111827; margin-top: 0;">¡Gracias por tu compra, ${customerName}!</h2>
-        <p>Hemos recibido tu pedido <strong>${shortNum}</strong> y el comprobante de pago adjuntado.</p>
+    <div style="${BASE_STYLES}">
+      <div style="${CARD_STYLES}">
+        <div style="${HEADER_STYLES}">
+          <h1 style="margin:0; font-size: 20px; letter-spacing: 4px; font-weight: 900; color: #000000; text-transform: uppercase;">Q´ FRANELAS</h1>
+          <p style="margin:6px 0 0; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666666;">CONFIRMACIÓN DE ORDEN</p>
+        </div>
         
-        <div style="background: #f3f4f6; border-radius: 6px; padding: 16px; margin: 20px 0;">
-          <h3 style="margin-top: 0; color: #111827; font-size: 16px;">Resumen del Pago:</h3>
-          <p style="margin: 4px 0;"><strong>Monto USD:</strong> $${totalUsd}</p>
-          ${totalVes ? `<p style="margin: 4px 0;"><strong>Monto Estimado Bs:</strong> Bs. ${totalVes}</p>` : ""}
-          <p style="margin: 4px 0;"><strong>Método de Pago:</strong> ${paymentType}</p>
-          <p style="margin: 4px 0;"><strong>N° Referencia:</strong> ${reference}</p>
-          <p style="margin: 4px 0;"><strong>Estado:</strong> <span style="background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">En verificación por Administración</span></p>
+        <div style="${CONTENT_STYLES}">
+          <h2 style="margin:0 0 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000000;">¡GRACIAS POR TU COMPRA, ${customerName.toUpperCase()}!</h2>
+          <p style="margin:0 0 20px; color: #444444;">Hemos recibido tu pedido <strong style="font-family: monospace; color: #000000;">${shortNum}</strong> y el comprobante de pago adjuntado.</p>
+          
+          <div style="border: 1px solid #e5e5e5; padding: 20px; margin: 24px 0;">
+            <p style="margin: 0 0 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; color: #000000;">RESUMEN DEL PAGO</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #333333;">
+              <tr>
+                <td style="padding: 4px 0; color: #666666;">Monto USD:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #000000; font-family: monospace;">$${totalUsd} USD</td>
+              </tr>
+              ${totalVes ? `<tr><td style="padding: 4px 0; color: #666666;">Monto Estimado Bs:</td><td style="padding: 4px 0; text-align: right; font-weight: 600; color: #000000; font-family: monospace;">Bs. ${totalVes}</td></tr>` : ""}
+              <tr>
+                <td style="padding: 4px 0; color: #666666;">Método de Pago:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 600; color: #000000;">${paymentType}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #666666;">N° Referencia:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #000000; font-family: monospace;">${reference}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #666666;">Estado:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; text-transform: uppercase; color: #000000; font-size: 11px; letter-spacing: 1px;">EN VERIFICACIÓN POR ADMINISTRACIÓN</td>
+              </tr>
+            </table>
+          </div>
+
+          <p style="color: #666666; margin: 20px 0;">Nuestro equipo revisará tu comprobante en el banco. Una vez validado, te notificaremos por este medio y tu pedido pasará a embalaje.</p>
         </div>
 
-        <p>Nuestro equipo revisará tu comprobante en el banco. Una vez validado, te notificaremos por este medio y tu pedido pasará a empaque.</p>
-      </div>
-      <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Cenicola Hub.
+        <div style="${FOOTER_STYLES}">
+          <p style="margin:0;">Q´ FRANELAS STORE — VENEZUELA</p>
+        </div>
       </div>
     </div>
   `;
@@ -146,20 +229,25 @@ export async function sendPaymentVerifiedEmail({
   orderNumber: string;
 }) {
   const shortNum = shortOrderNumber(orderNumber);
-  const subject = `¡Pago Verificado! Tu pedido ${shortNum} pasa a Embalaje`;
+  const subject = `Pago Aprobado: Pedido ${shortNum} en embalaje — Q´ FRANELAS`;
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #059669; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">¡PAGO VERIFICADO!</h1>
-        <p style="margin: 4px 0 0 0; color: #d1fae5; font-size: 14px;">Pedido ${shortNum}</p>
-      </div>
-      <div style="padding: 24px; color: #374151; line-height: 1.6;">
-        <h2 style="color: #111827; margin-top: 0;">¡Buenas noticias, ${customerName}!</h2>
-        <p>Hemos confirmado tu pago satisfactoriamente en el banco. Tu pedido <strong>${shortNum}</strong> se encuentra ahora en nuestro departamento de <strong>Embalaje y Preparación</strong>.</p>
-        <p>Tan pronto como nuestro embalador despache tu paquete con la agencia de envíos, recibirás un correo con el número de guía de seguimiento y la foto de tu paquete.</p>
-      </div>
-      <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Cenicola Hub.
+    <div style="${BASE_STYLES}">
+      <div style="${CARD_STYLES}">
+        <div style="${HEADER_STYLES}">
+          <h1 style="margin:0; font-size: 20px; letter-spacing: 4px; font-weight: 900; color: #000000; text-transform: uppercase;">Q´ FRANELAS</h1>
+          <p style="margin:6px 0 0; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666666;">PAGO CONFIRMADO</p>
+        </div>
+        
+        <div style="${CONTENT_STYLES}">
+          <h2 style="margin:0 0 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000000;">PAGO VERIFICADO CON ÉXITO</h2>
+          <p style="margin:0 0 16px; color: #444444;">Hola <strong>${customerName.toUpperCase()}</strong>,</p>
+          <p style="margin:0 0 16px; color: #444444;">Hemos confirmado tu pago satisfactoriamente. Tu pedido <strong style="font-family: monospace; color: #000000;">${shortNum}</strong> se encuentra ahora en nuestro departamento de <strong>EMBALAJE Y PREPARACIÓN</strong>.</p>
+          <p style="margin:0 0 20px; color: #444444;">Tan pronto como despachemos tu paquete con la agencia de envíos, recibirás un correo con el número de guía de seguimiento y las fotos del envío.</p>
+        </div>
+
+        <div style="${FOOTER_STYLES}">
+          <p style="margin:0;">Q´ FRANELAS STORE — VENEZUELA</p>
+        </div>
       </div>
     </div>
   `;
@@ -185,49 +273,53 @@ export async function sendOrderShippedEmail({
   guidePhotoUrl?: string | null;
 }) {
   const shortNum = shortOrderNumber(orderNumber);
-  const subject = `¡Tu pedido ${shortNum} ha sido enviado! 🚚`;
+  const subject = `¡Tu pedido ${shortNum} ha sido enviado! — Q´ FRANELAS`;
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #0284c7; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold;">¡TU PEDIDO VA EN CAMINO!</h1>
-        <p style="margin: 4px 0 0 0; color: #e0f2fe; font-size: 14px;">Pedido ${shortNum}</p>
-      </div>
-      <div style="padding: 24px; color: #374151; line-height: 1.6;">
-        <h2 style="color: #111827; margin-top: 0;">¡Hola, ${customerName}!</h2>
-        <p>Tu paquete para el pedido <strong>${shortNum}</strong> ha sido enviado. A continuación te adjuntamos los datos y la guía de seguimiento de tu encomienda:</p>
+    <div style="${BASE_STYLES}">
+      <div style="${CARD_STYLES}">
+        <div style="${HEADER_STYLES}">
+          <h1 style="margin:0; font-size: 20px; letter-spacing: 4px; font-weight: 900; color: #000000; text-transform: uppercase;">Q´ FRANELAS</h1>
+          <p style="margin:6px 0 0; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666666;">GUÍA DE ENVÍO</p>
+        </div>
         
-        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 16px; margin: 20px 0;">
-          <h3 style="margin-top: 0; color: #0369a1; font-size: 16px;">Datos del Envío:</h3>
-          <p style="margin: 4px 0;"><strong>Empresa de Encomienda:</strong> ${shippingCompany || "MRW / Zoom"}</p>
-          <p style="margin: 4px 0;"><strong>Número de Guía (Tracking):</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; background: #ffffff; padding: 2px 6px; border: 1px solid #cbd5e1; border-radius: 4px;">${trackingNumber || "Por confirmar en agencia"}</span></p>
+        <div style="${CONTENT_STYLES}">
+          <h2 style="margin:0 0 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000000;">¡TU PEDIDO HA SIDO ENVIADO!</h2>
+          <p style="margin:0 0 16px; color: #444444;">Hola <strong>${customerName.toUpperCase()}</strong>,</p>
+          <p style="margin:0 0 20px; color: #444444;">Tu paquete del pedido <strong style="font-family: monospace; color: #000000;">${shortNum}</strong> ya fue empacado y entregado a la agencia de envíos.</p>
+          
+          <div style="border: 1px solid #e5e5e5; padding: 20px; margin: 24px 0;">
+            <p style="margin:4px 0; color: #666666;">Empresa de Encomienda: <strong style="color: #000000;">${shippingCompany || "MRW / Zoom"}</strong></p>
+            <p style="margin:4px 0; color: #666666;">Número de Guía / Tracking: <strong style="font-size: 15px; color: #000000; font-family: monospace;">${trackingNumber || "Por confirmar en agencia"}</strong></p>
+          </div>
+
+          ${
+            guidePhotoUrl
+              ? `
+            <div style="text-align:center; margin: 24px 0;">
+              <p style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; color: #000000;">COMPROBANTE DE GUÍA DE SEGUIMIENTO</p>
+              <img src="${guidePhotoUrl}" alt="Foto de la guía" style="max-width: 100%; border: 1px solid #e5e5e5;" />
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            packagePhotoUrl
+              ? `
+            <div style="text-align:center; margin: 24px 0;">
+              <p style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; color: #000000;">FOTO DEL PAQUETE EMPACADO</p>
+              <img src="${packagePhotoUrl}" alt="Foto del paquete" style="max-width: 100%; border: 1px solid #e5e5e5;" />
+            </div>
+          `
+              : ""
+          }
+
+          <p style="color: #666666; text-align: center; margin-top: 24px;">¡Gracias por comprar en Q´ FRANELAS!</p>
         </div>
 
-        ${
-          guidePhotoUrl
-            ? `
-          <div style="text-align: center; margin: 24px 0;">
-            <p style="font-size: 14px; font-weight: bold; color: #0369a1; margin-bottom: 8px;">Comprobante de Guía de Seguimiento:</p>
-            <img src="${guidePhotoUrl}" alt="Foto de la guía de seguimiento" style="max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
-          </div>
-        `
-            : ""
-        }
-
-        ${
-          packagePhotoUrl
-            ? `
-          <div style="text-align: center; margin: 24px 0;">
-            <p style="font-size: 14px; font-weight: bold; color: #475569; margin-bottom: 8px;">Foto del Paquete Despachado:</p>
-            <img src="${packagePhotoUrl}" alt="Foto del paquete" style="max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
-          </div>
-        `
-            : ""
-        }
-
-        <p>Gracias por comprar en Q´ FRANELAS. ¡Esperamos que disfrutes tus productos!</p>
-      </div>
-      <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Q´ FRANELAS. Todos los derechos reservados.
+        <div style="${FOOTER_STYLES}">
+          <p style="margin:0;">Q´ FRANELAS STORE — VENEZUELA</p>
+        </div>
       </div>
     </div>
   `;
@@ -236,29 +328,32 @@ export async function sendOrderShippedEmail({
 }
 
 export async function sendVerificationPINCodeEmail(customerName: string, customerEmail: string, pinCode: string) {
-  const subject = `${pinCode} es tu código de verificación Cenicola`;
+  const subject = `Código PIN de Verificación: ${pinCode} — Q´ FRANELAS`;
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
-      <div style="background: #111827; color: #ffffff; padding: 24px; text-align: center;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 2px;">CENICOLA</h1>
-        <p style="margin: 4px 0 0 0; color: #9ca3af; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Verificación de Cuenta de Cliente</p>
-      </div>
-      <div style="padding: 32px 24px; color: #374151; line-height: 1.6; text-align: center;">
-        <h2 style="color: #111827; margin-top: 0;">¡Hola, ${customerName}!</h2>
-        <p>Usa el siguiente código PIN para confirmar tu dirección de correo electrónico y completar tu registro:</p>
+    <div style="${BASE_STYLES}">
+      <div style="${CARD_STYLES}">
+        <div style="${HEADER_STYLES}">
+          <h1 style="margin:0; font-size: 20px; letter-spacing: 4px; font-weight: 900; color: #000000; text-transform: uppercase;">Q´ FRANELAS</h1>
+          <p style="margin:6px 0 0; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #666666;">VERIFICACIÓN DE CUENTA</p>
+        </div>
         
-        <div style="background: #f3f4f6; border: 2px dashed #9ca3af; border-radius: 8px; padding: 16px 24px; display: inline-block; margin: 24px 0;">
-          <span style="font-family: monospace; font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #111827;">${pinCode}</span>
+        <div style="${CONTENT_STYLES}; text-align: center;">
+          <h2 style="margin:0 0 12px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #000000;">¡HOLA, ${customerName.toUpperCase()}!</h2>
+          <p style="margin-bottom: 12px; color: #444444;">Usa el siguiente código PIN de seguridad de 6 dígitos para verificar tu cuenta:</p>
+          
+          <div style="border: 1px solid #000000; padding: 20px 32px; display: inline-block; margin: 20px 0; background: #fafafa;">
+            <span style="font-family: monospace, Courier, sans-serif; font-size: 36px; font-weight: 900; letter-spacing: 10px; color: #000000;">${pinCode}</span>
+          </div>
+
+          <p style="font-size: 12px; color: #888888; margin-top: 12px;">Este código vence en 15 minutos.</p>
         </div>
 
-        <p style="font-size: 13px; color: #6b7280;">Este código vence en 15 minutos. Si no solicitaste este registro, puedes ignorar este mensaje.</p>
-      </div>
-      <div style="background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px; text-align: center; color: #9ca3af; font-size: 12px;">
-        © ${new Date().getFullYear()} Cenicola. Todos los derechos reservados.
+        <div style="${FOOTER_STYLES}">
+          <p style="margin:0;">Q´ FRANELAS STORE — VENEZUELA</p>
+        </div>
       </div>
     </div>
   `;
 
   return sendEmail({ to: customerEmail, subject, html });
 }
-
