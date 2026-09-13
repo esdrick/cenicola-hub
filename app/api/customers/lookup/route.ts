@@ -20,9 +20,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ customer: null });
   }
 
-  const customer = await prisma.customer.findFirst({
-    where: { doc_type: doc_type as (typeof DOC_TYPES)[number], doc_number },
-    orderBy: { created_at: "desc" },
+  const customer = await prisma.customer.findUnique({
+    where: { doc_type_doc_number: { doc_type: doc_type as (typeof DOC_TYPES)[number], doc_number } },
   });
 
   if (!customer) return NextResponse.json({ customer: null });
