@@ -216,7 +216,7 @@ model Customer {
 
   orders     Order[]
 
-  @@unique([doc_type, doc_number])
+  @@index([doc_type, doc_number])
   @@map("customers")
 }
 
