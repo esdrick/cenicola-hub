@@ -336,7 +336,9 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
-                      <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
+                      {channelInfo.label !== "WEB" && o.customer_id_doc && (
+                        <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className={`rounded-full px-2 py-0.5 text-xs ${channelInfo.badgeClass}`}>

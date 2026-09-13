@@ -40,6 +40,7 @@ enum OrderStatus {
   pago_parcial
   pago_verificado
   en_embalaje
+  listo_para_retiro
   enviada
   completada
   cancelada
@@ -200,7 +201,7 @@ model Customer {
   doc_number         String
   name               String
   lastname           String
-  email              String?      @unique
+  email              String?
   password_hash      String?
   address            String?
   phone              String?
@@ -219,12 +220,36 @@ model Customer {
   @@map("customers")
 }
 
+model CustomerAccount {
+  id                  String        @id @default(uuid())
+  email               String        @unique
+  password_hash       String?
+  name                String
+  lastname            String
+  doc_type            DocumentType? @default(V)
+  doc_number          String?
+  phone               String?
+  is_active           Boolean   @default(true)
+  email_verified      Boolean   @default(false)
+  verification_code   String?
+  verification_expiry DateTime?
+  reset_token         String?
+  reset_token_expiry  DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  orders              Order[]
+
+  @@map("customer_accounts")
+}
+
 model Order {
   id                  String      @id @default(uuid())
   order_number        String      @unique
   channel             OrderChannel
   status              OrderStatus @default(pendiente_pago)
   customer_id         String?
+  customer_account_id String?
   customer_name       String
   customer_lastname   String
   customer_id_doc     String
@@ -246,6 +271,7 @@ model Order {
   updated_at          DateTime    @updatedAt
 
   customer             Customer?           @relation(fields: [customer_id], references: [id])
+  customer_account     CustomerAccount?    @relation(fields: [customer_account_id], references: [id])
   creator              User?               @relation("OrderCreatedBy", fields: [created_by], references: [id])
   partial_agreed_user  User?               @relation("OrderPartialAgreedBy", fields: [partial_agreed_by], references: [id])
   exchange_rate        ExchangeRate?       @relation(fields: [exchange_rate_id], references: [id])
@@ -320,8 +346,10 @@ model OrderShipment {
   photo_receipt   String?
   photo_guide     String?
   notes           String?
-  edited_at       DateTime?
-  edited_by       String?
+  edited_at           DateTime?
+  edited_by           String?
+  guide_email_sent_at DateTime?
+  guide_email_sent_to String?
 
   order  Order @relation(fields: [order_id], references: [id])
   packer User  @relation(fields: [packed_by], references: [id])

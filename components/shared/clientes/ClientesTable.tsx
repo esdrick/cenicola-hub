@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  AlertCircle, Search, Pencil, Trash2, Check, X, Loader2,
+  AlertCircle, Search, Pencil, Trash2, Check, X, Loader2, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CustomerJSON } from "@/types";
@@ -31,11 +31,23 @@ type EditState = {
   doc_number: string;
   name: string;
   lastname: string;
+  email: string;
+  address: string;
+  phone: string;
+};
+
+type CreateState = {
+  doc_type: DocType;
+  doc_number: string;
+  name: string;
+  lastname: string;
+  email: string;
   address: string;
   phone: string;
 };
 
 const PHONE_RE = /^0\d{9,10}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Props = {
   initialData: CustomerJSON[];
@@ -57,6 +69,18 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createState, setCreateState] = useState<CreateState>({
+    doc_type: "V",
+    doc_number: "",
+    name: "",
+    lastname: "",
+    email: "",
+    address: "",
+    phone: "",
+  });
 
   const load = useCallback(async (search: string, pg: number) => {
     setLoading(true);
@@ -94,6 +118,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
       doc_number: c.doc_number,
       name: c.name,
       lastname: c.lastname,
+      email: c.email ?? "",
       address: c.address ?? "",
       phone: c.phone ?? "",
     });
@@ -110,6 +135,10 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
       setError("Número de teléfono inválido");
       return;
     }
+    if (editing.email.trim() && !EMAIL_RE.test(editing.email.trim())) {
+      setError("Correo electrónico inválido");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -121,6 +150,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
           doc_number: editing.doc_number,
           name: editing.name,
           lastname: editing.lastname,
+          email: editing.email.trim() || null,
           address: editing.address || null,
           phone: editing.phone || null,
         }),
@@ -133,6 +163,47 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
       setError("Error de conexión");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveCreate() {
+    if (!createState.name.trim() || !createState.lastname.trim() || !createState.doc_number.trim()) {
+      setError("Nombre, apellido y número de documento son requeridos");
+      return;
+    }
+    if (createState.phone.trim() && !PHONE_RE.test(createState.phone.trim())) {
+      setError("Número de teléfono inválido");
+      return;
+    }
+    if (createState.email.trim() && !EMAIL_RE.test(createState.email.trim())) {
+      setError("Correo electrónico inválido");
+      return;
+    }
+    setCreating(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doc_type: createState.doc_type,
+          doc_number: createState.doc_number.trim(),
+          name: createState.name.trim(),
+          lastname: createState.lastname.trim(),
+          email: createState.email.trim() || null,
+          address: createState.address.trim() || null,
+          phone: createState.phone.trim() || null,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setError(j.error ?? "Error al crear cliente"); return; }
+      setShowCreate(false);
+      setCreateState({ doc_type: "V", doc_number: "", name: "", lastname: "", email: "", address: "", phone: "" });
+      load(q, page);
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -155,12 +226,79 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nombre o documento…" className="pl-8" />
+      {/* Top Bar: Search + Add Customer */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="relative max-w-sm flex-1 min-w-[240px]">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nombre o documento…" className="pl-8" />
+        </div>
+        <Button size="sm" onClick={() => { setShowCreate((p) => !p); setError(null); }} className="gap-1.5">
+          <Plus size={14} />
+          {showCreate ? "Cancelar" : "Nuevo Cliente"}
+        </Button>
       </div>
+
+      {/* Formulario Nuevo Cliente */}
+      {showCreate && (
+        <div className="rounded-xl border bg-white p-5 space-y-4 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-900">Registrar Nuevo Cliente en Hub</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Documento *</label>
+              <div className="flex gap-1">
+                <Select value={createState.doc_type}
+                  onValueChange={(v) => setCreateState((p) => ({ ...p, doc_type: v as DocType }))}>
+                  <SelectTrigger className="h-9 w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(DOC_TYPE_LABELS) as [DocType, string][]).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input className="h-9 text-xs flex-1" placeholder="12345678"
+                  value={createState.doc_number}
+                  onChange={(e) => setCreateState((p) => ({ ...p, doc_number: e.target.value.replace(/\D/g, "") }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Nombre *</label>
+              <Input className="h-9 text-xs" placeholder="Nombre" value={createState.name}
+                onChange={(e) => setCreateState((p) => ({ ...p, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Apellido *</label>
+              <Input className="h-9 text-xs" placeholder="Apellido" value={createState.lastname}
+                onChange={(e) => setCreateState((p) => ({ ...p, lastname: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Teléfono (Opcional)</label>
+              <Input className="h-9 text-xs" placeholder="04121234567" value={createState.phone}
+                onChange={(e) => setCreateState((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 11) }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Correo (Opcional)</label>
+              <Input className="h-9 text-xs" placeholder="correo@ejemplo.com" type="email" value={createState.email}
+                onChange={(e) => setCreateState((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-gray-700">Dirección (Opcional)</label>
+              <Input className="h-9 text-xs" placeholder="Dirección del cliente" value={createState.address}
+                onChange={(e) => setCreateState((p) => ({ ...p, address: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button size="sm" onClick={saveCreate} disabled={creating}>
+              {creating ? <Loader2 size={13} className="animate-spin mr-1" /> : null}
+              Guardar Cliente
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && (
         <Alert variant="destructive">
@@ -190,6 +328,7 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
             <TableRow>
               <TableHead>Documento</TableHead>
               <TableHead>Nombre</TableHead>
+              <TableHead>Correo</TableHead>
               <TableHead>Dirección</TableHead>
               <TableHead>Teléfono</TableHead>
               <TableHead className="text-center">Órdenes</TableHead>
@@ -199,14 +338,14 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-gray-400">
+                <TableCell colSpan={7} className="py-10 text-center text-gray-400">
                   <Loader2 size={18} className="animate-spin inline" />
                 </TableCell>
               </TableRow>
             )}
             {!loading && customers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-sm text-gray-400">
+                <TableCell colSpan={7} className="py-10 text-center text-sm text-gray-400">
                   No hay clientes registrados
                 </TableCell>
               </TableRow>
@@ -247,6 +386,12 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <Input className="h-8 text-xs" value={editing.email}
+                          onChange={(e) => setEditing((p) => p ? { ...p, email: e.target.value } : p)}
+                          placeholder="correo@ejemplo.com" type="email"
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Input className="h-8 text-xs" value={editing.address}
                           onChange={(e) => setEditing((p) => p ? { ...p, address: e.target.value } : p)}
                           placeholder="Dirección" />
@@ -277,7 +422,10 @@ export function ClientesTable({ initialData, initialTotal }: Props) {
                         {c.doc_type}-{c.doc_number}
                       </TableCell>
                       <TableCell className="text-sm text-gray-900">
-                        {c.name} {c.lastname}
+                        <span>{c.name} {c.lastname}</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-600 max-w-[180px] truncate">
+                        {c.email ?? <span className="italic text-gray-400">Sin correo</span>}
                       </TableCell>
                       <TableCell className="text-xs text-gray-500 max-w-[200px] truncate">
                         {c.address ?? <span className="italic">Sin dirección</span>}

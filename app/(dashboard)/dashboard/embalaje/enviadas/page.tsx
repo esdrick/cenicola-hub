@@ -7,8 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
 import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 type SP = { [key: string]: string | string[] | undefined };
+function s(v: string | string[] | undefined) { return typeof v === "string" ? v : ""; }
+
+const PAGE_SIZE = 25;
 
 export default async function EnviadasPage({ searchParams }: { searchParams: SP }) {
   const session = await getSession();
@@ -19,49 +23,73 @@ export default async function EnviadasPage({ searchParams }: { searchParams: SP 
   }
 
   const historial = searchParams.historial === "1";
+  const q = s(searchParams.q).trim();
+  const page = Math.max(1, parseInt(s(searchParams.page) || "1"));
+
   const corteActivo = await getCorteActivo();
   const corte = historial ? null : corteActivo;
 
-  const orders = await prisma.order.findMany({
-    where: {
-      status: { in: ["enviada", "completada"] },
-      OR: [
-        { shipment: { packed_by: session.id } },
-        { created_by: session.id },
-        { created_by: null },
-      ],
-      ...(corte && {
-        shipment: {
-          is: {
-            OR: [
-              { shipped_at: { gte: corte } },
-              { packed_at: { gte: corte } },
-              { shipped_at: null },
-            ],
-          },
+  const where: Prisma.OrderWhereInput = {
+    status: { in: ["enviada", "completada"] },
+    OR: [
+      { shipment: { packed_by: session.id } },
+      { created_by: session.id },
+      { created_by: null },
+    ],
+    ...(corte && {
+      shipment: {
+        is: {
+          OR: [
+            { shipped_at: { gte: corte } },
+            { packed_at: { gte: corte } },
+            { shipped_at: null },
+          ],
         },
-      }),
-    },
-    include: {
-      creator: { select: { id: true, name: true } },
-      items: {
-        include: {
-          variant: {
-            include: {
-              product: { select: { id: true, name: true, color: true } },
+      },
+    }),
+    ...(q && {
+      AND: [
+        {
+          OR: [
+            { order_number: { contains: q, mode: "insensitive" as const } },
+            { customer_name: { contains: q, mode: "insensitive" as const } },
+            { customer_lastname: { contains: q, mode: "insensitive" as const } },
+            { customer_id_doc: { contains: q, mode: "insensitive" as const } },
+          ],
+        },
+      ],
+    }),
+  };
+
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: {
+        creator: { select: { id: true, name: true } },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { id: true, name: true, color: true } },
+              },
             },
           },
         },
-      },
-      shipment: {
-        include: {
-          packer: { select: { id: true, name: true } },
-          editor: { select: { id: true, name: true } },
+        shipment: {
+          include: {
+            packer: { select: { id: true, name: true } },
+            editor: { select: { id: true, name: true } },
+          },
         },
       },
-    },
-    orderBy: { updated_at: "desc" },
-  });
+      orderBy: { updated_at: "desc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+    }),
+    prisma.order.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const data: EmbalajeOrdenJSON[] = orders.map((o) => {
     const items_summary = o.items
@@ -88,6 +116,8 @@ export default async function EnviadasPage({ searchParams }: { searchParams: SP 
         photo_guide: o.shipment.photo_guide,
         notes: o.shipment.notes,
         edited_at: o.shipment.edited_at?.toISOString() ?? null,
+        guide_email_sent_at: o.shipment.guide_email_sent_at?.toISOString() ?? null,
+        guide_email_sent_to: o.shipment.guide_email_sent_to ?? null,
         packer: o.shipment.packer,
         editor: o.shipment.editor,
       };
@@ -118,7 +148,7 @@ export default async function EnviadasPage({ searchParams }: { searchParams: SP 
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mi Historial de Envíos</h1>
           <p className="mt-0.5 text-sm text-gray-500">
-            {data.length} orden{data.length !== 1 ? "es" : ""} en tu historial
+            {total} orden{total !== 1 ? "es" : ""} en tu historial
           </p>
         </div>
         {corteActivo && (
@@ -138,7 +168,13 @@ export default async function EnviadasPage({ searchParams }: { searchParams: SP 
           Viendo historial completo
         </span>
       )}
-      <EnviadasTable initialOrders={data} role={session.role} />
+      <EnviadasTable
+        initialOrders={data}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        role={session.role}
+      />
     </div>
   );
 }

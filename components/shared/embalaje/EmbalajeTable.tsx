@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { useTransition, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Search, Loader2, X } from "lucide-react";
 import { shortOrderNumber, getOrderChannelDisplay } from "@/lib/order-utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,41 +14,79 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/shared/Pagination";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import type { EmbalajeOrdenJSON } from "@/types";
 
 interface EmbalajeTableProps {
   initialOrders: EmbalajeOrdenJSON[];
+  total: number;
+  page: number;
+  totalPages: number;
 }
 
-export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
+export function EmbalajeTable({ initialOrders, total, page, totalPages }: EmbalajeTableProps) {
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const sp = useSearchParams();
+  const [isPending, start] = useTransition();
+  const [q, setQ] = useState(sp.get("q") ?? "");
 
-  const filtered = initialOrders.filter((o) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      o.order_number.toLowerCase().includes(q) ||
-      o.customer_name.toLowerCase().includes(q) ||
-      o.customer_lastname.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    setQ(sp.get("q") ?? "");
+  }, [sp]);
+
+  function buildUrl(overrides: Record<string, string | number>) {
+    const params = new URLSearchParams(sp.toString());
+    const vals: Record<string, string> = {
+      q,
+      page: String(page),
+      ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
+    };
+    Object.entries(vals).forEach(([k, v]) => {
+      if (v && v !== "0") params.set(k, v);
+      else params.delete(k);
+    });
+    return `/dashboard/embalaje?${params.toString()}`;
+  }
+
+  function applySearch() {
+    start(() => router.push(buildUrl({ q, page: 1 })));
+  }
+
+  function clearSearch() {
+    setQ("");
+    start(() => router.push(buildUrl({ q: "", page: 1 })));
+  }
 
   return (
     <div className="space-y-4">
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <Input
-          placeholder="Buscar por orden o cliente..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+          <Input
+            placeholder="Buscar por orden o cliente..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applySearch();
+            }}
+            className="pl-9 pr-9"
+          />
+          {q && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {isPending && <Loader2 size={16} className="animate-spin text-gray-400" />}
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-white overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -62,14 +100,14 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {initialOrders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                   No hay órdenes en embalaje
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((o) => {
+              initialOrders.map((o) => {
                 const channelInfo = getOrderChannelDisplay({
                   channel: o.channel,
                   notes: o.notes,
@@ -107,7 +145,7 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
                     </TableCell>
                     <TableCell className="text-sm font-medium text-gray-700">{channelInfo.vendedora}</TableCell>
                     <TableCell>
-                      {new Date(o.created_at).toLocaleDateString("es-VE")}
+                      {formatVenezuelaDate(o.created_at)}
                     </TableCell>
                   </TableRow>
                 );
@@ -116,6 +154,18 @@ export function EmbalajeTable({ initialOrders }: EmbalajeTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        noun="orden"
+        nounPlural="órdenes"
+        isPending={isPending}
+        onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
+        onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
+        onPageChange={(p) => start(() => router.push(buildUrl({ page: p })))}
+      />
     </div>
   );
 }

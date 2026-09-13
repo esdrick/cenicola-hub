@@ -34,6 +34,14 @@ export function getVenezuelaDateString(date: Date = new Date()): string {
   return `${year}-${m}-${d}`;
 }
 
+/** Devuelve la representación "HH:mm" de una fecha según la hora de Venezuela */
+export function getVenezuelaTimeString(date: Date = new Date()): string {
+  const { hours, minutes } = getVenezuelaParts(date);
+  const h = String(hours).padStart(2, "0");
+  const m = String(minutes).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 /** Devuelve la representación "YYYYMMDD" de una fecha según la hora de Venezuela */
 export function getVenezuelaCompactDateString(date: Date = new Date()): string {
   const { year, month, day } = getVenezuelaParts(date);
@@ -69,6 +77,16 @@ export function formatVenezuelaDateTime(date: Date | string | number, options?: 
   const d = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleString("es-VE", {
+    timeZone: VENEZUELA_TIMEZONE,
+    ...options,
+  });
+}
+
+/** Formatea la hora de una fecha a la hora de Venezuela (ej: "08:30 PM") */
+export function formatVenezuelaTime(date: Date | string | number, options?: Intl.DateTimeFormatOptions): string {
+  const d = typeof date === "string" || typeof date === "number" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("es-VE", {
     timeZone: VENEZUELA_TIMEZONE,
     ...options,
   });

@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { ProductJSON, CartJSON } from "@/types";
 
@@ -271,7 +272,7 @@ export function AddToCartButton({
                   selectedCartId === cart.id ? "border-gray-900 bg-gray-900" : "border-gray-300"
                 )} />
                 <span className="flex-1 truncate font-medium text-gray-800">
-                  {cart.note || `Orden del ${new Date(cart.created_at).toLocaleDateString("es-VE")}`}
+                  {cart.note || `Orden del ${formatVenezuelaDate(cart.created_at)}`}
                 </span>
                 <span className="text-xs text-gray-400 flex-shrink-0">
                   {cart.items.length} prod.

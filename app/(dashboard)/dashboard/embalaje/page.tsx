@@ -9,8 +9,12 @@ import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
 import { EmbalajeAdminTabs } from "@/components/shared/embalaje/EmbalajeAdminTabs";
 import { getCorteActivo } from "@/lib/cierre-sistema";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
+import type { Prisma } from "@/app/generated/prisma/client";
 
 type SP = { [key: string]: string | string[] | undefined };
+function s(v: string | string[] | undefined) { return typeof v === "string" ? v : ""; }
+
+const PAGE_SIZE = 25;
 
 export default async function EmbalajeListPage({ searchParams }: { searchParams: SP }) {
   const session = await getSession();
@@ -21,35 +25,47 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   const hasHistorialTab = session.role === "admin" || session.role === "inventario" || isVendedoraOnline;
   const tab = hasHistorialTab && searchParams.tab === "historial" ? "historial" : "embalaje";
   const historial = searchParams.historial === "1";
+  const q = s(searchParams.q).trim();
+  const page = Math.max(1, parseInt(s(searchParams.page) || "1"));
 
   // ── Historial de Envíos (admin, inventario y vendedora_online, tab=historial) ──
   if (hasHistorialTab && tab === "historial") {
     const corteActivo = await getCorteActivo();
     const corte = historial ? null : corteActivo;
 
-    const [orders, pendingCount] = await Promise.all([
-      prisma.order.findMany({
-        where: {
-          status: { in: ["enviada", "completada"] },
-          ...(isVendedoraOnline && {
+    const where: Prisma.OrderWhereInput = {
+      status: { in: ["enviada", "completada"] },
+      ...(isVendedoraOnline && {
+        OR: [
+          { created_by: session.id },
+          { created_by: null },
+          { shipment: { is: { packed_by: session.id } } },
+        ],
+      }),
+      ...(corte && {
+        shipment: {
+          is: {
             OR: [
-              { created_by: session.id },
-              { created_by: null },
-              { shipment: { is: { packed_by: session.id } } },
+              { shipped_at: { gte: corte } },
+              { packed_at: { gte: corte } },
+              { shipped_at: null },
             ],
-          }),
-          ...(corte && {
-            shipment: {
-              is: {
-                OR: [
-                  { shipped_at: { gte: corte } },
-                  { packed_at: { gte: corte } },
-                  { shipped_at: null },
-                ],
-              },
-            },
-          }),
+          },
         },
+      }),
+      ...(q && {
+        OR: [
+          { order_number: { contains: q, mode: "insensitive" as const } },
+          { customer_name: { contains: q, mode: "insensitive" as const } },
+          { customer_lastname: { contains: q, mode: "insensitive" as const } },
+          { customer_id_doc: { contains: q, mode: "insensitive" as const } },
+        ],
+      }),
+    };
+
+    const [orders, total, pendingCount] = await Promise.all([
+      prisma.order.findMany({
+        where,
         include: {
           creator: { select: { id: true, name: true } },
           items: {
@@ -69,13 +85,18 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
           },
         },
         orderBy: { updated_at: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
       }),
+      prisma.order.count({ where }),
       prisma.order.count({
         where: isVendedoraOnline
           ? { status: "en_embalaje", created_by: session.id }
           : { status: "en_embalaje" },
       }),
     ]);
+
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
     const data: EmbalajeOrdenJSON[] = orders.map((o) => {
       const items_summary = o.items
@@ -132,9 +153,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
             <p className="mt-0.5 text-sm text-gray-500">
-              {isVendedoraOnline
-                ? `${data.length} orden${data.length !== 1 ? "es" : ""} en tu historial`
-                : `${data.length} orden${data.length !== 1 ? "es" : ""} enviada${data.length !== 1 ? "s" : ""} o completada${data.length !== 1 ? "s" : ""}`}
+              {total} orden{total !== 1 ? "es" : ""} {isVendedoraOnline ? "en tu historial" : "enviadas o completadas"}
             </p>
           </div>
           {corteActivo && (
@@ -155,19 +174,33 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
           </span>
         )}
         <EmbalajeAdminTabs active="historial" pendingCount={pendingCount} />
-        <EnviadasTable initialOrders={data} role={session.role} />
+        <EnviadasTable
+          initialOrders={data}
+          total={total}
+          page={page}
+          totalPages={totalPages}
+          role={session.role}
+        />
       </div>
     );
   }
 
   // ── En embalaje (default) ──────────────────────────────────────────────────
   // Vendedoras online solo empacan las órdenes que ellas mismas vendieron.
-  const embalajeWhere =
-    session.role === "vendedora_online"
-      ? { status: "en_embalaje" as const, created_by: session.id }
-      : { status: "en_embalaje" as const };
+  const embalajeWhere: Prisma.OrderWhereInput = {
+    status: "en_embalaje" as const,
+    ...(session.role === "vendedora_online" && { created_by: session.id }),
+    ...(q && {
+      OR: [
+        { order_number: { contains: q, mode: "insensitive" as const } },
+        { customer_name: { contains: q, mode: "insensitive" as const } },
+        { customer_lastname: { contains: q, mode: "insensitive" as const } },
+        { customer_id_doc: { contains: q, mode: "insensitive" as const } },
+      ],
+    }),
+  };
 
-  const [orders, pendingCount] = await Promise.all([
+  const [orders, total, pendingCount] = await Promise.all([
     prisma.order.findMany({
       where: embalajeWhere,
       include: {
@@ -183,9 +216,18 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
         },
       },
       orderBy: { updated_at: "asc" },
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
     prisma.order.count({ where: embalajeWhere }),
+    prisma.order.count({
+      where: session.role === "vendedora_online"
+        ? { status: "en_embalaje", created_by: session.id }
+        : { status: "en_embalaje" },
+    }),
   ]);
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const data: EmbalajeOrdenJSON[] = orders.map((o) => {
     const items_summary = o.items
@@ -223,11 +265,16 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Embalaje</h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          {data.length} orden{data.length !== 1 ? "es" : ""} pendiente{data.length !== 1 ? "s" : ""} de embalaje
+          {total} orden{total !== 1 ? "es" : ""} pendiente{total !== 1 ? "s" : ""} de embalaje
         </p>
       </div>
       {hasHistorialTab && <EmbalajeAdminTabs active="embalaje" pendingCount={pendingCount} />}
-      <EmbalajeTable initialOrders={data} />
+      <EmbalajeTable
+        initialOrders={data}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+      />
     </div>
   );
 }

@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const q = sp.get("q")?.trim() ?? "";
+  const page = Math.max(1, parseInt(sp.get("page") || "1"));
+  const limit = Math.max(1, parseInt(sp.get("limit") || "25"));
 
   const where = {
     status: "en_embalaje" as const,
@@ -21,26 +23,32 @@ export async function GET(request: NextRequest) {
         { order_number: { contains: q, mode: "insensitive" as const } },
         { customer_name: { contains: q, mode: "insensitive" as const } },
         { customer_lastname: { contains: q, mode: "insensitive" as const } },
+        { customer_id_doc: { contains: q, mode: "insensitive" as const } },
       ],
     }),
   };
 
-  const orders = await prisma.order.findMany({
-    where,
-    include: {
-      creator: { select: { id: true, name: true } },
-      items: {
-        include: {
-          variant: {
-            include: {
-              product: { select: { id: true, name: true, color: true } },
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: {
+        creator: { select: { id: true, name: true } },
+        items: {
+          include: {
+            variant: {
+              include: {
+                product: { select: { id: true, name: true, color: true } },
+              },
             },
           },
         },
       },
-    },
-    orderBy: { updated_at: "asc" },
-  });
+      orderBy: { updated_at: "asc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.order.count({ where }),
+  ]);
 
   const data = orders.map((o) => {
     const items_summary = o.items
@@ -74,5 +82,5 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data, total, page, totalPages: Math.ceil(total / limit) });
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingCart, ChevronRight, AlertTriangle, Trash2, Loader2, ChevronDown } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { CartJSON } from "@/types";
 
@@ -25,7 +26,7 @@ function CartCard({ cart, onDelete }: { cart: CartJSON; onDelete: (id: string) =
 
   const preview = cart.items.slice(0, 3);
   const extra = cart.items.length - preview.length;
-  const label = cart.note || `Orden del ${new Date(cart.created_at).toLocaleDateString("es-VE")}`;
+  const label = cart.note || `Orden del ${formatVenezuelaDate(cart.created_at)}`;
 
   return (
     <div className="relative rounded-xl border bg-white p-4 space-y-3 hover:border-gray-300 transition-colors">

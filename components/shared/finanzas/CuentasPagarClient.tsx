@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, Plus, Loader2 } from "lucide-react";
 import { DialogTrigger } from "@/components/ui/dialog";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 
 type CuentaPagarJSON = {
   id: string;
@@ -235,12 +236,12 @@ export function CuentasPagarClient({ data }: Props) {
                       </Badge>
                       {isPaid && c.paid_at && (
                         <p className="mt-0.5 text-[10px] text-gray-400" suppressHydrationWarning>
-                          {new Date(c.paid_at).toLocaleDateString("es-VE")}
+                          {formatVenezuelaDate(c.paid_at)}
                         </p>
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-gray-500" suppressHydrationWarning>
-                      {new Date(c.created_at).toLocaleDateString("es-VE")}
+                      {formatVenezuelaDate(c.created_at)}
                     </TableCell>
                     <TableCell className="text-center">
                       {isPaid ? (

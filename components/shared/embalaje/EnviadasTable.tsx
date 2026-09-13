@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, ImageIcon, ImageOff, Loader2, Pencil, Upload, X, Check } from "lucide-react";
 import { shortOrderNumber } from "@/lib/order-utils";
+import { formatVenezuelaDate, formatVenezuelaDateTime } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
@@ -25,29 +26,61 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AgregarGuiaDialog } from "@/components/shared/ordenes/AgregarGuiaDialog";
+import { Pagination } from "@/components/shared/Pagination";
 import type { EmbalajeOrdenJSON, UserRole } from "@/types";
 
 const VALID_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
 interface EnviadasTableProps {
   initialOrders: EmbalajeOrdenJSON[];
+  total: number;
+  page: number;
+  totalPages: number;
   role: UserRole;
 }
 
-export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
+export function EnviadasTable({ initialOrders, total, page, totalPages, role }: EnviadasTableProps) {
   const router = useRouter();
+  const sp = useSearchParams();
+  const [isPending, start] = useTransition();
   const isEmbalador = role === "embalador" || role === "vendedora_online";
   const canEditPhotos = role === "admin" || role === "inventario";
-  const [search, setSearch] = useState("");
+  const [q, setQ] = useState(sp.get("q") ?? "");
   const [orders, setOrders] = useState(initialOrders);
 
-  // El componente se mantiene montado al navegar entre la vista por defecto y
-  // "Ver historial completo" (misma ruta, solo cambia ?historial=1) — sin este efecto,
-  // `orders` se queda congelado con el valor del primer montaje y nunca refleja el
-  // nuevo `initialOrders` que manda el servidor.
   useEffect(() => {
     setOrders(initialOrders);
   }, [initialOrders]);
+
+  useEffect(() => {
+    setQ(sp.get("q") ?? "");
+  }, [sp]);
+
+  function buildUrl(overrides: Record<string, string | number>) {
+    const params = new URLSearchParams(sp.toString());
+    const vals: Record<string, string> = {
+      q,
+      page: String(page),
+      ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
+    };
+    Object.entries(vals).forEach(([k, v]) => {
+      if (v && v !== "0") params.set(k, v);
+      else params.delete(k);
+    });
+    const pathname = window.location.pathname;
+    return `${pathname}?${params.toString()}`;
+  }
+
+  function applySearch() {
+    start(() => router.push(buildUrl({ q, page: 1 })));
+  }
+
+  function clearSearch() {
+    setQ("");
+    start(() => router.push(buildUrl({ q: "", page: 1 })));
+  }
+
   const [selectedOrder, setSelectedOrder] = useState<EmbalajeOrdenJSON | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [packagePhotoError, setPackagePhotoError] = useState(false);
@@ -201,16 +234,6 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
     }
   }
 
-  const filtered = orders.filter((o) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      o.order_number.toLowerCase().includes(q) ||
-      o.customer_name.toLowerCase().includes(q) ||
-      o.customer_lastname.toLowerCase().includes(q)
-    );
-  });
-
   async function handleCompletar(e: React.MouseEvent, orderId: string) {
     e.stopPropagation();
     setCompletingId(orderId);
@@ -236,18 +259,32 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
   return (
     <div className="space-y-4">
       {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-        <Input
-          placeholder="Buscar por orden o cliente..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+          <Input
+            placeholder="Buscar por orden o cliente..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applySearch();
+            }}
+            className="pl-9 pr-9"
+          />
+          {q && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {isPending && <Loader2 size={16} className="animate-spin text-gray-400" />}
       </div>
 
       {/* Table */}
-      <div className="rounded-md border">
+      <div className="rounded-md border bg-white overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -263,14 +300,14 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {orders.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={isEmbalador ? 7 : 9} className="text-center py-8 text-gray-500">
                   {isEmbalador ? "No tienes órdenes enviadas aún" : "No hay órdenes en el historial"}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((o) => (
+              orders.map((o) => (
                 <TableRow
                   key={o.id}
                   className="cursor-pointer hover:bg-gray-50"
@@ -321,27 +358,42 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
                     )}
                   </TableCell>
                   <TableCell>
-                    {new Date(o.updated_at).toLocaleDateString("es-VE")}
+                    {formatVenezuelaDate(o.updated_at)}
                   </TableCell>
                   {!isEmbalador && (
                     <TableCell className="text-right">
-                      {o.status === "enviada" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={completingId === o.id}
-                          onClick={(e) => handleCompletar(e, o.id)}
-                        >
-                          {completingId === o.id ? (
-                            <>
-                              <Loader2 size={14} className="mr-1 animate-spin" />
-                              Procesando...
-                            </>
-                          ) : (
-                            "Marcar como completada"
-                          )}
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {canEditPhotos && o.channel === "online" && (
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <AgregarGuiaDialog
+                              orderId={o.id}
+                              orderNumber={o.order_number}
+                              shippingCompany={o.shipping_company}
+                              initialTrackingNumber={o.shipment?.tracking_number}
+                              initialGuidePhoto={o.shipment?.photo_guide}
+                              initialGuideEmailSentAt={o.shipment?.guide_email_sent_at}
+                              initialGuideEmailSentTo={o.shipment?.guide_email_sent_to}
+                            />
+                          </div>
+                        )}
+                        {o.status === "enviada" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={completingId === o.id}
+                            onClick={(e) => handleCompletar(e, o.id)}
+                          >
+                            {completingId === o.id ? (
+                              <>
+                                <Loader2 size={14} className="mr-1 animate-spin" />
+                                Procesando...
+                              </>
+                            ) : (
+                              "Marcar como completada"
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -350,6 +402,18 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        noun="orden"
+        nounPlural="órdenes"
+        isPending={isPending}
+        onPrev={() => start(() => router.push(buildUrl({ page: page - 1 })))}
+        onNext={() => start(() => router.push(buildUrl({ page: page + 1 })))}
+        onPageChange={(p) => start(() => router.push(buildUrl({ page: p })))}
+      />
 
       {/* Photos dialog */}
       <Dialog
@@ -373,7 +437,7 @@ export function EnviadasTable({ initialOrders, role }: EnviadasTableProps) {
               <Pencil size={12} />
               <span>
                 Editado por {selectedOrder.shipment.editor?.name ?? "—"} el{" "}
-                {new Date(selectedOrder.shipment.edited_at).toLocaleString("es-VE")}
+                {formatVenezuelaDateTime(selectedOrder.shipment.edited_at)}
               </span>
             </div>
           )}

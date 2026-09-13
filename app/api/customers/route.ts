@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
 
-  const { doc_type, doc_number, name, lastname, address, phone } = body;
+  const { doc_type, doc_number, name, lastname, address, phone, email } = body;
 
   if (!DOC_TYPES.includes(doc_type)) {
     return NextResponse.json({ error: "Tipo de documento inválido" }, { status: 400 });
@@ -65,38 +65,50 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Número de teléfono inválido" }, { status: 400 });
   }
 
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const cleanEmail = email?.trim() ? email.trim().toLowerCase() : null;
+  if (cleanEmail && !EMAIL_RE.test(cleanEmail)) {
+    return NextResponse.json({ error: "Correo electrónico inválido" }, { status: 400 });
+  }
+
   const cleanDocNumber = doc_number.trim();
   const existingCustomer = await prisma.customer.findFirst({
     where: { doc_type, doc_number: cleanDocNumber },
   });
-
-  let customer;
   if (existingCustomer) {
-    customer = await prisma.customer.update({
-      where: { id: existingCustomer.id },
-      data: {
-        name: name.trim(),
-        lastname: lastname.trim(),
-        address: address?.trim() || null,
-        phone: phone?.trim() || null,
-      },
-    });
-  } else {
-    customer = await prisma.customer.create({
-      data: {
-        doc_type,
-        doc_number: cleanDocNumber,
-        name: name.trim(),
-        lastname: lastname.trim(),
-        address: address?.trim() || null,
-        phone: phone?.trim() || null,
-      },
-    });
+    return NextResponse.json(
+      { error: `Ya existe un cliente registrado en Cenicola Hub con el documento ${doc_type}-${cleanDocNumber}` },
+      { status: 409 }
+    );
   }
 
-  return NextResponse.json({
-    ...customer,
-    created_at: customer.created_at.toISOString(),
-    updated_at: customer.updated_at.toISOString(),
+  if (cleanEmail) {
+    const emailOwner = await prisma.customer.findFirst({
+      where: { email: cleanEmail },
+    });
+    if (emailOwner) {
+      return NextResponse.json(
+        { error: "El correo electrónico ya está registrado por otro cliente" },
+        { status: 409 }
+      );
+    }
+  }
+
+  const customer = await prisma.customer.create({
+    data: {
+      doc_type,
+      doc_number: cleanDocNumber,
+      name: name.trim(),
+      lastname: lastname.trim(),
+      address: address?.trim() || null,
+      phone: phone?.trim() || null,
+      email: cleanEmail,
+    },
   });
+
+    return NextResponse.json({
+      ...customer,
+      created_at: customer.created_at.toISOString(),
+      updated_at: customer.updated_at.toISOString(),
+    });
 }

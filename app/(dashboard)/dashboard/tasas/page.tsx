@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getHistorialTasas } from "@/lib/tasa-cambio";
+import { formatVenezuelaTime } from "@/lib/date-utils";
 import { TrendingUp, AlertTriangle, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import {
@@ -96,7 +97,7 @@ export default async function TasasPage() {
                           )}
                         </span>
                         <span className="text-xs text-gray-400 tabular-nums font-normal">
-                          {new Date(t.created_at).toLocaleTimeString("es-VE", { hour: "2-digit", minute: "2-digit" })}
+                          {formatVenezuelaTime(t.created_at, { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </span>
                     </TableCell>

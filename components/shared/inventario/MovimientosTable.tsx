@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
+import { formatVenezuelaDateTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { MovementJSON, MovementType, MovementChannel } from "@/types";
 
@@ -308,7 +309,7 @@ export function MovimientosTable({ movements, total, page, totalPages, tallas }:
               movements.map((m) => (
                 <TableRow key={m.id} className="hover:bg-gray-50/50">
                   <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
-                    {new Date(m.created_at).toLocaleString("es-VE", {
+                    {formatVenezuelaDateTime(m.created_at, {
                       day: "2-digit", month: "2-digit", year: "2-digit",
                       hour: "2-digit", minute: "2-digit",
                     })}

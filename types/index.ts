@@ -60,8 +60,10 @@ export type CustomerJSON = {
   doc_number: string;
   name: string;
   lastname: string;
+  email: string | null;
   address: string | null;
   phone: string | null;
+  is_web?: boolean;
   created_at: string;
   updated_at: string;
   _count?: { orders: number };
@@ -354,6 +356,8 @@ export type EmbalajeShipmentJSON = {
   photo_guide: string | null;
   notes: string | null;
   edited_at: string | null;
+  guide_email_sent_at?: string | null;
+  guide_email_sent_to?: string | null;
   packer: { id: string; name: string };
   editor: { id: string; name: string } | null;
 };

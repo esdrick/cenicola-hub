@@ -16,7 +16,7 @@ import {
   Plus, ChevronRight, ChevronLeft, Check, Upload, Pencil, X,
 } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
-import { getVenezuelaDateString } from "@/lib/date-utils";
+import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { CartJSON, PaymentFormInput } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
@@ -83,6 +83,7 @@ type CustomerData = {
   doc_number: string;
   customer_address: string;
   customer_phone: string;
+  customer_email?: string;
   shipping_company: string;
   notes: string;
 };
@@ -94,7 +95,7 @@ const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
   payment_type: channel === "tienda" ? "efectivo_bs" : "transferencia",
   amount_usd: "",
   payment_date: getVenezuelaDateString(),
-  payment_time: "",
+  payment_time: channel === "tienda" ? getVenezuelaTimeString() : "",
   reference: "",
   payment_photo: "",
   is_partial: false,
@@ -109,7 +110,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [customer, setCustomer] = useState<CustomerData>({
     customer_name: "", customer_lastname: "",
     doc_type: "V", doc_number: "",
-    customer_address: "", customer_phone: "",
+    customer_address: "", customer_phone: "", customer_email: "",
     shipping_company: "", notes: "",
   });
   const [lookingUp, setLookingUp] = useState(false);
@@ -126,6 +127,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
     const docType = searchParams.get("doc_type") as DocType | null;
     const docNumber = searchParams.get("doc_number");
     const phone = searchParams.get("phone");
+    const emailParam = searchParams.get("email");
     const shippingCompany = searchParams.get("shipping_company");
     const shippingAddressParam = searchParams.get("shipping_address");
 
@@ -137,6 +139,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
         doc_type: docType || prev.doc_type,
         doc_number: docNumber || prev.doc_number,
         customer_phone: phone || prev.customer_phone,
+        customer_email: emailParam || prev.customer_email,
         shipping_company: shippingCompany || prev.shipping_company,
       }));
       if (shippingAddressParam) {
@@ -167,6 +170,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   const NAME_RE = /^[\p{L}\s]+$/u;
   const PHONE_RE = /^0\d{9,10}$/;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   function validateField(name: string, value: string): string {
     const v = value.trim();
@@ -191,6 +195,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       case "customer_phone":
         if (!v) return channel === "online" ? "El teléfono es obligatorio" : "";
         if (!PHONE_RE.test(v)) return "Debe iniciar con 0 y tener 10-11 dígitos";
+        return "";
+      case "customer_email":
+        if (v && !EMAIL_RE.test(v)) return "Formato de correo electrónico inválido";
         return "";
       case "shippingAddress":
         if (!v) return channel === "online" ? "La dirección de envío es obligatoria" : "";
@@ -219,7 +226,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       setFoundAddress(null);
       setUseCustomerAddress(false);
       setIsPartialAgreed(false);
-      setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "" }));
+      setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "", customer_email: "" }));
       return;
     }
     lookupTimer.current = setTimeout(async () => {
@@ -235,6 +242,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             customer_lastname: j.customer.lastname,
             customer_address: addr ?? "",
             customer_phone: j.customer.phone ?? "",
+            customer_email: j.customer.email ?? "",
           }));
           setFoundAddress(addr);
           if (addr) {
@@ -247,7 +255,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           setFoundAddress(null);
           setUseCustomerAddress(false);
           setShippingAddress("");
-          setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "" }));
+          setCustomer((p) => ({ ...p, customer_name: "", customer_lastname: "", customer_address: "", customer_phone: "", customer_email: "" }));
         }
       } catch { /* silent */ }
       finally { setLookingUp(false); }
@@ -443,6 +451,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
           doc_number: customer.doc_number,
           customer_address: customer.customer_address || null,
           customer_phone: customer.customer_phone || null,
+          customer_email: customer.customer_email || null,
           address: shippingAddress || null,
           shipping_company: customer.shipping_company || null,
           notes: customer.notes || null,
@@ -719,22 +728,40 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                 <p className="text-xs text-red-500">{fieldErrors.customer_address}</p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label>Teléfono{channel === "online" ? " *" : ""}</Label>
-              <Input
-                value={customer.customer_phone}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 11);
-                  setCustomer((p) => ({ ...p, customer_phone: val }));
-                }}
-                onBlur={(e) => blurField("customer_phone", e.target.value)}
-                placeholder="04121234567"
-                inputMode="numeric"
-                className={cn(fieldErrors.customer_phone && "border-red-400")}
-              />
-              {fieldErrors.customer_phone && (
-                <p className="text-xs text-red-500">{fieldErrors.customer_phone}</p>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Teléfono{channel === "online" ? " *" : ""}</Label>
+                <Input
+                  value={customer.customer_phone}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 11);
+                    setCustomer((p) => ({ ...p, customer_phone: val }));
+                  }}
+                  onBlur={(e) => blurField("customer_phone", e.target.value)}
+                  placeholder="04121234567"
+                  inputMode="numeric"
+                  className={cn(fieldErrors.customer_phone && "border-red-400")}
+                />
+                {fieldErrors.customer_phone && (
+                  <p className="text-xs text-red-500">{fieldErrors.customer_phone}</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Correo electrónico (Opcional)</Label>
+                <Input
+                  type="email"
+                  value={customer.customer_email ?? ""}
+                  onChange={(e) => {
+                    setCustomer((p) => ({ ...p, customer_email: e.target.value }));
+                  }}
+                  onBlur={(e) => blurField("customer_email", e.target.value)}
+                  placeholder="cliente@ejemplo.com"
+                  className={cn(fieldErrors.customer_email && "border-red-400")}
+                />
+                {fieldErrors.customer_email && (
+                  <p className="text-xs text-red-500">{fieldErrors.customer_email}</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -1180,9 +1207,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                         payment_type: e.target.value as PaymentType,
                         reference: isEfectivo ? "" : p.reference,
                         payment_date: isEfectivo ? getVenezuelaDateString(now) : p.payment_date,
-                        payment_time: isEfectivo
-                          ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
-                          : p.payment_time,
+                        payment_time: isEfectivo ? getVenezuelaTimeString(now) : p.payment_time,
                       }));
 
                       // Only reprice when there are no committed payments locking the method

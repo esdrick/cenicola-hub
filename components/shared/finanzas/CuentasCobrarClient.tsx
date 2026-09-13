@@ -14,6 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { CreditCard, Loader2 } from "lucide-react";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 
 type CuentaJSON = {
   id: string;
@@ -200,7 +201,7 @@ export function CuentasCobrarClient({ data }: Props) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-gray-500" suppressHydrationWarning>
-                    {new Date(c.created_at).toLocaleDateString("es-VE")}
+                    {formatVenezuelaDate(c.created_at)}
                   </TableCell>
                   <TableCell className="text-center">
                     <Button

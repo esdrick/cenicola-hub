@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Search, SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
@@ -305,7 +306,7 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-gray-500" suppressHydrationWarning>
-                      {new Date(o.created_at).toLocaleDateString("es-VE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                      {formatVenezuelaDate(o.created_at, { day: "2-digit", month: "2-digit", year: "2-digit" })}
                     </TableCell>
                   </TableRow>
                 );

@@ -11,6 +11,7 @@ import { CancelOrderButton } from "@/components/shared/ordenes/CancelOrderButton
 import { DevolucionForzadaButton } from "@/components/shared/ordenes/DevolucionForzadaButton";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
 import { AgregarProductosDialog } from "@/components/shared/ordenes/AgregarProductosDialog";
+import { AgregarGuiaDialog } from "@/components/shared/ordenes/AgregarGuiaDialog";
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
 import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrdenButton";
 import { OrderHistorySection } from "@/components/shared/ordenes/OrderHistorySection";
@@ -18,7 +19,7 @@ import { STATUS_LABELS, PAYMENT_TYPE_LABELS, getOrderChannelDisplay } from "@/li
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone } from "lucide-react";
+import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone, Mail } from "lucide-react";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 const TIMELINE_ONLINE = ["pendiente_pago", "pago_verificado", "en_embalaje", "enviada", "completada"] as const;
@@ -130,7 +131,7 @@ export default async function OrderDetailPage({
     where: { id: params.id },
     include: {
       creator: { select: { id: true, name: true } },
-      customer: { select: { id: true, phone: true } },
+      customer: { select: { id: true, phone: true, email: true } },
       items: {
         include: {
           variant: {
@@ -371,6 +372,17 @@ export default async function OrderDetailPage({
                   </a>
                 </div>
               )}
+              {order.customer?.email && (
+                <div className="flex items-center gap-1.5 text-gray-500">
+                  <Mail size={14} className="text-gray-400 flex-shrink-0" />
+                  <a
+                    href={`mailto:${order.customer.email}`}
+                    className="hover:underline hover:text-gray-700 truncate"
+                  >
+                    {order.customer.email}
+                  </a>
+                </div>
+              )}
             </div>
             {order.channel === "online" && (
               <div className="space-y-2 border-t pt-3 text-sm">
@@ -530,83 +542,132 @@ export default async function OrderDetailPage({
               </div>
             )}
           </div>
-          {/* Shipment info — shown to admin/inventario when a shipment exists */}
-          {order.shipment && (session.role === "admin" || session.role === "inventario") && (
-            <div className="rounded-xl border bg-white overflow-hidden">
-              <div className="border-b px-5 py-3">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-                  <Package2 size={14} />Envío
-                </h2>
-              </div>
-              <div className="px-5 py-4 space-y-3 text-sm">
-                {/* Packer + dates */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                  <div>
-                    <p className="text-xs text-gray-400">Embalado por</p>
-                    <p className="font-medium">{order.shipment.packer.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Fecha embalaje</p>
-                    <p className="font-medium" suppressHydrationWarning>
-                      {order.shipment.packed_at.toLocaleString("es-VE", {
-                        timeZone: "America/Caracas",
-                        day: "2-digit", month: "2-digit", year: "numeric",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                  {order.shipment.tracking_number && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-400 flex items-center gap-1">
-                        <Hash size={11} />Tracking
-                      </p>
-                      <p className="font-mono font-medium">{order.shipment.tracking_number}</p>
-                    </div>
-                  )}
-                  {order.shipment.notes && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-gray-400">Notas de envío</p>
-                      <p className="text-gray-700 whitespace-pre-wrap">{order.shipment.notes}</p>
-                    </div>
-                  )}
-                </div>
+          {/* Shipment info — shown for online orders to admin/inventario */}
+          {order.channel === "online" && (session.role === "admin" || session.role === "inventario") && (() => {
+            const isEmbalado = Boolean(order.shipment);
+            const isCancelada = order.status === "cancelada";
+            const canAddGuia = isEmbalado && !isCancelada;
+            const guiaDisabledReason = isCancelada
+              ? "La orden está cancelada"
+              : !isEmbalado
+              ? "La orden debe ser embalada en el módulo de Embalaje antes de agregar la guía"
+              : undefined;
 
-                {/* Shipment photos */}
-                <div className="flex gap-3 pt-1">
-                  <div className="space-y-1">
-                    <p className="text-xs text-gray-400">Foto del paquete</p>
-                    <a href={order.shipment.photo_package} target="_blank" rel="noopener noreferrer"
-                      className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
-                      <Image
-                        src={order.shipment.photo_package}
-                        alt="Foto del paquete"
-                        fill
-                        className="object-cover group-hover:opacity-80 transition-opacity"
-                      />
-                      <ExternalLink size={12}
-                        className="absolute bottom-1 right-1 text-white drop-shadow opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                  </div>
-                  {order.shipment.photo_receipt && (
-                    <div className="space-y-1">
-                      <p className="text-xs text-gray-400">Foto del recibo</p>
-                      <a href={order.shipment.photo_receipt} target="_blank" rel="noopener noreferrer"
-                        className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
-                        <Image
-                          src={order.shipment.photo_receipt}
-                          alt="Foto del recibo"
-                          fill
-                          className="object-cover group-hover:opacity-80 transition-opacity"
-                        />
-                        <ExternalLink size={12}
-                          className="absolute bottom-1 right-1 text-white drop-shadow opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </a>
-                    </div>
-                  )}
+            return (
+              <div className="rounded-xl border bg-white overflow-hidden">
+                <div className="border-b px-5 py-3 flex items-center justify-between gap-2 flex-wrap">
+                  <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+                    <Package2 size={14} />Envío y Guía
+                  </h2>
+                  <AgregarGuiaDialog
+                    orderId={order.id}
+                    orderNumber={order.order_number}
+                    shippingCompany={order.shipping_company}
+                    initialTrackingNumber={order.shipment?.tracking_number}
+                    initialGuidePhoto={order.shipment?.photo_guide}
+                    initialCustomerEmail={order.customer?.email}
+                    initialGuideEmailSentAt={order.shipment?.guide_email_sent_at?.toISOString() ?? null}
+                    initialGuideEmailSentTo={order.shipment?.guide_email_sent_to ?? null}
+                    disabled={!canAddGuia}
+                    disabledReason={guiaDisabledReason}
+                  />
                 </div>
+                {order.shipment ? (
+                  <div className="px-5 py-4 space-y-3 text-sm">
+                    {/* Packer + dates */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <p className="text-xs text-gray-400">Embalado por</p>
+                        <p className="font-medium">{order.shipment.packer.name}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Fecha embalaje</p>
+                        <p className="font-medium" suppressHydrationWarning>
+                          {order.shipment.packed_at.toLocaleString("es-VE", {
+                            timeZone: "America/Caracas",
+                            day: "2-digit", month: "2-digit", year: "numeric",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      {order.shipment.tracking_number && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-400 flex items-center gap-1">
+                            <Hash size={11} />Tracking / Guía
+                          </p>
+                          <p className="font-mono font-semibold text-sky-900">{order.shipment.tracking_number}</p>
+                        </div>
+                      )}
+                      {order.shipment.notes && (
+                        <div className="col-span-2">
+                          <p className="text-xs text-gray-400">Notas de envío</p>
+                          <p className="text-gray-700 whitespace-pre-wrap">{order.shipment.notes}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Shipment photos */}
+                    <div className="flex gap-3 pt-1 flex-wrap">
+                      {order.shipment.photo_guide && (
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-sky-700">Foto de la guía</p>
+                          <a href={order.shipment.photo_guide} target="_blank" rel="noopener noreferrer"
+                            className="group relative block h-24 w-24 overflow-hidden rounded-lg border-2 border-sky-300 bg-sky-50 shadow-sm">
+                            <Image
+                              src={order.shipment.photo_guide}
+                              alt="Foto de la guía"
+                              fill
+                              className="object-cover group-hover:opacity-80 transition-opacity"
+                            />
+                            <ExternalLink size={12}
+                              className="absolute bottom-1 right-1 text-white drop-shadow opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </div>
+                      )}
+                      {order.shipment.photo_package && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-400">Foto del paquete</p>
+                          <a href={order.shipment.photo_package} target="_blank" rel="noopener noreferrer"
+                            className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
+                            <Image
+                              src={order.shipment.photo_package}
+                              alt="Foto del paquete"
+                              fill
+                              className="object-cover group-hover:opacity-80 transition-opacity"
+                            />
+                            <ExternalLink size={12}
+                              className="absolute bottom-1 right-1 text-white drop-shadow opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </div>
+                      )}
+                      {order.shipment.photo_receipt && (
+                        <div className="space-y-1">
+                          <p className="text-xs text-gray-400">Foto del recibo</p>
+                          <a href={order.shipment.photo_receipt} target="_blank" rel="noopener noreferrer"
+                            className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
+                            <Image
+                              src={order.shipment.photo_receipt}
+                              alt="Foto del recibo"
+                              fill
+                              className="object-cover group-hover:opacity-80 transition-opacity"
+                            />
+                            <ExternalLink size={12}
+                              className="absolute bottom-1 right-1 text-white drop-shadow opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-5 py-4 text-xs text-gray-500">
+                    {isCancelada
+                      ? "Orden cancelada. No es posible agregar o modificar la guía de envío."
+                      : "Sin registro de embalaje aún. La orden debe ser embalada en el módulo de Embalaje para habilitar el registro de guía, foto y notificación al cliente."}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 

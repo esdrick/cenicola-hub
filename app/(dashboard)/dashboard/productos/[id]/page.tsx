@@ -15,6 +15,7 @@ import { ColorSelector } from "@/components/shared/productos/ColorSelector";
 import { SizeSelector } from "@/components/shared/productos/SizeSelector";
 import { AddToCartButton } from "@/components/shared/productos/AddToCartButton";
 import { BackButton } from "@/components/shared/BackButton";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CartJSON, CartItemJSON } from "@/types";
@@ -208,7 +209,7 @@ export default async function ProductoDetailPage({
 
           <div className="text-xs text-gray-400">
             Creado por {product.creator.name} ·{" "}
-            {new Date(product.created_at).toLocaleDateString("es-VE", {
+            {formatVenezuelaDate(product.created_at, {
               day: "2-digit", month: "long", year: "numeric",
             })}
           </div>

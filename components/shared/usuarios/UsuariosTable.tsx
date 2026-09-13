@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Search, X, Loader2 } from "lucide-react";
 import { Pagination } from "@/components/shared/Pagination";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { ROLE_LABELS } from "@/lib/auth";
 import type { UserJSON, UserRole } from "@/types";
@@ -161,7 +162,7 @@ export function UsuariosTable({ users, total, page, totalPages }: Props) {
                     </span>
                   </TableCell>
                   <TableCell className="text-sm text-gray-500 whitespace-nowrap">
-                    {new Date(user.created_at).toLocaleDateString("es-VE", {
+                    {formatVenezuelaDate(user.created_at, {
                       day: "2-digit",
                       month: "short",
                       year: "numeric",

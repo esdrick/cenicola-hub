@@ -172,6 +172,7 @@ export async function sendOrderShippedEmail({
   shippingCompany,
   trackingNumber,
   packagePhotoUrl,
+  guidePhotoUrl,
 }: {
   customerEmail: string;
   customerName: string;
@@ -179,6 +180,7 @@ export async function sendOrderShippedEmail({
   shippingCompany?: string | null;
   trackingNumber?: string | null;
   packagePhotoUrl?: string | null;
+  guidePhotoUrl?: string | null;
 }) {
   const shortNum = shortOrderNumber(orderNumber);
   const subject = `¡Tu pedido ${shortNum} ha sido enviado! 🚚`;
@@ -190,13 +192,24 @@ export async function sendOrderShippedEmail({
       </div>
       <div style="padding: 24px; color: #374151; line-height: 1.6;">
         <h2 style="color: #111827; margin-top: 0;">¡Hola, ${customerName}!</h2>
-        <p>Tu paquete para el pedido <strong>${shortNum}</strong> ha sido empacado y entregado a la agencia de envíos.</p>
+        <p>Tu paquete para el pedido <strong>${shortNum}</strong> ha sido enviado. A continuación te adjuntamos los datos y la guía de seguimiento de tu encomienda:</p>
         
         <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 16px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #0369a1; font-size: 16px;">Datos del Envío:</h3>
           <p style="margin: 4px 0;"><strong>Empresa de Encomienda:</strong> ${shippingCompany || "MRW / Zoom"}</p>
           <p style="margin: 4px 0;"><strong>Número de Guía (Tracking):</strong> <span style="font-family: monospace; font-size: 16px; font-weight: bold; background: #ffffff; padding: 2px 6px; border: 1px solid #cbd5e1; border-radius: 4px;">${trackingNumber || "Por confirmar en agencia"}</span></p>
         </div>
+
+        ${
+          guidePhotoUrl
+            ? `
+          <div style="text-align: center; margin: 24px 0;">
+            <p style="font-size: 14px; font-weight: bold; color: #0369a1; margin-bottom: 8px;">Comprobante de Guía de Seguimiento:</p>
+            <img src="${guidePhotoUrl}" alt="Foto de la guía de seguimiento" style="max-width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />
+          </div>
+        `
+            : ""
+        }
 
         ${
           packagePhotoUrl

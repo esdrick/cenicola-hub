@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Upload, AlertCircle, AlertTriangle } from "lucide-react";
 import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
-import { getVenezuelaDateString } from "@/lib/date-utils";
+import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma/client";
@@ -98,11 +98,14 @@ export function AgregarPagoDialog({
     effectivePricingMethod === "divisas" ? [...DIVISAS_METHODS] :
     Object.keys(PAYMENT_TYPE_LABELS) as PaymentType[];
 
+  const defaultMethod = (allowedMethods[0] ?? (effectivePricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType;
+  const isInitialEf = defaultMethod === "efectivo_bs" || defaultMethod === "efectivo_usd";
+
   const makeEmpty = () => ({
-    payment_type: (allowedMethods[0] ?? (effectivePricingMethod === "divisas" ? "zelle" : "transferencia")) as PaymentType,
+    payment_type: defaultMethod,
     amount_usd: "",
     payment_date: getVenezuelaDateString(),
-    payment_time: "",
+    payment_time: isInitialEf ? getVenezuelaTimeString() : "",
     reference: "",
     payment_photo: "",
   });
@@ -273,9 +276,7 @@ export function AgregarPagoDialog({
                       payment_type: v as PaymentType,
                       reference: ef ? "" : p.reference,
                       payment_date: ef ? getVenezuelaDateString(now) : p.payment_date,
-                      payment_time: ef
-                        ? `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
-                        : p.payment_time,
+                      payment_time: ef ? getVenezuelaTimeString(now) : p.payment_time,
                     }));
                   }}
                 >

@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import type { PagoOrdenDetailJSON } from "@/types";
 import { getOrderChannelDisplay, isWebOrder } from "@/lib/order-utils";
+import { formatVenezuelaDate } from "@/lib/date-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
 import type { PaymentType } from "@/app/generated/prisma/client";
@@ -275,6 +276,7 @@ export function PagoDetailClient({ order }: Props) {
             pago_parcial:    "Pago parcial",
             pago_verificado: "Pago verificado",
             en_embalaje:     "En embalaje",
+            listo_para_retiro: "Listo para retiro",
             enviada:         "Enviada",
             completada:      "Completada",
             cancelada:       "Cancelada",
@@ -369,7 +371,7 @@ export function PagoDetailClient({ order }: Props) {
               <div>
                 <p className="text-gray-500">Fecha</p>
                 <p className="font-medium" suppressHydrationWarning>
-                  {new Date(order.created_at).toLocaleDateString("es-VE", {
+                  {formatVenezuelaDate(order.created_at, {
                     day: "2-digit", month: "2-digit", year: "numeric",
                   })}
                 </p>

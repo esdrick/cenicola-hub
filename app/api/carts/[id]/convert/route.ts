@@ -42,7 +42,7 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   const {
     customer_name, customer_lastname,
-    doc_type, doc_number, customer_address, customer_phone,
+    doc_type, doc_number, customer_address, customer_phone, customer_email,
     address, shipping_company, notes,
     payments, is_partial_agreed,
   } = body;
@@ -232,9 +232,20 @@ export async function POST(request: NextRequest, { params }: Params) {
         ? "pago_parcial"
         : "pendiente_pago";
 
-      // 4. Resolve customer if doc provided:
-      // Existing customer master records remain protected and unchanged; new customers are created.
+      // 4. Resolve customer and customer account:
       let customerId: string | null = null;
+      let customerAccountId: string | null = null;
+      const cleanEmail = customer_email?.trim() ? customer_email.trim().toLowerCase() : null;
+
+      if (cleanEmail) {
+        const existingAccount = await tx.customerAccount.findUnique({
+          where: { email: cleanEmail },
+        });
+        if (existingAccount) {
+          customerAccountId = existingAccount.id;
+        }
+      }
+
       if (hasDoc && DOC_TYPES.includes(doc_type)) {
         const cleanDocNumber = doc_number.trim();
         const existingCustomer = await tx.customer.findFirst({
@@ -242,10 +253,9 @@ export async function POST(request: NextRequest, { params }: Params) {
         });
 
         if (existingCustomer) {
-          // Cliente registrado existente: se asocia la orden a su ficha sin alterar sus datos maestros.
           customerId = existingCustomer.id;
         } else {
-          // Cliente nuevo: se crea la ficha maestra en el sistema.
+          // Cliente nuevo en directorio POS de tienda física.
           const createdCustomer = await tx.customer.create({
             data: {
               doc_type,
@@ -254,6 +264,7 @@ export async function POST(request: NextRequest, { params }: Params) {
               lastname: customer_lastname?.trim() || "",
               address: customer_address?.trim() || null,
               phone: customer_phone?.trim() || null,
+              email: cleanEmail,
             },
           });
           customerId = createdCustomer.id;
@@ -276,6 +287,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           status: orderStatus,
           pago_verificado_at: isCompletada || isAutoVerifiedOnline ? new Date() : null,
           customer_id: customerId,
+          customer_account_id: customerAccountId,
           customer_name: finalCustomerName,
           customer_lastname: customer_lastname?.trim() || "",
           customer_id_doc,
