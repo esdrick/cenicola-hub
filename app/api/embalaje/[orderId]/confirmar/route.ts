@@ -29,7 +29,7 @@ export async function POST(
   const ip = getClientIp(request);
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // Validate order exists and has correct status
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -75,15 +75,6 @@ export async function POST(
           ip_address: ip,
         },
       });
-
-      return {
-        customerEmail: order.customer?.email,
-        customerName: order.customer_name,
-        orderNumber: order.order_number,
-        shippingCompany: order.shipping_company,
-        trackingNumber: tracking?.trim() || null,
-        packagePhotoUrl: foto1Url.trim(),
-      };
     });
 
     return NextResponse.json({ success: true });
