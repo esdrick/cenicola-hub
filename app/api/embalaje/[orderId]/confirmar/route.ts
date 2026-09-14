@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
-import { sendOrderShippedEmail } from "@/lib/emails";
+
 
 // POST /api/embalaje/[orderId]/confirmar — confirm shipment
 export async function POST(
@@ -85,17 +85,6 @@ export async function POST(
         packagePhotoUrl: foto1Url.trim(),
       };
     });
-
-    if (result.customerEmail) {
-      sendOrderShippedEmail({
-        customerEmail: result.customerEmail,
-        customerName: result.customerName,
-        orderNumber: result.orderNumber,
-        shippingCompany: result.shippingCompany,
-        trackingNumber: result.trackingNumber,
-        packagePhotoUrl: result.packagePhotoUrl,
-      }).catch(console.error);
-    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
