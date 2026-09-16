@@ -182,7 +182,7 @@ export function HistorialClient({ data }: { data: HistorialData }) {
               value={desde}
               max={today}
               onChange={(e) => setDesde(e.target.value)}
-              className="w-36 max-w-full text-sm appearance-none"
+              className="w-36 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
           <div className="min-w-0 space-y-1">
@@ -192,7 +192,7 @@ export function HistorialClient({ data }: { data: HistorialData }) {
               value={hasta}
               max={today}
               onChange={(e) => setHasta(e.target.value)}
-              className="w-36 max-w-full text-sm appearance-none"
+              className="w-36 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
           <Button variant="outline" onClick={applyFilter} className="rounded-full px-4">

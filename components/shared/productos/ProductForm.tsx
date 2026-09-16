@@ -28,6 +28,19 @@ export const PREDEFINED_COLORS = [
   "Mostaza", "Ámbar", "Oro", "Caqui", "Crema", "Marfil", "Aguamarina",
 ];
 
+function capitalizeWords(str: string): string {
+  if (!str) return "";
+  return str
+    .split(" ")
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ""))
+    .join(" ");
+}
+
+function capitalizeFirst(str: string): string {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 type Props = {
   initialData?: ProductJSON;
   productId?: string;
@@ -87,6 +100,9 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [showKidSizes, setShowKidSizes] = useState(false);
   const [knownCustomSizes, setKnownCustomSizes] = useState<string[]>([]);
+  const [availableColors, setAvailableColors] = useState<string[]>(PREDEFINED_COLORS);
+  const [showCustomColorInput, setShowCustomColorInput] = useState(false);
+  const [customColorInput, setCustomColorInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -111,6 +127,22 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
       } catch { /* ignore */ }
     }, 400);
   }, [isEdit]);
+
+  // ── Colores guardados en el sistema ──────────────────────────────────────────
+  useEffect(() => {
+    fetch("/api/products/colors")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.colors) && data.colors.length > 0) {
+          setAvailableColors((prev) => {
+            const set = new Set([...prev, ...data.colors]);
+            if (initialData?.color) set.add(initialData.color);
+            return Array.from(set).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+          });
+        }
+      })
+      .catch(() => { /* ignore */ });
+  }, [initialData?.color]);
 
   // ── Tallas personalizadas guardadas ──────────────────────────────────────────
   useEffect(() => {
@@ -278,7 +310,7 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
       if (!res.ok) { setError(data.error ?? "Error al guardar"); return; }
 
       const targetId = isEdit ? productId : data.id;
-      router.push(`/dashboard/productos/${targetId}`);
+      router.replace(`/dashboard/productos/${targetId}`);
       router.refresh();
     } catch {
       setError("Error de conexión. Intenta de nuevo.");
@@ -331,12 +363,21 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
             <Input
               id="name"
               value={name}
-              onChange={(e) => { setName(e.target.value); fetchNameSuggestions(e.target.value); checkDuplicate(e.target.value, color); }}
+              onChange={(e) => {
+                const val = capitalizeWords(e.target.value);
+                setName(val);
+                fetchNameSuggestions(val);
+                checkDuplicate(val, color);
+              }}
               onFocus={() => nameSuggestions.length > 0 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onBlur={() => {
+                setName((prev) => capitalizeWords(prev.trim()));
+                setTimeout(() => setShowSuggestions(false), 150);
+              }}
               placeholder="Ej: Blusa Floral"
               disabled={loading}
               autoComplete="off"
+              autoCapitalize="words"
             />
             {showSuggestions && (
               <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg">
@@ -354,22 +395,89 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
 
           <div className="space-y-1.5">
             <Label htmlFor="type">Tipo *</Label>
-            <Input id="type" value={type} onChange={(e) => setType(e.target.value)}
-              placeholder="Ej: Blusa, Pantalón, Falda" disabled={loading} />
+            <Input
+              id="type"
+              value={type}
+              onChange={(e) => setType(capitalizeWords(e.target.value))}
+              onBlur={() => setType((prev) => capitalizeWords(prev.trim()))}
+              placeholder="Ej: Blusa, Pantalón, Falda"
+              disabled={loading}
+              autoCapitalize="words"
+            />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="color">Color</Label>
-            <select
-              id="color"
-              value={color ?? ""}
-              onChange={(e) => { const v = e.target.value; setColor(v || null); checkDuplicate(name, v || null); }}
-              disabled={loading}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-            >
-              <option value="">Sin color</option>
-              {PREDEFINED_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="color">Color</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showCustomColorInput;
+                  setShowCustomColorInput(next);
+                  if (next) {
+                    setCustomColorInput(color ?? "");
+                  } else {
+                    const fallbackColor = color && availableColors.includes(color) ? color : null;
+                    setColor(fallbackColor);
+                    checkDuplicate(name, fallbackColor);
+                  }
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline"
+              >
+                {showCustomColorInput ? "Seleccionar de la lista" : "+ Nuevo color"}
+              </button>
+            </div>
+
+            {showCustomColorInput ? (
+              <Input
+                id="color"
+                value={customColorInput}
+                onChange={(e) => {
+                  const val = capitalizeWords(e.target.value);
+                  setCustomColorInput(val);
+                  const trimmed = val.trim();
+                  const formatted = trimmed ? capitalizeWords(trimmed) : null;
+                  setColor(formatted);
+                  checkDuplicate(name, formatted);
+                }}
+                onBlur={() => {
+                  setCustomColorInput((prev) => {
+                    const formatted = capitalizeWords(prev.trim());
+                    setColor(formatted.trim() ? formatted : null);
+                    return formatted;
+                  });
+                }}
+                placeholder="Ej: Azul Rey, Verde Menta"
+                disabled={loading}
+                autoCapitalize="words"
+              />
+            ) : (
+              <select
+                id="color"
+                value={color ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__NEW_COLOR__") {
+                    setShowCustomColorInput(true);
+                    setCustomColorInput("");
+                    setColor(null);
+                  } else {
+                    setColor(v || null);
+                    checkDuplicate(name, v || null);
+                  }
+                }}
+                disabled={loading}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              >
+                <option value="">Sin color</option>
+                {availableColors.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+                <option value="__NEW_COLOR__">+ Escribir nuevo color...</option>
+              </select>
+            )}
           </div>
 
         </div>
@@ -458,9 +566,15 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
 
         <div className="space-y-1.5">
           <Label htmlFor="description">Descripción</Label>
-          <Textarea id="description" value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Descripción opcional del producto…" rows={3} disabled={loading} />
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(capitalizeFirst(e.target.value))}
+            placeholder="Descripción opcional del producto…"
+            rows={3}
+            disabled={loading}
+            autoCapitalize="sentences"
+          />
         </div>
 
         <label className="flex cursor-pointer select-none items-start gap-2 text-sm">

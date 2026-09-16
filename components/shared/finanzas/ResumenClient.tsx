@@ -206,7 +206,7 @@ export function ResumenClient() {
               value={desde}
               max={today}
               onChange={(e) => { setDesde(e.target.value); setActivePreset("custom"); }}
-              className="w-40 max-w-full text-sm appearance-none"
+              className="w-40 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
           <div className="min-w-0 space-y-1">
@@ -216,7 +216,7 @@ export function ResumenClient() {
               value={hasta}
               max={today}
               onChange={(e) => { setHasta(e.target.value); setActivePreset("custom"); }}
-              className="w-40 max-w-full text-sm appearance-none"
+              className="w-40 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
           <Button

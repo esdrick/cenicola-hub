@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
-import { getSetting } from "@/lib/settings";
+import { getSetting, saveCustomColor } from "@/lib/settings";
 
 // GET /api/products?q=&tipo=&color=&page=1
 export async function GET(request: NextRequest) {
@@ -219,15 +219,19 @@ export async function POST(request: NextRequest) {
 
       const product = await tx.product.create({
         data: {
-          name: name.trim(),
-          type: type.trim(),
-          color: normalizedColor,
+          name: name.trim().split(" ").map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" "),
+          type: type.trim().split(" ").map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" "),
+          color: normalizedColor ? normalizedColor.trim().split(" ").map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" ") : null,
           description: description?.trim() || null,
           photos: photos.filter(Boolean),
           quick_sale: quick_sale === true,
           created_by: auth.session.id,
         },
       });
+
+      if (normalizedColor) {
+        await saveCustomColor(normalizedColor, auth.session.id);
+      }
 
       for (const v of variants) {
         const size = v.size?.trim();

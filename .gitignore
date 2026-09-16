@@ -50,3 +50,7 @@ next-env.d.ts
 
 # uploads de desarrollo (van a Cloudinary en producción)
 /public/uploads/
+
+# database dumps & backups
+*.sql
+*.dump

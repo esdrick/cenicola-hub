@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, withRole, getClientIp } from "@/lib/api-auth";
 import { generateSku } from "@/lib/sku";
-import { getSetting } from "@/lib/settings";
+import { getSetting, saveCustomColor } from "@/lib/settings";
 
 type Ctx = { params: { id: string } };
 
@@ -67,17 +67,23 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
         if (count >= limit) throw new Error("QUICK_SALE_LIMIT");
       }
 
+      const fmtTitle = (str?: string) => str?.trim() ? str.trim().split(" ").map((w) => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" ") : null;
+
       await tx.product.update({
         where: { id: params.id },
         data: {
-          name: name?.trim() || existing.name,
-          type: type?.trim() || existing.type,
-          color: color?.trim() || null,
+          name: fmtTitle(name) || existing.name,
+          type: fmtTitle(type) || existing.type,
+          color: color?.trim() ? fmtTitle(color) : null,
           description: description?.trim() || null,
           photos: Array.isArray(photos) ? photos.filter(Boolean) : existing.photos,
           ...(typeof quick_sale === "boolean" && { quick_sale }),
         },
       });
+
+      if (color) {
+        await saveCustomColor(color, auth.session.id);
+      }
 
       if (Array.isArray(variants)) {
         const pBcv       = price_bcv           != null ? parseFloat(Number(price_bcv).toFixed(2))           : null;

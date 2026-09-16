@@ -171,7 +171,6 @@ export default async function ProductoDetailPage({
           <div>
             <div className="flex items-start justify-between gap-2">
               <div className="flex flex-wrap gap-2">
-                <Badge>{product.type}</Badge>
                 {!product.is_active && (
                   <Badge variant="destructive">Inactivo</Badge>
                 )}
@@ -196,16 +195,31 @@ export default async function ProductoDetailPage({
 
           <Separator />
 
-          {/* Selector de color (productos hermanos) */}
-          <ColorSelector currentId={product.id} siblings={siblings} />
+          {/* Tipo, Color y Talla alineados en la misma fila */}
+          <div className="flex flex-wrap items-start gap-6">
+            {/* Tipo */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Tipo
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-md border border-gray-200 bg-white px-3 py-1 text-sm font-medium text-gray-700">
+                  {product.type}
+                </span>
+              </div>
+            </div>
 
-          {/* Selector de talla + stock */}
-          <SizeSelector
-            variants={product.variants}
-            productName={product.name}
-            canEdit={canEdit}
-            viewerChannel={isVendor ? channel : undefined}
-          />
+            {/* Color */}
+            <ColorSelector currentId={product.id} currentColor={product.color} siblings={siblings} />
+
+            {/* Selector de talla + stock */}
+            <SizeSelector
+              variants={product.variants}
+              productName={product.name}
+              canEdit={canEdit}
+              viewerChannel={isVendor ? channel : undefined}
+            />
+          </div>
 
           <div className="text-xs text-gray-400">
             Creado por {product.creator.name} ·{" "}

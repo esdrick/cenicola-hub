@@ -18,11 +18,7 @@ export function BackButton({
 
   function handleClick(e: React.MouseEvent) {
     e.preventDefault();
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push(fallbackHref);
-    }
+    router.push(fallbackHref);
   }
 
   return (

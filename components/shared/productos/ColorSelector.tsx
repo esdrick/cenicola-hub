@@ -7,35 +7,42 @@ type Sibling = { id: string; color: string | null };
 
 type Props = {
   currentId: string;
+  currentColor?: string | null;
   siblings: Sibling[];
 };
 
-export function ColorSelector({ currentId, siblings }: Props) {
-  if (siblings.length <= 1) return null;
+export function ColorSelector({ currentId, currentColor, siblings }: Props) {
+  const displayColor = siblings.find((s) => s.id === currentId)?.color ?? currentColor ?? "Sin color";
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
         Color
       </p>
       <div className="flex flex-wrap gap-2">
-        {siblings.map((s) => {
-          const isCurrent = s.id === currentId;
-          return (
-            <Link
-              key={s.id}
-              href={`/dashboard/productos/${s.id}`}
-              className={cn(
-                "rounded-full border px-3 py-1 text-sm font-medium transition-colors",
-                isCurrent
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
-              )}
-            >
-              {s.color ?? "Sin color"}
-            </Link>
-          );
-        })}
+        {siblings.length > 1 ? (
+          siblings.map((s) => {
+            const isCurrent = s.id === currentId;
+            return (
+              <Link
+                key={s.id}
+                href={`/dashboard/productos/${s.id}`}
+                className={cn(
+                  "rounded-md border px-3 py-1 text-sm font-medium transition-colors",
+                  isCurrent
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"
+                )}
+              >
+                {s.color ?? "Sin color"}
+              </Link>
+            );
+          })
+        ) : (
+          <span className="rounded-md border border-gray-900 bg-gray-900 px-3 py-1 text-sm font-medium text-white">
+            {displayColor}
+          </span>
+        )}
       </div>
     </div>
   );

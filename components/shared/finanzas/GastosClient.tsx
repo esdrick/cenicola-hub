@@ -234,11 +234,11 @@ export function GastosClient({ data, filterCategoria = "", filterDesde = "", fil
         </div>
         <div className="min-w-0 space-y-1">
           <Label className="text-xs text-gray-500">Desde</Label>
-          <Input type="date" value={filterD} max={todayStr} onChange={(e) => setFilterD(e.target.value)} className="w-36 max-w-full text-sm appearance-none" />
+          <Input type="date" value={filterD} max={todayStr} onChange={(e) => setFilterD(e.target.value)} className="w-36 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left" />
         </div>
         <div className="min-w-0 space-y-1">
           <Label className="text-xs text-gray-500">Hasta</Label>
-          <Input type="date" value={filterH} max={todayStr} onChange={(e) => setFilterHasta(e.target.value)} className="w-36 max-w-full text-sm appearance-none" />
+          <Input type="date" value={filterH} max={todayStr} onChange={(e) => setFilterHasta(e.target.value)} className="w-36 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left" />
         </div>
         <Button variant="outline" onClick={applyFilters} className="rounded-full px-4">
           <Search size={13} className="mr-1" />Filtrar

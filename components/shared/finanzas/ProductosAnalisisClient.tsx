@@ -198,38 +198,37 @@ export function ProductosAnalisisClient() {
         </div>
 
         {/* Inputs de Fecha y Aplicación */}
-        <div className="flex flex-wrap items-end gap-2.5 sm:gap-3 pt-2 border-t">
-          <div className="flex-1 min-w-[120px] sm:flex-initial space-y-1">
-            <Label className="text-[11px] text-gray-500">Desde</Label>
+        <div className="flex flex-wrap items-end gap-3 pt-2 border-t">
+          <div className="min-w-0 space-y-1">
+            <Label className="text-xs text-gray-500">Desde</Label>
             <Input
               type="date"
               value={desde}
               max={today}
               onChange={(e) => { setDesde(e.target.value); setActivePreset("custom"); }}
-              className="w-full sm:w-36 text-xs h-8"
+              className="w-36 sm:w-40 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
-          <div className="flex-1 min-w-[120px] sm:flex-initial space-y-1">
-            <Label className="text-[11px] text-gray-500">Hasta</Label>
+          <div className="min-w-0 space-y-1">
+            <Label className="text-xs text-gray-500">Hasta</Label>
             <Input
               type="date"
               value={hasta}
               max={today}
               onChange={(e) => { setHasta(e.target.value); setActivePreset("custom"); }}
-              className="w-full sm:w-36 text-xs h-8"
+              className="w-36 sm:w-40 max-w-full text-sm appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </div>
           <Button
             onClick={applyCustom}
             disabled={loading || (!desde && !hasta)}
             variant={activePreset === "custom" ? "default" : "outline"}
-            size="sm"
-            className="w-full sm:w-auto rounded-md sm:rounded-full px-4 text-xs h-8"
+            className="rounded-full px-4 text-xs h-9"
           >
             {loading ? "Cargando..." : "Aplicar rango"}
           </Button>
 
-          <p className="w-full sm:w-auto sm:ml-auto text-[11px] text-gray-400">
+          <p className="w-full sm:w-auto sm:ml-auto text-xs text-gray-400">
             Período: <span className="font-medium text-gray-700">{periodLabel}</span>
           </p>
         </div>

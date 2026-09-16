@@ -35,7 +35,7 @@ export function SizeSelector({ variants, productName, canEdit, viewerChannel }: 
   const noStockForViewer = viewerChannel ? channelStock === 0 : selected?.stock_total === 0;
 
   return (
-    <div className="space-y-4">
+    <>
       {/* Size pills */}
       <div className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
@@ -70,7 +70,7 @@ export function SizeSelector({ variants, productName, canEdit, viewerChannel }: 
 
       {/* Stock del tamaño seleccionado */}
       {selected && (
-        <div className="rounded-xl border bg-gray-50 p-4">
+        <div className="w-full rounded-xl border bg-gray-50 p-4 mt-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-700">
               Stock — talla <span className="font-bold">{selected.size}</span>
@@ -150,6 +150,6 @@ export function SizeSelector({ variants, productName, canEdit, viewerChannel }: 
           currentStore={selected.stock_store}
         />
       )}
-    </div>
+    </>
   );
 }
