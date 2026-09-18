@@ -210,7 +210,7 @@ export default async function ProductoDetailPage({
             </div>
 
             {/* Color */}
-            <ColorSelector currentId={product.id} currentColor={product.color} siblings={siblings} />
+            <ColorSelector currentId={product.id} currentColor={product.color} siblings={siblings} fromParam={fromParam} />
 
             {/* Selector de talla + stock */}
             <SizeSelector

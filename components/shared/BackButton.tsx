@@ -18,7 +18,16 @@ export function BackButton({
 
   function handleClick(e: React.MouseEvent) {
     e.preventDefault();
-    router.push(fallbackHref);
+    if (
+      typeof window !== "undefined" &&
+      window.history.length > 1 &&
+      document.referrer &&
+      new URL(document.referrer, window.location.origin).pathname === "/dashboard/productos"
+    ) {
+      router.back();
+    } else {
+      router.push(fallbackHref);
+    }
   }
 
   return (

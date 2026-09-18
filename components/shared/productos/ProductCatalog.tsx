@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff, AlertTriangle, LayoutGrid, Grid3X3, LayoutList } from "lucide-react";
@@ -23,6 +23,38 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
   const [carts, setCarts] = useState<CartJSON[]>(initialCarts);
   const [view, setView] = useState<ViewMode>("grid");
   const [brokenPhotos, setBrokenPhotos] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedView = sessionStorage.getItem("catalog_view_mode") as ViewMode | null;
+      if (savedView && ["grid", "grid-sm", "list"].includes(savedView)) {
+        setView(savedView);
+      }
+      const savedScroll = sessionStorage.getItem("catalog_scroll_pos");
+      if (savedScroll) {
+        const scrollY = parseInt(savedScroll, 10);
+        if (!isNaN(scrollY)) {
+          requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+        }
+        sessionStorage.removeItem("catalog_scroll_pos");
+      }
+    }
+  }, []);
+
+  function changeView(newView: ViewMode) {
+    setView(newView);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("catalog_view_mode", newView);
+    }
+  }
+
+  function saveProductClickState() {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("catalog_scroll_pos", String(window.scrollY));
+    }
+  }
 
   function markPhotoBroken(id: string) {
     setBrokenPhotos((prev) => new Set(prev).add(id));
@@ -69,7 +101,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
         {/* View toggle */}
         <div className="flex overflow-hidden rounded-lg border bg-white shadow-sm">
           <button
-            onClick={() => setView("grid")}
+            onClick={() => changeView("grid")}
             title="Grid normal"
             className={`p-2 transition-colors ${
               view === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
@@ -78,7 +110,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             <LayoutGrid size={16} />
           </button>
           <button
-            onClick={() => setView("grid-sm")}
+            onClick={() => changeView("grid-sm")}
             title="Grid compacto"
             className={`hidden sm:block border-l p-2 transition-colors ${
               view === "grid-sm" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
@@ -87,7 +119,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             <Grid3X3 size={16} />
           </button>
           <button
-            onClick={() => setView("list")}
+            onClick={() => changeView("list")}
             title="Lista"
             className={`border-l p-2 transition-colors ${
               view === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
@@ -132,7 +164,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                     onCartCreated={handleCartCreated}
                   />
                 )}
-                <Link href={productHref} className="block">
+                <Link href={productHref} onClick={saveProductClickState} className="block">
                   <div className="relative aspect-[4/3] overflow-hidden rounded-t-xl bg-gray-100">
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -205,7 +237,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                 className="flex items-center gap-3 rounded-xl border bg-white px-3 py-2.5 shadow-sm transition-shadow hover:shadow-md"
               >
                 {/* Thumbnail */}
-                <Link href={productHref} className="shrink-0">
+                <Link href={productHref} onClick={saveProductClickState} className="shrink-0">
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-gray-100">
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -220,7 +252,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                 </Link>
 
                 {/* Info */}
-                <Link href={productHref} className="min-w-0 flex-1">
+                <Link href={productHref} onClick={saveProductClickState} className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Badge variant="secondary" className="text-[11px]">{product.type}</Badge>

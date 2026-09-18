@@ -20,9 +20,16 @@ export function ProductCard({ product, fromUrl }: Props) {
     ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
     : `/dashboard/productos/${product.id}`;
 
+  function saveProductClickState() {
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("catalog_scroll_pos", String(window.scrollY));
+    }
+  }
+
   return (
     <Link
       href={href}
+      onClick={saveProductClickState}
       className={`group block rounded-xl border shadow-sm transition-shadow hover:shadow-md ${
         outOfStock
           ? "border-red-300 bg-red-50"

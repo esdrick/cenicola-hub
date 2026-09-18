@@ -9,9 +9,10 @@ type Props = {
   currentId: string;
   currentColor?: string | null;
   siblings: Sibling[];
+  fromParam?: string;
 };
 
-export function ColorSelector({ currentId, currentColor, siblings }: Props) {
+export function ColorSelector({ currentId, currentColor, siblings, fromParam }: Props) {
   const displayColor = siblings.find((s) => s.id === currentId)?.color ?? currentColor ?? "Sin color";
 
   return (
@@ -23,10 +24,13 @@ export function ColorSelector({ currentId, currentColor, siblings }: Props) {
         {siblings.length > 1 ? (
           siblings.map((s) => {
             const isCurrent = s.id === currentId;
+            const href = fromParam
+              ? `/dashboard/productos/${s.id}?from=${encodeURIComponent(fromParam)}`
+              : `/dashboard/productos/${s.id}`;
             return (
               <Link
                 key={s.id}
-                href={`/dashboard/productos/${s.id}`}
+                href={href}
                 className={cn(
                   "rounded-md border px-3 py-1 text-sm font-medium transition-colors",
                   isCurrent
