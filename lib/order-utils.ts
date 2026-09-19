@@ -131,38 +131,20 @@ export function isWebStorePickup(order: {
 
   const sc = (order.shipping_company || "").toLowerCase().trim();
   const addr = (order.address || "").toLowerCase().trim();
-  const notes = (order.notes || "").toLowerCase();
+  const notes = (order.notes || "").toLowerCase().trim();
 
-  if (
-    sc.includes("retiro") ||
-    sc.includes("tienda") ||
-    sc.includes("pickup")
-  ) {
-    return true;
-  }
+  const hasRetiroKeyword = (str: string) =>
+    str.includes("retiro") ||
+    str.includes("pickup") ||
+    str.includes("retirar en tienda") ||
+    str.includes("retira en tienda") ||
+    str.includes("retiro por tienda");
 
-  if (
-    addr.includes("retiro") ||
-    addr.includes("pickup") ||
-    addr === "retiro en tienda"
-  ) {
-    return true;
-  }
-
-  if (
-    notes.includes("retiro en tienda") ||
-    notes.includes("retiro por tienda") ||
-    notes.includes("pickup")
-  ) {
-    return true;
-  }
-
-  // Si no tiene empresa de encomienda ni dirección externa de envío
-  if (!sc && (!addr || addr === "retiro en tienda")) {
-    return true;
-  }
-
-  return false;
+  return (
+    hasRetiroKeyword(sc) ||
+    hasRetiroKeyword(addr) ||
+    hasRetiroKeyword(notes)
+  );
 }
 
 export function getOrderChannelDisplay(order: {
