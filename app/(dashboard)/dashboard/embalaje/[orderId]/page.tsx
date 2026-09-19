@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { EmbalajeDetailClient } from "@/components/shared/embalaje/EmbalajeDetailClient";
+import { resolveOrderCustomerContact } from "@/lib/order-utils";
 import type { EmbalajeOrdenDetailJSON, EmbalajeShipmentJSON } from "@/types";
 
 export default async function EmbalajeDetailPage({
@@ -19,7 +20,8 @@ export default async function EmbalajeDetailPage({
     where: { id: params.orderId },
     include: {
       creator: { select: { id: true, name: true } },
-      customer: { select: { phone: true } },
+      customer: { select: { phone: true, email: true } },
+      customer_account: { select: { phone: true, email: true } },
       items: {
         include: {
           variant: {
@@ -41,6 +43,8 @@ export default async function EmbalajeDetailPage({
   });
 
   if (!order) notFound();
+
+  const { phone: customerPhone, email: customerEmail } = await resolveOrderCustomerContact(order, prisma);
 
   // Vendedoras online solo pueden empacar las órdenes que ellas mismas vendieron.
   if (session.role === "vendedora_online" && order.created_by !== session.id) {
@@ -85,7 +89,8 @@ export default async function EmbalajeDetailPage({
     customer_name: order.customer_name,
     customer_lastname: order.customer_lastname,
     customer_id_doc: order.customer_id_doc,
-    customer_phone: order.customer?.phone ?? null,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
     address: order.address,
     shipping_company: order.shipping_company,
     total_usd: Number(order.total_usd),

@@ -15,7 +15,7 @@ import { AgregarGuiaDialog } from "@/components/shared/ordenes/AgregarGuiaDialog
 import { CompletarOrdenButton } from "@/components/shared/ordenes/CompletarOrdenButton";
 import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrdenButton";
 import { OrderHistorySection } from "@/components/shared/ordenes/OrderHistorySection";
-import { STATUS_LABELS, PAYMENT_TYPE_LABELS, getOrderChannelDisplay } from "@/lib/order-utils";
+import { STATUS_LABELS, PAYMENT_TYPE_LABELS, getOrderChannelDisplay, resolveOrderCustomerContact } from "@/lib/order-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
@@ -132,6 +132,7 @@ export default async function OrderDetailPage({
     include: {
       creator: { select: { id: true, name: true } },
       customer: { select: { id: true, phone: true, email: true } },
+      customer_account: { select: { id: true, phone: true, email: true } },
       items: {
         include: {
           variant: {
@@ -151,6 +152,8 @@ export default async function OrderDetailPage({
   });
 
   if (!order) notFound();
+
+  const { phone: customerPhone, email: customerEmail } = await resolveOrderCustomerContact(order, prisma);
 
   const backHref = searchParams.from
     ? `/dashboard/ordenes?${searchParams.from}`
@@ -363,25 +366,25 @@ export default async function OrderDetailPage({
             <div className="space-y-1 text-sm">
               <p className="font-medium">{order.customer_name} {order.customer_lastname}</p>
               <p className="text-gray-500">{order.customer_id_doc}</p>
-              {order.customer?.phone && (
+              {customerPhone && (
                 <div className="flex items-center gap-1.5 text-gray-500">
                   <Phone size={14} className="text-gray-400 flex-shrink-0" />
                   <a
-                    href={`tel:${order.customer.phone}`}
+                    href={`tel:${customerPhone}`}
                     className="hover:underline hover:text-gray-700"
                   >
-                    {order.customer.phone}
+                    {customerPhone}
                   </a>
                 </div>
               )}
-              {order.customer?.email && (
+              {customerEmail && (
                 <div className="flex items-center gap-1.5 text-gray-500">
                   <Mail size={14} className="text-gray-400 flex-shrink-0" />
                   <a
-                    href={`mailto:${order.customer.email}`}
+                    href={`mailto:${customerEmail}`}
                     className="hover:underline hover:text-gray-700 truncate"
                   >
-                    {order.customer.email}
+                    {customerEmail}
                   </a>
                 </div>
               )}

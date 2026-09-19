@@ -211,3 +211,156 @@ export function getOrderChannelDisplay(order: {
     rowHighlightClass: "",
   };
 }
+
+export type OrderCustomerContact = {
+  phone: string | null;
+  email: string | null;
+};
+
+/**
+ * Resolves phone and email for an order from its relations (Customer / CustomerAccount),
+ * order notes, or fallback DB queries (by customer_id, customer_account_id, customer_id_doc, or email).
+ */
+export async function resolveOrderCustomerContact(
+  order: {
+    customer_id?: string | null;
+    customer_account_id?: string | null;
+    customer_id_doc?: string | null;
+    notes?: string | null;
+    customer?: { phone?: string | null; email?: string | null } | null;
+    customer_account?: { phone?: string | null; email?: string | null } | null;
+  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prismaClient?: any
+): Promise<OrderCustomerContact> {
+  let phone = order.customer?.phone?.trim() || order.customer_account?.phone?.trim() || null;
+  let email = order.customer?.email?.trim() || order.customer_account?.email?.trim() || null;
+
+  // Extract email or phone from notes if not present
+  if (!email && order.notes) {
+    const emailMatch = order.notes.match(/\[Correo Web:\s*([^\]]+)\]/i);
+    if (emailMatch && emailMatch[1]) {
+      email = emailMatch[1].trim();
+    }
+  }
+
+  if (!phone && order.notes) {
+    const phoneMatch = order.notes.match(/\[(?:Teléfono|Telefono|Phone)(?:\s*Web)?:\s*([^\]]+)\]/i);
+    if (phoneMatch && phoneMatch[1]) {
+      phone = phoneMatch[1].trim();
+    }
+  }
+
+  // If we already found both phone and email, return directly
+  if (phone && email) {
+    return { phone, email };
+  }
+
+  // If prismaClient is provided and we still lack phone or email, do fallback lookups
+  if (prismaClient) {
+    try {
+      // 1. Check customer_account_id if not included
+      if ((!phone || !email) && order.customer_account_id && !order.customer_account) {
+        const account = await prismaClient.customerAccount.findUnique({
+          where: { id: order.customer_account_id },
+          select: { phone: true, email: true },
+        });
+        if (account) {
+          if (!phone && account.phone?.trim()) phone = account.phone.trim();
+          if (!email && account.email?.trim()) email = account.email.trim();
+        }
+      }
+
+      // 2. Check customer_id if not included
+      if ((!phone || !email) && order.customer_id && !order.customer) {
+        const cust = await prismaClient.customer.findUnique({
+          where: { id: order.customer_id },
+          select: { phone: true, email: true },
+        });
+        if (cust) {
+          if (!phone && cust.phone?.trim()) phone = cust.phone.trim();
+          if (!email && cust.email?.trim()) email = cust.email.trim();
+        }
+      }
+
+      // 3. Fallback by customer_id_doc
+      if ((!phone || !email) && order.customer_id_doc) {
+        const rawDoc = order.customer_id_doc.trim();
+        const docMatch = rawDoc.match(/^([VPJE])[- ]?(\d+)$/i);
+        const digitsOnly = rawDoc.replace(/\D/g, "");
+
+        if (docMatch) {
+          const doc_type = docMatch[1].toUpperCase();
+          const doc_number = docMatch[2];
+
+          const cust = await prismaClient.customer.findUnique({
+            where: { doc_type_doc_number: { doc_type, doc_number } },
+            select: { phone: true, email: true },
+          });
+          if (cust) {
+            if (!phone && cust.phone?.trim()) phone = cust.phone.trim();
+            if (!email && cust.email?.trim()) email = cust.email.trim();
+          }
+
+          if (!phone || !email) {
+            const acc = await prismaClient.customerAccount.findFirst({
+              where: { doc_number },
+              select: { phone: true, email: true },
+            });
+            if (acc) {
+              if (!phone && acc.phone?.trim()) phone = acc.phone.trim();
+              if (!email && acc.email?.trim()) email = acc.email.trim();
+            }
+          }
+        } else if (digitsOnly) {
+          const cust = await prismaClient.customer.findFirst({
+            where: { doc_number: digitsOnly },
+            select: { phone: true, email: true },
+          });
+          if (cust) {
+            if (!phone && cust.phone?.trim()) phone = cust.phone.trim();
+            if (!email && cust.email?.trim()) email = cust.email.trim();
+          }
+
+          if (!phone || !email) {
+            const acc = await prismaClient.customerAccount.findFirst({
+              where: { doc_number: digitsOnly },
+              select: { phone: true, email: true },
+            });
+            if (acc) {
+              if (!phone && acc.phone?.trim()) phone = acc.phone.trim();
+              if (!email && acc.email?.trim()) email = acc.email.trim();
+            }
+          }
+        }
+      }
+
+      // 4. Fallback by email (if email is known but phone is missing)
+      if (!phone && email) {
+        const acc = await prismaClient.customerAccount.findUnique({
+          where: { email },
+          select: { phone: true },
+        });
+        if (acc?.phone?.trim()) {
+          phone = acc.phone.trim();
+        } else {
+          const cust = await prismaClient.customer.findFirst({
+            where: { email: { equals: email, mode: "insensitive" } },
+            select: { phone: true },
+          });
+          if (cust?.phone?.trim()) {
+            phone = cust.phone.trim();
+          }
+        }
+      }
+    } catch {
+      // Ignore fallback lookup errors
+    }
+  }
+
+  return {
+    phone: phone || null,
+    email: email || null,
+  };
+}
+

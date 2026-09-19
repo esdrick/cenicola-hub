@@ -200,6 +200,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
       `${order.customer_name} ${order.customer_lastname}`.trim(),
       `Cédula: ${order.customer_id_doc}`,
       order.customer_phone && `Teléfono: ${order.customer_phone}`,
+      order.customer_email && `Correo: ${order.customer_email}`,
       order.address && `Dirección: ${order.address}`,
       order.shipping_company && `Envío: ${order.shipping_company}`,
     ].filter(Boolean).join("\n");
@@ -239,14 +240,26 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Order info card */}
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* Left 2 cols: Customer + Items */}
+        <div className="space-y-6 lg:col-span-2">
+          {/* Customer card */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-              <CardTitle className="text-base">Información del cliente</CardTitle>
-              <Button type="button" variant="outline" size="sm" onClick={handleCopyCustomerData}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-base">Datos del cliente</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyCustomerData}
+                className="text-xs"
+              >
                 {copied ? (
                   <>
                     <Check size={14} className="mr-1.5 text-emerald-600" />
@@ -276,6 +289,12 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                   <div>
                     <dt className="text-gray-500">Teléfono</dt>
                     <dd className="font-medium">{order.customer_phone}</dd>
+                  </div>
+                )}
+                {order.customer_email && (
+                  <div>
+                    <dt className="text-gray-500">Correo</dt>
+                    <dd className="font-medium truncate">{order.customer_email}</dd>
                   </div>
                 )}
                 <div>

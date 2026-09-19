@@ -214,6 +214,8 @@ export type OrderJSON = {
   customer_name: string;
   customer_lastname: string;
   customer_id_doc: string;
+  customer_phone?: string | null;
+  customer_email?: string | null;
   address: string | null;
   shipping_company: string | null;
   total_usd: number;
@@ -441,6 +443,7 @@ export type EmbalajeOrdenDetailJSON = {
   customer_lastname: string;
   customer_id_doc: string;
   customer_phone: string | null;
+  customer_email?: string | null;
   address: string | null;
   shipping_company: string | null;
   total_usd: number;

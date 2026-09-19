@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
+import { resolveOrderCustomerContact } from "@/lib/order-utils";
 
 // GET /api/embalaje/[orderId] — full order detail
 export async function GET(
@@ -14,6 +15,8 @@ export async function GET(
     where: { id: params.orderId },
     include: {
       creator: { select: { id: true, name: true } },
+      customer: { select: { id: true, phone: true, email: true } },
+      customer_account: { select: { id: true, phone: true, email: true } },
       items: {
         include: {
           variant: {
@@ -41,6 +44,8 @@ export async function GET(
     return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
   }
 
+  const { phone: customerPhone, email: customerEmail } = await resolveOrderCustomerContact(order, prisma);
+
   const shipment = order.shipment
     ? {
         id: order.shipment.id,
@@ -66,6 +71,8 @@ export async function GET(
     customer_name: order.customer_name,
     customer_lastname: order.customer_lastname,
     customer_id_doc: order.customer_id_doc,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
     address: order.address,
     shipping_company: order.shipping_company,
     total_usd: Number(order.total_usd),

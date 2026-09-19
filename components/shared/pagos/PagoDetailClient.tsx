@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   CheckCircle2, XCircle, AlertTriangle, TriangleAlert,
-  Loader2, ExternalLink, ArrowLeft, Check, X,
+  Loader2, ExternalLink, ArrowLeft, Check, X, Phone, Mail,
 } from "lucide-react";
 import Link from "next/link";
 import type { PagoOrdenDetailJSON } from "@/types";
@@ -341,6 +341,28 @@ export function PagoDetailClient({ order }: Props) {
                 <p className="text-gray-500">Cliente</p>
                 <p className="font-medium">{order.customer_name} {order.customer_lastname}</p>
                 <p className="text-gray-500">{order.customer_id_doc}</p>
+                {order.customer_phone && (
+                  <div className="flex items-center gap-1.5 text-gray-500 mt-1">
+                    <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                    <a
+                      href={`tel:${order.customer_phone}`}
+                      className="hover:underline hover:text-gray-700"
+                    >
+                      {order.customer_phone}
+                    </a>
+                  </div>
+                )}
+                {order.customer_email && (
+                  <div className="flex items-center gap-1.5 text-gray-500 mt-0.5">
+                    <Mail size={14} className="text-gray-400 flex-shrink-0" />
+                    <a
+                      href={`mailto:${order.customer_email}`}
+                      className="hover:underline hover:text-gray-700 truncate"
+                    >
+                      {order.customer_email}
+                    </a>
+                  </div>
+                )}
               </div>
               {(() => {
                 const channelInfo = getOrderChannelDisplay({

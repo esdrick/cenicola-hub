@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PagoDetailClient } from "@/components/shared/pagos/PagoDetailClient";
+import { resolveOrderCustomerContact } from "@/lib/order-utils";
 import type { PagoOrdenDetailJSON } from "@/types";
 
 export default async function PagoDetailPage({
@@ -19,6 +20,8 @@ export default async function PagoDetailPage({
     where: { id: params.orderId },
     include: {
       creator: { select: { id: true, name: true } },
+      customer: { select: { id: true, phone: true, email: true } },
+      customer_account: { select: { id: true, phone: true, email: true } },
       items: {
         include: {
           variant: {
@@ -38,6 +41,8 @@ export default async function PagoDetailPage({
   });
 
   if (!order) notFound();
+
+  const { phone: customerPhone, email: customerEmail } = await resolveOrderCustomerContact(order, prisma);
 
   // Detect duplicate reference hashes across other orders
   const duplicates = new Map<string, string | null>();
@@ -66,6 +71,8 @@ export default async function PagoDetailPage({
     customer_name: order.customer_name,
     customer_lastname: order.customer_lastname,
     customer_id_doc: order.customer_id_doc,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
     address: order.address,
     shipping_company: order.shipping_company,
     total_usd: Number(order.total_usd),
