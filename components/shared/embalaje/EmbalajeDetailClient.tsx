@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { isWebStorePickup } from "@/lib/order-utils";
 import type { EmbalajeOrdenDetailJSON } from "@/types";
 
 interface EmbalajeDetailClientProps {
@@ -26,6 +27,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 
 export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
   const router = useRouter();
+  const isWebPickup = isWebStorePickup(order);
 
   const [foto1, setFoto1] = useState<File | null>(null);
   const [foto2, setFoto2] = useState<File | null>(null);
@@ -229,6 +231,13 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
         </h1>
         <Badge className="bg-purple-100 text-purple-800">En embalaje</Badge>
       </div>
+
+      {isWebPickup && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800 flex items-center justify-between">
+          <span>Retiro en tienda — Preparar con prioridad</span>
+          <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">Retiro en tienda</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column */}

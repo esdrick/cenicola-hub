@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, isWebStorePickup } from "@/lib/order-utils";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -57,6 +58,10 @@ export async function EmbaladorDashboard() {
         select: {
           id: true,
           order_number: true,
+          channel: true,
+          notes: true,
+          shipping_company: true,
+          created_by: true,
           customer_name: true,
           customer_lastname: true,
           address: true,
@@ -70,6 +75,8 @@ export async function EmbaladorDashboard() {
         },
       }),
     ]);
+
+  colaEmbalaje.sort((a, b) => (isWebStorePickup(b) ? 1 : 0) - (isWebStorePickup(a) ? 1 : 0));
 
   const CARDS = [
     {
@@ -153,33 +160,48 @@ export async function EmbaladorDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {colaEmbalaje.map((o) => (
-                <TableRow key={o.id} className="hover:bg-gray-50">
-                  <TableCell className="font-mono text-xs font-semibold text-gray-700">
-                    {shortOrderNumber(o.order_number)}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {o.customer_name} {o.customer_lastname}
-                  </TableCell>
-                  <TableCell className="max-w-[160px] truncate text-xs text-gray-500">
-                    {o.address ?? "Retiro en tienda"}
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-xs text-gray-600">
-                    {buildItemsSummary(o.items)}
-                  </TableCell>
-                  <TableCell className="text-xs font-medium text-amber-700 whitespace-nowrap">
-                    {timeAgo(o.updated_at)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Link
-                      href={`/dashboard/embalaje/${o.id}`}
-                      className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300"
-                    >
-                      Empacar
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {colaEmbalaje.map((o) => {
+                const isPickup = isWebStorePickup(o);
+                return (
+                  <TableRow
+                    key={o.id}
+                    className={cn(
+                      "hover:bg-gray-50",
+                      isPickup && "border-l-4 border-l-red-500 bg-red-50/40 hover:bg-red-50/70"
+                    )}
+                  >
+                    <TableCell className="font-mono text-xs font-semibold text-gray-700">
+                      {shortOrderNumber(o.order_number)}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium">
+                      {o.customer_name} {o.customer_lastname}
+                    </TableCell>
+                    <TableCell className="max-w-[160px] truncate text-xs text-gray-500">
+                      {isPickup ? (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+                          Retiro en tienda
+                        </span>
+                      ) : (
+                        o.address ?? "Retiro en tienda"
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-xs text-gray-600">
+                      {buildItemsSummary(o.items)}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-amber-700 whitespace-nowrap">
+                      {timeAgo(o.updated_at)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Link
+                        href={`/dashboard/embalaje/${o.id}`}
+                        className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300"
+                      >
+                        Empacar
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}

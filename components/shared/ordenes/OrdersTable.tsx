@@ -320,13 +320,20 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
                 const channelInfo = getOrderChannelDisplay({
                   channel: o.channel,
                   notes: o.notes,
+                  address: o.address,
+                  shipping_company: o.shipping_company,
                   order_number: o.order_number,
                   created_by: o.created_by,
                   creator: o.creator,
                 });
 
                 return (
-                  <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
+                  <TableRow
+                    key={o.id}
+                    className={cn(
+                      "cursor-pointer hover:bg-gray-50/50",
+                      channelInfo.rowHighlightClass
+                    )}
                     onClick={() => {
                       const qs = sp.toString();
                       router.push(`/dashboard/ordenes/${o.id}${qs ? `?from=${encodeURIComponent(qs)}` : ""}`);
@@ -336,7 +343,7 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
                     </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{o.customer_name} {o.customer_lastname}</p>
-                      {channelInfo.label !== "WEB" && o.customer_id_doc && (
+                      {!channelInfo.isWeb && o.customer_id_doc && (
                         <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
                       )}
                     </TableCell>

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
+import { isWebStorePickup } from "@/lib/order-utils";
 
 // GET /api/embalaje — orders in en_embalaje
 export async function GET(request: NextRequest) {
@@ -74,6 +75,7 @@ export async function GET(request: NextRequest) {
       shipping_company: o.shipping_company,
       total_usd: Number(o.total_usd),
       notes: o.notes,
+      created_by: o.created_by,
       created_at: o.created_at.toISOString(),
       updated_at: o.updated_at.toISOString(),
       creator: o.creator,
@@ -81,6 +83,8 @@ export async function GET(request: NextRequest) {
       shipment: null,
     };
   });
+
+  data.sort((a, b) => (isWebStorePickup(b) ? 1 : 0) - (isWebStorePickup(a) ? 1 : 0));
 
   return NextResponse.json({ data, total, page, totalPages: Math.ceil(total / limit) });
 }

@@ -118,22 +118,88 @@ export function isWebOrder(order: {
   );
 }
 
+export function isWebStorePickup(order: {
+  notes?: string | null;
+  order_number?: string | null;
+  created_by?: string | null;
+  creator?: { name: string; lastname?: string | null } | null;
+  address?: string | null;
+  shipping_company?: string | null;
+  channel?: string | null;
+}): boolean {
+  if (!isWebOrder(order)) return false;
+
+  const sc = (order.shipping_company || "").toLowerCase().trim();
+  const addr = (order.address || "").toLowerCase().trim();
+  const notes = (order.notes || "").toLowerCase();
+
+  if (
+    sc.includes("retiro") ||
+    sc.includes("tienda") ||
+    sc.includes("pickup")
+  ) {
+    return true;
+  }
+
+  if (
+    addr.includes("retiro") ||
+    addr.includes("pickup") ||
+    addr === "retiro en tienda"
+  ) {
+    return true;
+  }
+
+  if (
+    notes.includes("retiro en tienda") ||
+    notes.includes("retiro por tienda") ||
+    notes.includes("pickup")
+  ) {
+    return true;
+  }
+
+  // Si no tiene empresa de encomienda ni dirección externa de envío
+  if (!sc && (!addr || addr === "retiro en tienda")) {
+    return true;
+  }
+
+  return false;
+}
+
 export function getOrderChannelDisplay(order: {
   channel?: string | null;
   notes?: string | null;
   order_number?: string | null;
   created_by?: string | null;
   creator?: { name: string; lastname?: string | null } | null;
+  address?: string | null;
+  shipping_company?: string | null;
 }): {
-  label: "WEB" | "Online" | "Tienda";
+  label: string;
   vendedora: string;
   badgeClass: string;
+  isWeb: boolean;
+  isWebPickup: boolean;
+  rowHighlightClass: string;
 } {
+  if (isWebStorePickup(order)) {
+    return {
+      label: "Web - Retiro en tienda",
+      vendedora: "Cliente Web",
+      badgeClass: "bg-red-100 text-red-800 border-red-300 font-semibold",
+      isWeb: true,
+      isWebPickup: true,
+      rowHighlightClass: "border-l-4 border-l-red-500 bg-red-50/40 hover:bg-red-50/70",
+    };
+  }
+
   if (isWebOrder(order)) {
     return {
-      label: "WEB",
+      label: "Web",
       vendedora: "Cliente Web",
-      badgeClass: "bg-purple-100 text-purple-800 border-purple-200 font-semibold",
+      badgeClass: "bg-purple-100 text-purple-800 border-purple-200 font-medium",
+      isWeb: true,
+      isWebPickup: false,
+      rowHighlightClass: "",
     };
   }
 
@@ -145,6 +211,9 @@ export function getOrderChannelDisplay(order: {
       label: "Online",
       vendedora: seller,
       badgeClass: "bg-blue-50 text-blue-700 border-blue-200 font-medium",
+      isWeb: false,
+      isWebPickup: false,
+      rowHighlightClass: "",
     };
   }
 
@@ -155,5 +224,8 @@ export function getOrderChannelDisplay(order: {
     label: "Tienda",
     vendedora: seller,
     badgeClass: "bg-gray-100 text-gray-700 border-gray-200 font-medium",
+    isWeb: false,
+    isWebPickup: false,
+    rowHighlightClass: "",
   };
 }

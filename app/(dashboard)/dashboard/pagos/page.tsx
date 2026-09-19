@@ -7,6 +7,7 @@ import { PagosTable } from "@/components/shared/pagos/PagosTable";
 import { PagosVerificadosTable, type PagoVerificadoJSON } from "@/components/shared/pagos/PagosVerificadosTable";
 import { PagosTabs } from "@/components/shared/pagos/PagosTabs";
 import { getCorteActivo } from "@/lib/cierre-sistema";
+import { isWebStorePickup } from "@/lib/order-utils";
 import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType, OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
 
@@ -179,6 +180,8 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
     order_number:      o.order_number,
     channel:           o.channel,
     notes:             o.notes,
+    address:           o.address,
+    shipping_company:  o.shipping_company,
     created_by:        o.created_by,
     status:            o.status,
     customer_name:     o.customer_name,
@@ -197,6 +200,8 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
     creator:    o.creator,
     created_at: o.created_at.toISOString(),
   }));
+
+  data.sort((a, b) => (isWebStorePickup(b) ? 1 : 0) - (isWebStorePickup(a) ? 1 : 0));
 
   return (
     <div className="space-y-6">

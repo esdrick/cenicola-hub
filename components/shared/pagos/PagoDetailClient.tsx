@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { PagoOrdenDetailJSON } from "@/types";
-import { getOrderChannelDisplay, isWebOrder } from "@/lib/order-utils";
+import { getOrderChannelDisplay, isWebOrder, isWebStorePickup } from "@/lib/order-utils";
 import { formatVenezuelaDate } from "@/lib/date-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import { AgregarPagoDialog } from "@/components/shared/ordenes/AgregarPagoDialog";
@@ -95,6 +95,8 @@ export function PagoDetailClient({ order }: Props) {
     created_by: order.created_by,
     creator: order.creator,
   });
+
+  const isWebPickup = isWebStorePickup(order);
 
   const pendingPayments = order.payments.filter((p) => p.status === "pendiente");
   const pendingUsd      = pendingPayments.reduce((s, p) => s + p.amount_usd, 0);
@@ -283,6 +285,14 @@ export function PagoDetailClient({ order }: Props) {
           }[order.status] ?? order.status}
         </span>
       </div>
+
+      {/* Web pickup priority notice */}
+      {isWebPickup && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-800 flex items-center justify-between">
+          <span>Venta web con retiro en tienda — Prioridad alta</span>
+          <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">Retiro en tienda</span>
+        </div>
+      )}
 
       {/* Global error */}
       {apiError && (

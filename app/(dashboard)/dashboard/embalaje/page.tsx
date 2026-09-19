@@ -8,6 +8,7 @@ import { EmbalajeTable } from "@/components/shared/embalaje/EmbalajeTable";
 import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
 import { EmbalajeAdminTabs } from "@/components/shared/embalaje/EmbalajeAdminTabs";
 import { getCorteActivo } from "@/lib/cierre-sistema";
+import { isWebStorePickup } from "@/lib/order-utils";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -252,6 +253,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
       shipping_company: o.shipping_company,
       total_usd: Number(o.total_usd),
       notes: o.notes,
+      created_by: o.created_by,
       created_at: o.created_at.toISOString(),
       updated_at: o.updated_at.toISOString(),
       creator: o.creator,
@@ -259,6 +261,8 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
       shipment: null,
     };
   });
+
+  data.sort((a, b) => (isWebStorePickup(b) ? 1 : 0) - (isWebStorePickup(a) ? 1 : 0));
 
   return (
     <div className="space-y-6">

@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/shared/Pagination";
 import { formatVenezuelaDate } from "@/lib/date-utils";
+import { cn } from "@/lib/utils";
 import type { EmbalajeOrdenJSON } from "@/types";
 
 interface EmbalajeTableProps {
@@ -111,15 +112,20 @@ export function EmbalajeTable({ initialOrders, total, page, totalPages }: Embala
                 const channelInfo = getOrderChannelDisplay({
                   channel: o.channel,
                   notes: o.notes,
+                  address: o.address,
+                  shipping_company: o.shipping_company,
                   order_number: o.order_number,
-                  created_by: (o as { created_by?: string | null }).created_by,
+                  created_by: o.created_by,
                   creator: o.creator,
                 });
 
                 return (
                   <TableRow
                     key={o.id}
-                    className="cursor-pointer hover:bg-gray-50"
+                    className={cn(
+                      "cursor-pointer hover:bg-gray-50",
+                      channelInfo.rowHighlightClass
+                    )}
                     onClick={() => router.push(`/dashboard/embalaje/${o.id}`)}
                   >
                     <TableCell>

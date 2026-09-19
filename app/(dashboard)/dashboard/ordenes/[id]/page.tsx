@@ -232,6 +232,8 @@ export default async function OrderDetailPage({
             const channelInfo = getOrderChannelDisplay({
               channel: order.channel,
               notes: order.notes,
+              address: order.address,
+              shipping_company: order.shipping_company,
               order_number: order.order_number,
               created_by: order.created_by,
               creator: order.creator,

@@ -248,13 +248,20 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                 const channelInfo = getOrderChannelDisplay({
                   channel: o.channel,
                   notes: (o as { notes?: string | null }).notes,
+                  address: (o as { address?: string | null }).address,
+                  shipping_company: (o as { shipping_company?: string | null }).shipping_company,
                   order_number: o.order_number,
                   created_by: (o as { created_by?: string | null }).created_by,
                   creator: o.creator,
                 });
 
                 return (
-                  <TableRow key={o.id} className="cursor-pointer hover:bg-gray-50/50"
+                  <TableRow
+                    key={o.id}
+                    className={cn(
+                      "cursor-pointer hover:bg-gray-50/50",
+                      channelInfo.rowHighlightClass
+                    )}
                     onClick={() => {
                       const qs = sp.toString();
                       if (o.status === "pago_verificado") {

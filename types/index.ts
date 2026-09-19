@@ -320,6 +320,8 @@ export type PagoOrdenJSON = {
   order_number: string;
   channel: OrderChannel;
   notes?: string | null;
+  address?: string | null;
+  shipping_company?: string | null;
   created_by?: string | null;
   status: OrderStatus;
   customer_name: string;
@@ -373,6 +375,7 @@ export type EmbalajeOrdenJSON = {
   shipping_company: string | null;
   total_usd: number;
   notes: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
   creator: { id: string; name: string } | null;
