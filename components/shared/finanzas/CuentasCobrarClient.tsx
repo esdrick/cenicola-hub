@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { shortOrderNumber } from "@/lib/order-utils";
+import { shortOrderNumber, validatePaymentReference, getPaymentReferenceConfig } from "@/lib/order-utils";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -93,8 +93,9 @@ export function CuentasCobrarClient({ data }: Props) {
       setFormError(`El abono no puede ser mayor al pendiente ($${abonoTarget.amount_pending.toFixed(2)})`);
       return;
     }
-    if (metodo !== "efectivo_bs" && metodo !== "efectivo_usd" && !referencia.trim()) {
-      setFormError("La referencia es requerida para este método de pago");
+    const refValidation = validatePaymentReference(metodo, referencia);
+    if (!refValidation.valid) {
+      setFormError(refValidation.error || "Referencia inválida");
       return;
     }
 
@@ -279,15 +280,23 @@ export function CuentasCobrarClient({ data }: Props) {
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label>Referencia {metodo !== "efectivo_bs" && metodo !== "efectivo_usd" ? "*" : "(opcional)"}</Label>
-              <Input
-                value={referencia}
-                onChange={(e) => setReferencia(e.target.value)}
-                placeholder="Número de referencia"
-                disabled={isPending}
-              />
-            </div>
+            {(() => {
+              const refConfig = getPaymentReferenceConfig(metodo);
+              return (
+                <div className="space-y-1">
+                  <Label>{refConfig.label}</Label>
+                  <Input
+                    value={referencia}
+                    onChange={(e) => setReferencia(e.target.value)}
+                    placeholder={refConfig.placeholder}
+                    maxLength={refConfig.maxLength}
+                    className="font-mono"
+                    disabled={isPending}
+                  />
+                  {refConfig.hint && <p className="text-xs text-gray-400">{refConfig.hint}</p>}
+                </div>
+              );
+            })()}
 
             {formError && (
               <p className="text-sm text-red-600">{formError}</p>

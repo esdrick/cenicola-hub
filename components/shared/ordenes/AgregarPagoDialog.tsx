@@ -14,7 +14,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { Plus, Loader2, Upload, AlertCircle, AlertTriangle } from "lucide-react";
-import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { PAYMENT_TYPE_LABELS, validatePaymentReference, getPaymentReferenceConfig } from "@/lib/order-utils";
 import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
@@ -177,16 +177,10 @@ export function AgregarPagoDialog({
       setError("Este pedido está dividido entre BCV y Divisas — no se puede cerrar pagando todo con una sola moneda.");
       return;
     }
-    if (form.payment_type !== "efectivo_bs" && form.payment_type !== "efectivo_usd") {
-      const ref = form.reference.trim();
-      if (!ref) {
-        setError("La referencia es requerida para este método de pago");
-        return;
-      }
-      if (ref.length < 6 || ref.length > 30) {
-        setError("La referencia debe tener entre 6 y 30 caracteres");
-        return;
-      }
+    const refValidation = validatePaymentReference(form.payment_type, form.reference);
+    if (!refValidation.valid) {
+      setError(refValidation.error || "Referencia inválida");
+      return;
     }
 
     start(async () => {
@@ -218,6 +212,7 @@ export function AgregarPagoDialog({
   }
 
   const isEfectivo = form.payment_type === "efectivo_bs" || form.payment_type === "efectivo_usd";
+  const refConfig = getPaymentReferenceConfig(form.payment_type);
   const amountNum = parseFloat(form.amount_usd);
   const amountBs = tasa && !isNaN(amountNum) && amountNum > 0
     ? amountNum * tasa.rate
@@ -381,14 +376,15 @@ export function AgregarPagoDialog({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Referencia *</Label>
+                  <Label>{refConfig.label}</Label>
                   <Input
                     value={form.reference}
                     onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))}
-                    placeholder="Número de confirmación o referencia"
-                    maxLength={30}
+                    placeholder={refConfig.placeholder}
+                    maxLength={refConfig.maxLength}
+                    className="font-mono"
                   />
-                  <p className="text-xs text-gray-400">Entre 6 y 30 caracteres</p>
+                  {refConfig.hint && <p className="text-xs text-gray-400">{refConfig.hint}</p>}
                 </div>
 
                 <div className="space-y-1.5">

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
-import { generateOrderNumber, normalizeReference } from "@/lib/order-utils";
+import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
 import { resolveSplitSubtotal, paymentTypeToPricingMethod } from "@/lib/pricing";
@@ -191,11 +191,11 @@ export async function POST(request: NextRequest, { params }: Params) {
       for (const pay of payments) {
         const payIsCash = (pay.payment_type as PaymentType) === "efectivo_bs" || (pay.payment_type as PaymentType) === "efectivo_usd";
         if (!payIsCash) {
-          const hash = normalizeReference(pay.reference ?? "");
-          if (!hash) throw new Error("La referencia del pago es requerida");
-          if (hash.length < 6 || hash.length > 30) {
-            throw new Error("La referencia debe tener entre 6 y 30 caracteres");
+          const refValidation = validatePaymentReference(pay.payment_type, pay.reference);
+          if (!refValidation.valid) {
+            throw new Error(refValidation.error || "Referencia de pago inválida");
           }
+          const hash = normalizeReference(pay.reference ?? "");
 
           const intraKey = `${pay.payment_type}:${hash}`;
           if (seenHashes.has(intraKey)) throw new Error(`REF_DUP_INTRA:${pay.reference}`);

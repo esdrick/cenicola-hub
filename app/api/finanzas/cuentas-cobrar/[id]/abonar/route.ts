@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
+import { validatePaymentReference, isCashPaymentType } from "@/lib/order-utils";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 const VALID_PAYMENT_TYPES: PaymentType[] = [
@@ -26,9 +27,10 @@ export async function POST(
   if (!VALID_PAYMENT_TYPES.includes(metodo_pago as PaymentType))
     return NextResponse.json({ error: "Método de pago inválido" }, { status: 400 });
 
-  const isCash = (metodo_pago as PaymentType) === "efectivo_bs" || (metodo_pago as PaymentType) === "efectivo_usd";
-  if (!isCash && !referencia?.trim())
-    return NextResponse.json({ error: "Referencia requerida para este método de pago" }, { status: 400 });
+  const isCash = isCashPaymentType(metodo_pago);
+  const refValidation = validatePaymentReference(metodo_pago, referencia);
+  if (!refValidation.valid)
+    return NextResponse.json({ error: refValidation.error }, { status: 400 });
 
   const cuenta = await prisma.accountReceivable.findUnique({
     where: { id: params.id },

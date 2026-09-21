@@ -10,6 +10,78 @@ export function normalizeReference(ref: string): string {
   return ref.toUpperCase().replace(/[\s\-]/g, "");
 }
 
+export function isCashPaymentType(paymentType: string): boolean {
+  const norm = (paymentType || "").toLowerCase();
+  return norm === "efectivo_bs" || norm === "efectivo_usd" || norm.includes("efectivo");
+}
+
+export function isZellePaymentType(paymentType: string): boolean {
+  return (paymentType || "").toLowerCase().includes("zelle");
+}
+
+export function validatePaymentReference(
+  paymentType: string,
+  reference?: string | null
+): { valid: boolean; error?: string } {
+  if (isCashPaymentType(paymentType)) {
+    return { valid: true };
+  }
+
+  const cleanRef = (reference ?? "").trim();
+  if (!cleanRef) {
+    return { valid: false, error: "La referencia es requerida para este método de pago" };
+  }
+
+  if (isZellePaymentType(paymentType)) {
+    if (cleanRef.length < 6 || cleanRef.length > 20) {
+      return { valid: false, error: "El número de referencia de Zelle debe tener entre 6 y 20 caracteres" };
+    }
+  } else {
+    if (cleanRef.length !== 8) {
+      return { valid: false, error: "El número de referencia debe tener exactamente los últimos 8 dígitos" };
+    }
+  }
+
+  return { valid: true };
+}
+
+export function getPaymentReferenceConfig(paymentType: string): {
+  required: boolean;
+  label: string;
+  placeholder: string;
+  maxLength: number;
+  hint: string;
+} {
+  if (isCashPaymentType(paymentType)) {
+    return {
+      required: false,
+      label: "Referencia (opcional)",
+      placeholder: "N/A para efectivo",
+      maxLength: 30,
+      hint: "",
+    };
+  }
+
+  if (isZellePaymentType(paymentType)) {
+    return {
+      required: true,
+      label: "N° de Referencia de Pago (6 a 20 dígitos) *",
+      placeholder: "Ej. 1234567890",
+      maxLength: 20,
+      hint: "Entre 6 y 20 caracteres",
+    };
+  }
+
+  return {
+    required: true,
+    label: "Últimos 8 dígitos de la referencia *",
+    placeholder: "Ej. 12345678",
+    maxLength: 8,
+    hint: "Exactamente los últimos 8 dígitos",
+  };
+}
+
+
 /** Expresa una cantidad de unidades en docenas, ej. 48 -> "4 doc", 50 -> "4 doc + 2" */
 export function formatDocenas(unidades: number): string {
   const docenas = Math.floor(unidades / 12);

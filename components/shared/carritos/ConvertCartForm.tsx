@@ -15,7 +15,7 @@ import {
   AlertCircle, AlertTriangle, ImageOff, Loader2, ShoppingCart, Trash2,
   Plus, ChevronRight, ChevronLeft, Check, Upload, Pencil, X,
 } from "lucide-react";
-import { PAYMENT_TYPE_LABELS } from "@/lib/order-utils";
+import { PAYMENT_TYPE_LABELS, validatePaymentReference, getPaymentReferenceConfig } from "@/lib/order-utils";
 import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { CartJSON, PaymentFormInput } from "@/types";
@@ -352,11 +352,9 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
       }
     }
     const draftIsCash = draft.payment_type === "efectivo_bs" || draft.payment_type === "efectivo_usd";
-    if (!draftIsCash && !draft.reference.trim()) {
-      setError("Referencia requerida para este tipo de pago"); return;
-    }
-    if (!draftIsCash && draft.reference.trim().length < 6) {
-      setError("La referencia debe tener entre 6 y 30 caracteres"); return;
+    const refValidation = validatePaymentReference(draft.payment_type, draft.reference);
+    if (!refValidation.valid) {
+      setError(refValidation.error || "Referencia inválida"); return;
     }
     if (!draftIsCash && draft.reference.trim()) {
       const normRef = draft.reference.toUpperCase().replace(/[\s\-]/g, "");
@@ -1309,43 +1307,48 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   </div>
                 </div>
               )}
-              {draft.payment_type !== "efectivo_bs" && draft.payment_type !== "efectivo_usd" && (
-                <>
-                  <div className="space-y-1.5">
-                    <Label>Referencia *</Label>
-                    <Input value={draft.reference}
-                      onChange={(e) => setDraft((p) => ({ ...p, reference: e.target.value }))}
-                      placeholder="Número de confirmación"
-                      maxLength={30} />
-                    <p className="text-xs text-gray-400">Entre 6 y 30 caracteres</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Comprobante</Label>
-                    <div className="flex gap-2">
-                      <Input value={draft.payment_photo}
-                        onChange={(e) => setDraft((p) => ({ ...p, payment_photo: e.target.value }))}
-                        placeholder="URL de la imagen" className="flex-1" />
-                      <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
-                      <Button type="button" variant="outline" size="icon" disabled={uploading}
-                        onClick={() => photoInputRef.current?.click()}>
-                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      </Button>
+              {(() => {
+                const draftRefConfig = getPaymentReferenceConfig(draft.payment_type);
+                if (!draftRefConfig.required) return null;
+                return (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>{draftRefConfig.label}</Label>
+                      <Input value={draft.reference}
+                        onChange={(e) => setDraft((p) => ({ ...p, reference: e.target.value }))}
+                        placeholder={draftRefConfig.placeholder}
+                        maxLength={draftRefConfig.maxLength}
+                        className="font-mono" />
+                      {draftRefConfig.hint && <p className="text-xs text-gray-400">{draftRefConfig.hint}</p>}
                     </div>
-                    {draft.payment_photo && (
-                      paymentPhotoError ? (
-                        <div className="mt-1 h-16 w-16 rounded border bg-gray-100 flex items-center justify-center">
-                          <ImageOff size={16} className="text-gray-400" />
-                        </div>
-                      ) : (
-                        <Image src={draft.payment_photo} alt="Comprobante" width={80} height={80}
-                          className="mt-1 h-16 w-16 rounded object-cover"
-                          onError={() => setPaymentPhotoError(true)} />
-                      )
-                    )}
-                  </div>
-                </>
-              )}
+                    <div className="space-y-1.5">
+                      <Label>Comprobante</Label>
+                      <div className="flex gap-2">
+                        <Input value={draft.payment_photo}
+                          onChange={(e) => setDraft((p) => ({ ...p, payment_photo: e.target.value }))}
+                          placeholder="URL de la imagen" className="flex-1" />
+                        <input ref={photoInputRef} type="file" accept="image/*" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); }} />
+                        <Button type="button" variant="outline" size="icon" disabled={uploading}
+                          onClick={() => photoInputRef.current?.click()}>
+                          {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        </Button>
+                      </div>
+                      {draft.payment_photo && (
+                        paymentPhotoError ? (
+                          <div className="mt-1 h-16 w-16 rounded border bg-gray-100 flex items-center justify-center">
+                            <ImageOff size={16} className="text-gray-400" />
+                          </div>
+                        ) : (
+                          <Image src={draft.payment_photo} alt="Comprobante" width={80} height={80}
+                            className="mt-1 h-16 w-16 rounded object-cover"
+                            onError={() => setPaymentPhotoError(true)} />
+                        )
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
