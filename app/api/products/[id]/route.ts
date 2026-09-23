@@ -68,21 +68,35 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
       }
 
       const fmtTitle = (str?: string) => str?.trim() ? str.trim().split(" ").map((w) => w ? w.charAt(0).toUpperCase() + w.slice(1) : "").join(" ") : null;
+      const targetName = fmtTitle(name) || existing.name;
+      const targetColor = color !== undefined ? (color?.trim() ? fmtTitle(color) : null) : existing.color;
+
+      // Duplicate product (name + color) check against other products
+      const duplicate = await tx.product.findFirst({
+        where: {
+          id: { not: params.id },
+          name: { equals: targetName, mode: "insensitive" },
+          color: targetColor ? { equals: targetColor, mode: "insensitive" } : null,
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      if (duplicate) throw new Error(`DUP:${duplicate.id}`);
 
       await tx.product.update({
         where: { id: params.id },
         data: {
-          name: fmtTitle(name) || existing.name,
+          name: targetName,
           type: fmtTitle(type) || existing.type,
-          color: color?.trim() ? fmtTitle(color) : null,
-          description: description?.trim() || null,
+          color: targetColor,
+          description: description !== undefined ? (description?.trim() || null) : existing.description,
           photos: Array.isArray(photos) ? photos.filter(Boolean) : existing.photos,
           ...(typeof quick_sale === "boolean" && { quick_sale }),
         },
       });
 
-      if (color) {
-        await saveCustomColor(color, auth.session.id);
+      if (targetColor) {
+        await saveCustomColor(targetColor, auth.session.id);
       }
 
       if (Array.isArray(variants)) {
@@ -140,40 +154,84 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
             // New variant
             const size = v.size?.trim();
             if (!size) continue;
-            const stockOnline = Math.max(0, Math.floor(Number(v.stock_online) || 0));
-            const stockStore = Math.max(0, Math.floor(Number(v.stock_store) || 0));
-            const stockTotal = stockOnline + stockStore;
 
-            const newVariant = await tx.productVariant.create({
-              data: {
-                product_id: params.id,
-                size,
-                sku: generateSku(existing.name, size),
-                stock_online: stockOnline,
-                stock_store: stockStore,
-                stock_total: stockTotal,
-                price_bcv:            pBcv       ?? Number(existing.variants[0]?.price_bcv ?? 0),
-                price_divisas:        pDivisas   ?? Number(existing.variants[0]?.price_divisas ?? 0),
-                price_bundle_bcv:     pBundleBcv ?? Number(existing.variants[0]?.price_bundle_bcv ?? 0),
-                price_bundle_divisas: pBundleDiv ?? Number(existing.variants[0]?.price_bundle_divisas ?? 0),
-                price_mayor_bcv:      pMayorBcv  ?? Number(existing.variants[0]?.price_mayor_bcv ?? 0),
-                price_mayor_divisas:  pMayorDiv  ?? Number(existing.variants[0]?.price_mayor_divisas ?? 0),
-              },
-            });
+            const existingVariantWithSize = existing.variants.find(
+              (ev) => ev.size.trim().toUpperCase() === size.toUpperCase()
+            );
 
-            if (stockTotal > 0) {
-              await tx.inventoryMovement.create({
+            if (existingVariantWithSize) {
+              // If variant already existed in this product, update it instead of crashing
+              const stockOnline = Math.max(0, Math.floor(Number(v.stock_online) ?? existingVariantWithSize.stock_online));
+              const stockStore = Math.max(0, Math.floor(Number(v.stock_store) ?? existingVariantWithSize.stock_store));
+              const stockTotal = stockOnline + stockStore;
+
+              await tx.productVariant.update({
+                where: { id: existingVariantWithSize.id },
                 data: {
-                  variant_id: newVariant.id,
-                  type: "entrada",
-                  channel: "total",
-                  qty_before: 0,
-                  qty_change: stockTotal,
-                  qty_after: stockTotal,
-                  reason: "Nueva talla agregada",
-                  created_by: auth.session.id,
+                  is_active: true,
+                  stock_online: stockOnline,
+                  stock_store: stockStore,
+                  stock_total: stockTotal,
+                  price_bcv:            pBcv       ?? Number(existingVariantWithSize.price_bcv),
+                  price_divisas:        pDivisas   ?? Number(existingVariantWithSize.price_divisas),
+                  price_bundle_bcv:     pBundleBcv ?? Number(existingVariantWithSize.price_bundle_bcv),
+                  price_bundle_divisas: pBundleDiv ?? Number(existingVariantWithSize.price_bundle_divisas),
+                  price_mayor_bcv:      pMayorBcv  ?? Number(existingVariantWithSize.price_mayor_bcv),
+                  price_mayor_divisas:  pMayorDiv  ?? Number(existingVariantWithSize.price_mayor_divisas),
                 },
               });
+
+              const totalChange = stockTotal - existingVariantWithSize.stock_total;
+              if (totalChange !== 0) {
+                await tx.inventoryMovement.create({
+                  data: {
+                    variant_id: existingVariantWithSize.id,
+                    type: "ajuste",
+                    channel: "total",
+                    qty_before: existingVariantWithSize.stock_total,
+                    qty_change: totalChange,
+                    qty_after: stockTotal,
+                    reason: "Reactiva talla existente al editar producto",
+                    created_by: auth.session.id,
+                  },
+                });
+              }
+            } else {
+              const stockOnline = Math.max(0, Math.floor(Number(v.stock_online) || 0));
+              const stockStore = Math.max(0, Math.floor(Number(v.stock_store) || 0));
+              const stockTotal = stockOnline + stockStore;
+
+              const newVariant = await tx.productVariant.create({
+                data: {
+                  product_id: params.id,
+                  size,
+                  sku: generateSku(targetName, size),
+                  stock_online: stockOnline,
+                  stock_store: stockStore,
+                  stock_total: stockTotal,
+                  price_bcv:            pBcv       ?? Number(existing.variants[0]?.price_bcv ?? 0),
+                  price_divisas:        pDivisas   ?? Number(existing.variants[0]?.price_divisas ?? 0),
+                  price_bundle_bcv:     pBundleBcv ?? Number(existing.variants[0]?.price_bundle_bcv ?? 0),
+                  price_bundle_divisas: pBundleDiv ?? Number(existing.variants[0]?.price_bundle_divisas ?? 0),
+                  price_mayor_bcv:      pMayorBcv  ?? Number(existing.variants[0]?.price_mayor_bcv ?? 0),
+                  price_mayor_divisas:  pMayorDiv  ?? Number(existing.variants[0]?.price_mayor_divisas ?? 0),
+                },
+              });
+
+              if (stockTotal > 0) {
+                await tx.inventoryMovement.create({
+                  data: {
+                    variant_id: newVariant.id,
+                    type: "entrada",
+                    channel: "total",
+                    qty_before: 0,
+                    qty_change: stockTotal,
+                    qty_after: stockTotal,
+                    reason: "Nueva talla agregada",
+                    created_by: auth.session.id,
+                  },
+                });
+              }
             }
           }
         }
@@ -192,7 +250,7 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
           entity_type: "Product",
           entity_id: params.id,
           data_before: dataBefore,
-          data_after: { name: name || existing.name, type: type || existing.type, color: color ?? null },
+          data_after: { name: targetName, type: type || existing.type, color: targetColor },
           ip_address: ip,
         },
       });
@@ -200,11 +258,25 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    if (err instanceof Error && err.message === "QUICK_SALE_LIMIT") {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.startsWith("DUP:")) {
+      const existingId = msg.replace("DUP:", "");
+      return NextResponse.json(
+        { error: "Esta variante o producto ya existe con este nombre y color en el catálogo", existingId },
+        { status: 409 }
+      );
+    }
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
+      return NextResponse.json(
+        { error: "Esta variante o combinación de talla/SKU ya existe en el catálogo", code: "VARIANT_EXISTS" },
+        { status: 409 }
+      );
+    }
+    if (msg === "QUICK_SALE_LIMIT") {
       const limit = await getSetting("quick_sale_limit");
       return NextResponse.json({ error: `Ya existen ${limit} productos marcados para venta rápida (límite configurado)` }, { status: 409 });
     }
-    if (err instanceof Error && err.message === "QUICK_SALE_SINGLE_VARIANT") {
+    if (msg === "QUICK_SALE_SINGLE_VARIANT") {
       return NextResponse.json({ error: "Los productos de venta rápida deben tener exactamente una talla activa" }, { status: 400 });
     }
     console.error("PUT /api/products/[id]:", err);

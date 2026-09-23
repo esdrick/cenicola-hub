@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
   });
   if (duplicate) {
     return NextResponse.json(
-      { error: "Ya existe un producto con ese nombre y color", existingId: duplicate.id },
+      { error: "Esta variante o producto ya existe con este nombre y color en el catálogo", existingId: duplicate.id },
       { status: 409 }
     );
   }
@@ -298,7 +298,13 @@ export async function POST(request: NextRequest) {
     if (msg.startsWith("DUP:")) {
       const existingId = msg.replace("DUP:", "");
       return NextResponse.json(
-        { error: "Ya existe un producto con ese nombre y color", existingId },
+        { error: "Esta variante o producto ya existe con este nombre y color en el catálogo", existingId },
+        { status: 409 }
+      );
+    }
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
+      return NextResponse.json(
+        { error: "Esta variante o combinación de talla/SKU ya existe en el catálogo", code: "VARIANT_EXISTS" },
         { status: 409 }
       );
     }

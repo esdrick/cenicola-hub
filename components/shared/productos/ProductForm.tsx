@@ -156,8 +156,37 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
       .catch(() => { /* ignore */ });
   }, []);
 
+  // ── Types guardados en el sistema ───────────────────────────────────────────
+  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
+  const [typeSuggestions, setTypeSuggestions] = useState<string[]>([]);
+  const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/products/types")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.types)) {
+          setAvailableTypes(data.types);
+        }
+      })
+      .catch(() => { /* ignore */ });
+  }, []);
+
+  const filterTypeSuggestions = useCallback((val: string) => {
+    const q = val.trim().toLowerCase();
+    if (!q) {
+      setTypeSuggestions(availableTypes);
+      setShowTypeSuggestions(availableTypes.length > 0);
+      return;
+    }
+    const filtered = availableTypes.filter((t) => t.toLowerCase().includes(q));
+    setTypeSuggestions(filtered);
+    setShowTypeSuggestions(filtered.length > 0);
+  }, [availableTypes]);
+
   // ── Name autocomplete ────────────────────────────────────────────────────────
-  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
+  type SuggestionItem = { name: string; type?: string; description?: string | null };
+  const [nameSuggestions, setNameSuggestions] = useState<SuggestionItem[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const nameDebounceRef = useRef<NodeJS.Timeout>();
 
@@ -168,12 +197,24 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
       try {
         const res = await fetch(`/api/products/names?q=${encodeURIComponent(q)}`);
         const data = await res.json();
-        const names: string[] = data.names ?? [];
-        setNameSuggestions(names);
-        setShowSuggestions(names.length > 0);
+        const items: SuggestionItem[] = data.suggestions ?? (data.names ?? []).map((n: string) => ({ name: n }));
+        setNameSuggestions(items);
+        setShowSuggestions(items.length > 0);
       } catch { /* ignore */ }
     }, 300);
   }, []);
+
+  function selectNameSuggestion(item: SuggestionItem) {
+    setName(item.name);
+    setShowSuggestions(false);
+    if (item.type) {
+      setType(item.type);
+    }
+    if (item.description && !description) {
+      setDescription(item.description);
+    }
+    checkDuplicate(item.name, color);
+  }
 
   // ── Photos ───────────────────────────────────────────────────────────────────
   async function uploadFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -381,29 +422,62 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
             />
             {showSuggestions && (
               <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg">
-                {nameSuggestions.map((s) => (
-                  <li key={s}
+                {nameSuggestions.map((item) => (
+                  <li
+                    key={item.name}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => { setName(s); setShowSuggestions(false); }}
-                    className="cursor-pointer px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                    {s}
+                    onClick={() => selectNameSuggestion(item)}
+                    className="cursor-pointer px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span className="font-medium text-gray-900">{item.name}</span>
+                    {item.type && (
+                      <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 ml-2">
+                        {item.type}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <div className="space-y-1.5">
+          <div className="relative space-y-1.5">
             <Label htmlFor="type">Tipo *</Label>
             <Input
               id="type"
               value={type}
-              onChange={(e) => setType(capitalizeWords(e.target.value))}
-              onBlur={() => setType((prev) => capitalizeWords(prev.trim()))}
+              onChange={(e) => {
+                const val = capitalizeWords(e.target.value);
+                setType(val);
+                filterTypeSuggestions(val);
+              }}
+              onFocus={() => filterTypeSuggestions(type)}
+              onBlur={() => {
+                setType((prev) => capitalizeWords(prev.trim()));
+                setTimeout(() => setShowTypeSuggestions(false), 150);
+              }}
               placeholder="Ej: Blusa, Pantalón, Falda"
               disabled={loading}
+              autoComplete="off"
               autoCapitalize="words"
             />
+            {showTypeSuggestions && (
+              <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg">
+                {typeSuggestions.map((t) => (
+                  <li
+                    key={t}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setType(t);
+                      setShowTypeSuggestions(false);
+                    }}
+                    className="cursor-pointer px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
+                  >
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="space-y-1.5">

@@ -7,14 +7,29 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  if (q.length < 2) return NextResponse.json({ names: [] });
+  if (q.length < 2) return NextResponse.json({ names: [], suggestions: [] });
 
-  const rows = await prisma.product.groupBy({
-    by: ["name"],
-    where: { name: { contains: q, mode: "insensitive" }, is_active: true },
+  const products = await prisma.product.findMany({
+    where: {
+      name: { contains: q, mode: "insensitive" },
+      is_active: true,
+    },
+    select: {
+      name: true,
+      type: true,
+      description: true,
+    },
+    distinct: ["name"],
     orderBy: { name: "asc" },
     take: 8,
   });
 
-  return NextResponse.json({ names: rows.map((r) => r.name) });
+  return NextResponse.json({
+    names: products.map((p) => p.name),
+    suggestions: products.map((p) => ({
+      name: p.name,
+      type: p.type,
+      description: p.description,
+    })),
+  });
 }
