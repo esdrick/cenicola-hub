@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToCloudinary } from "@/lib/cloudinary-server";
 import { sendOrderShippedEmail } from "@/lib/emails";
 
 const VALID_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;

@@ -17,6 +17,7 @@ import { ConfirmarOrdenButton } from "@/components/shared/ordenes/ConfirmarOrden
 import { OrderHistorySection } from "@/components/shared/ordenes/OrderHistorySection";
 import { STATUS_LABELS, PAYMENT_TYPE_LABELS, getOrderChannelDisplay, resolveOrderCustomerContact } from "@/lib/order-utils";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone, Mail } from "lucide-react";
@@ -309,9 +310,10 @@ export default async function OrderDetailPage({
                 <div key={item.id} className="flex items-center gap-3 px-3 sm:px-5 py-3">
                   {item.variant.product.photos[0] && (
                     <Image
-                      src={item.variant.product.photos[0]}
+                      src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
                       alt={item.variant.product.name}
                       width={48} height={48}
+                      loading="lazy"
                       className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
                     />
                   )}
@@ -528,8 +530,14 @@ export default async function OrderDetailPage({
                       {p.payment_photo && (
                         <a href={p.payment_photo} target="_blank" rel="noopener noreferrer"
                           className="inline-block mt-1">
-                          <Image src={p.payment_photo} alt="Comprobante" width={64} height={64}
-                            className="h-12 w-12 rounded object-cover hover:opacity-80" />
+                          <Image
+                            src={getOptimizedCloudinaryUrl(p.payment_photo, 600)}
+                            alt="Comprobante"
+                            width={64}
+                            height={64}
+                            loading="lazy"
+                            className="h-12 w-12 rounded object-cover hover:opacity-80"
+                          />
                         </a>
                       )}
                       {isRejected && p.rejection_reason && (
@@ -619,9 +627,10 @@ export default async function OrderDetailPage({
                           <a href={order.shipment.photo_guide} target="_blank" rel="noopener noreferrer"
                             className="group relative block h-24 w-24 overflow-hidden rounded-lg border-2 border-sky-300 bg-sky-50 shadow-sm">
                             <Image
-                              src={order.shipment.photo_guide}
+                              src={getOptimizedCloudinaryUrl(order.shipment.photo_guide, 600)}
                               alt="Foto de la guía"
                               fill
+                              loading="lazy"
                               className="object-cover group-hover:opacity-80 transition-opacity"
                             />
                             <ExternalLink size={12}
@@ -635,9 +644,10 @@ export default async function OrderDetailPage({
                           <a href={order.shipment.photo_package} target="_blank" rel="noopener noreferrer"
                             className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
                             <Image
-                              src={order.shipment.photo_package}
+                              src={getOptimizedCloudinaryUrl(order.shipment.photo_package, 600)}
                               alt="Foto del paquete"
                               fill
+                              loading="lazy"
                               className="object-cover group-hover:opacity-80 transition-opacity"
                             />
                             <ExternalLink size={12}
@@ -651,9 +661,10 @@ export default async function OrderDetailPage({
                           <a href={order.shipment.photo_receipt} target="_blank" rel="noopener noreferrer"
                             className="group relative block h-24 w-24 overflow-hidden rounded-lg border bg-gray-100">
                             <Image
-                              src={order.shipment.photo_receipt}
+                              src={getOptimizedCloudinaryUrl(order.shipment.photo_receipt, 600)}
                               alt="Foto del recibo"
                               fill
+                              loading="lazy"
                               className="object-cover group-hover:opacity-80 transition-opacity"
                             />
                             <ExternalLink size={12}

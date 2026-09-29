@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, ImageOff } from "lucide-react";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { ProductJSON } from "@/types";
 
 type Props = { product: ProductJSON; fromUrl?: string };
@@ -43,8 +44,9 @@ export function ProductCard({ product, fromUrl }: Props) {
         {photo && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={photo}
+            src={getOptimizedCloudinaryUrl(photo, 600)}
             alt={product.name}
+            loading="lazy"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             onError={() => setImgError(true)}
           />

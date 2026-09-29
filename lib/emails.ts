@@ -1,4 +1,5 @@
 import { shortOrderNumber } from "./order-utils";
+import { getOptimizedCloudinaryUrl } from "./cloudinary";
 
 interface SendEmailParams {
   to: string;
@@ -297,7 +298,7 @@ export async function sendOrderShippedEmail({
               ? `
             <div style="text-align:center; margin: 24px 0;">
               <p style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; color: #000000;">COMPROBANTE DE GUÍA DE SEGUIMIENTO</p>
-              <img src="${guidePhotoUrl}" alt="Foto de la guía" style="max-width: 100%; border: 1px solid #e5e5e5;" />
+              <img src="${getOptimizedCloudinaryUrl(guidePhotoUrl, 800)}" alt="Foto de la guía" style="max-width: 100%; border: 1px solid #e5e5e5;" />
             </div>
           `
               : ""
@@ -308,7 +309,7 @@ export async function sendOrderShippedEmail({
               ? `
             <div style="text-align:center; margin: 24px 0;">
               <p style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; color: #000000;">FOTO DEL PAQUETE EMPACADO</p>
-              <img src="${packagePhotoUrl}" alt="Foto del paquete" style="max-width: 100%; border: 1px solid #e5e5e5;" />
+              <img src="${getOptimizedCloudinaryUrl(packagePhotoUrl, 800)}" alt="Foto del paquete" style="max-width: 100%; border: 1px solid #e5e5e5;" />
             </div>
           `
               : ""

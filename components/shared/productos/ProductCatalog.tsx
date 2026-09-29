@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ImageOff, AlertTriangle, LayoutGrid, Grid3X3, LayoutList } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import { AddToCartButton } from "./AddToCartButton";
 import type { ProductJSON, CartJSON } from "@/types";
 
@@ -169,8 +170,9 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={photo}
+                        src={getOptimizedCloudinaryUrl(photo, 600)}
                         alt={product.name}
+                        loading="lazy"
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={() => markPhotoBroken(product.id)}
                       />
@@ -241,8 +243,13 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                   <div className="h-14 w-14 overflow-hidden rounded-lg bg-gray-100">
                     {photo && !brokenPhotos.has(product.id) ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo} alt={product.name} className="h-full w-full object-cover"
-                        onError={() => markPhotoBroken(product.id)} />
+                      <img
+                        src={getOptimizedCloudinaryUrl(photo, 400)}
+                        alt={product.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        onError={() => markPhotoBroken(product.id)}
+                      />
                     ) : (
                       <div className="flex h-full items-center justify-center text-gray-300">
                         <ImageOff size={20} />

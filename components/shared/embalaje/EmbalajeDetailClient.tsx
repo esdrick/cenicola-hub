@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Upload, X, AlertCircle, Loader2, ZoomIn, Copy, Check } from "lucide-react";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -353,7 +354,13 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                           onClick={() => setLightboxSrc(photo)}
                           className="group relative flex-shrink-0 h-20 w-20 overflow-hidden rounded-lg border bg-gray-50"
                         >
-                          <Image src={photo} alt={productName} fill className="object-cover" />
+                          <Image
+                            src={getOptimizedCloudinaryUrl(photo, 400)}
+                            alt={productName}
+                            fill
+                            loading="lazy"
+                            className="object-cover"
+                          />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
                             <ZoomIn size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
@@ -426,6 +433,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                       <img
                         src={foto1Preview}
                         alt="Preview foto 1"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -481,6 +489,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                       <img
                         src={foto2Preview}
                         alt="Preview foto 2"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -536,6 +545,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
                       <img
                         src={foto3Preview}
                         alt="Preview foto 3"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                     </div>
@@ -636,7 +646,7 @@ export function EmbalajeDetailClient({ order }: EmbalajeDetailClientProps) {
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={lightboxSrc}
+            src={getOptimizedCloudinaryUrl(lightboxSrc, 1200)}
             alt="Foto del producto"
             className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
             onClick={(e) => e.stopPropagation()}

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import { rangoMes, rangoPorTipo } from "@/lib/payroll-periods";
 
 type TopProducto = {
@@ -346,10 +347,11 @@ export function ProductosAnalisisClient() {
                         <div className="flex items-center gap-2.5 sm:gap-3">
                           {p.photo ? (
                             <Image
-                              src={p.photo}
+                              src={getOptimizedCloudinaryUrl(p.photo, 400)}
                               alt={p.name}
                               width={36}
                               height={36}
+                              loading="lazy"
                               className="h-8 w-8 sm:h-9 sm:w-9 rounded-md object-cover border shrink-0"
                             />
                           ) : (
@@ -444,10 +446,11 @@ export function ProductosAnalisisClient() {
               >
                 {p.photo ? (
                   <Image
-                    src={p.photo}
+                    src={getOptimizedCloudinaryUrl(p.photo, 400)}
                     alt={p.name}
                     width={40}
                     height={40}
+                    loading="lazy"
                     className="h-10 w-10 rounded-md object-cover border shrink-0"
                   />
                 ) : (

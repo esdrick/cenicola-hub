@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 
 type Props = { photos: string[]; name: string };
 
@@ -13,12 +14,13 @@ export function ProductDetailGallery({ photos, name }: Props) {
       {/* Main photo */}
       <div className="relative aspect-square overflow-hidden rounded-xl bg-gray-100">
         <Image
-          src={photos[main]}
+          src={getOptimizedCloudinaryUrl(photos[main], 1000)}
           alt={name}
           fill
           className="object-cover"
           sizes="(max-width: 768px) 100vw, 50vw"
           unoptimized
+          priority
         />
       </div>
 
@@ -35,12 +37,13 @@ export function ProductDetailGallery({ photos, name }: Props) {
               }`}
             >
               <Image
-                src={url}
+                src={getOptimizedCloudinaryUrl(url, 400)}
                 alt={`${name} ${i + 1}`}
                 fill
                 className="object-cover"
                 sizes="64px"
                 unoptimized
+                loading="lazy"
               />
             </button>
           ))}

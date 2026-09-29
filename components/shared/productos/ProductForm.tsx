@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { ProductJSON, VariantInput } from "@/types";
 
 const PREDEFINED_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "UNIQUE"];
@@ -710,8 +711,13 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
             {photos.map((url, i) => (
               <div key={i} className="group relative aspect-square overflow-hidden rounded-lg border bg-gray-50">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="h-full w-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <img
+                  src={getOptimizedCloudinaryUrl(url, 400)}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
                 <div className="absolute inset-0 hidden items-center justify-center bg-gray-100 group-has-[img[style*='none']]:flex">
                   <ImageOff size={20} className="text-gray-400" />
                 </div>

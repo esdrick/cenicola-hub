@@ -18,6 +18,7 @@ import {
 import { PAYMENT_TYPE_LABELS, validatePaymentReference, getPaymentReferenceConfig } from "@/lib/order-utils";
 import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { CartJSON, PaymentFormInput } from "@/types";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -569,9 +570,10 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   )}>
                   {item.variant.product.photos[0] && (
                     <Image
-                      src={item.variant.product.photos[0]}
+                      src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
                       alt={item.variant.product.name}
                       width={40} height={40}
+                      loading="lazy"
                       className="h-10 w-10 flex-shrink-0 rounded object-cover" />
                   )}
                   <div className="min-w-0 flex-1">
@@ -1340,7 +1342,8 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                             <ImageOff size={16} className="text-gray-400" />
                           </div>
                         ) : (
-                          <Image src={draft.payment_photo} alt="Comprobante" width={80} height={80}
+                          <Image src={getOptimizedCloudinaryUrl(draft.payment_photo, 600)} alt="Comprobante" width={80} height={80}
+                            loading="lazy"
                             className="mt-1 h-16 w-16 rounded object-cover"
                             onError={() => setPaymentPhotoError(true)} />
                         )

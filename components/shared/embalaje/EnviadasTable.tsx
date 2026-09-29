@@ -6,6 +6,7 @@ import { Search, ImageIcon, ImageOff, Loader2, Pencil, Upload, X, Check } from "
 import { shortOrderNumber } from "@/lib/order-utils";
 import { formatVenezuelaDate, formatVenezuelaDateTime } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -449,9 +450,10 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                 <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100 flex items-center justify-center">
                   {!packagePhotoError ? (
                     <Image
-                      src={selectedOrder.shipment.photo_package}
+                      src={getOptimizedCloudinaryUrl(selectedOrder.shipment.photo_package, 600)}
                       alt="Foto del paquete"
                       fill
+                      loading="lazy"
                       className="object-cover"
                       onError={() => setPackagePhotoError(true)}
                     />
@@ -466,9 +468,10 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                   <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100 flex items-center justify-center">
                     {!receiptPhotoError ? (
                       <Image
-                        src={selectedOrder.shipment.photo_receipt}
+                        src={getOptimizedCloudinaryUrl(selectedOrder.shipment.photo_receipt, 600)}
                         alt="Foto del recibo"
                         fill
+                        loading="lazy"
                         className="object-cover"
                         onError={() => setReceiptPhotoError(true)}
                       />
@@ -484,9 +487,10 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                   <div className="relative aspect-square w-full rounded-md overflow-hidden border bg-gray-100 flex items-center justify-center">
                     {!guidePhotoError ? (
                       <Image
-                        src={selectedOrder.shipment.photo_guide}
+                        src={getOptimizedCloudinaryUrl(selectedOrder.shipment.photo_guide, 600)}
                         alt="Foto de la guía"
                         fill
+                        loading="lazy"
                         className="object-cover"
                         onError={() => setGuidePhotoError(true)}
                       />
@@ -519,8 +523,9 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={editFoto1Preview ?? selectedOrder.shipment.photo_package}
+                      src={getOptimizedCloudinaryUrl(editFoto1Preview ?? selectedOrder.shipment.photo_package, 600)}
                       alt="Foto del paquete"
+                      loading="lazy"
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/50 transition-colors">
@@ -558,8 +563,9 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                     <div className="relative group aspect-square w-full rounded-md overflow-hidden border bg-gray-100">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={editFoto2Preview ?? selectedOrder.shipment.photo_receipt ?? undefined}
+                        src={getOptimizedCloudinaryUrl(editFoto2Preview ?? selectedOrder.shipment.photo_receipt ?? undefined, 600)}
                         alt="Foto del recibo"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                       <button
@@ -615,8 +621,9 @@ export function EnviadasTable({ initialOrders, total, page, totalPages, role }: 
                     <div className="relative group aspect-square w-full rounded-md overflow-hidden border bg-gray-100">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={editFoto3Preview ?? selectedOrder.shipment.photo_guide ?? undefined}
+                        src={getOptimizedCloudinaryUrl(editFoto3Preview ?? selectedOrder.shipment.photo_guide ?? undefined, 600)}
                         alt="Foto de la guía"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                       <button

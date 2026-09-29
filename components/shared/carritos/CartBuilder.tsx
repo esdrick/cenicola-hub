@@ -12,6 +12,7 @@ import {
   Plus, Minus, ChevronRight, Save, AlertTriangle, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { CartJSON, ProductJSON } from "@/types";
 
 type Props = {
@@ -292,9 +293,10 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                     <div className="flex-shrink-0">
                       {product.photos[0] ? (
                         <Image
-                          src={product.photos[0]}
+                          src={getOptimizedCloudinaryUrl(product.photos[0], 400)}
                           alt={product.name}
                           width={48} height={48}
+                          loading="lazy"
                           className="h-12 w-12 rounded-lg object-cover"
                         />
                       ) : (
@@ -378,9 +380,10 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                     <div className="flex-shrink-0">
                       {product.photos[0] ? (
                         <Image
-                          src={product.photos[0]}
+                          src={getOptimizedCloudinaryUrl(product.photos[0], 400)}
                           alt={product.name}
                           width={48} height={48}
+                          loading="lazy"
                           className="h-12 w-12 rounded-lg object-cover"
                         />
                       ) : (
@@ -565,9 +568,10 @@ export function CartBuilder({ cart: initialCart, defaultChannel = "online", isAd
                   >
                     {item.variant.product.photos[0] && (
                       <Image
-                        src={item.variant.product.photos[0]}
+                        src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
                         alt={item.variant.product.name}
                         width={40} height={40}
+                        loading="lazy"
                         className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
                       />
                     )}

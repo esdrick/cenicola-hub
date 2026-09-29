@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { ProductJSON, CartJSON } from "@/types";
 
 type Props = {
@@ -159,9 +160,10 @@ export function AddToCartButton({
           <div className="flex-shrink-0">
             {photo ? (
               <Image
-                src={photo}
+                src={getOptimizedCloudinaryUrl(photo, 400)}
                 alt={product.name}
                 width={64} height={64}
+                loading="lazy"
                 className="h-16 w-16 rounded-lg object-cover"
               />
             ) : (

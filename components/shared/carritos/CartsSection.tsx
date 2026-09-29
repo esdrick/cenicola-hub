@@ -7,6 +7,7 @@ import { ShoppingCart, ChevronRight, AlertTriangle, Trash2, Loader2, ChevronDown
 import { buttonVariants } from "@/components/ui/button";
 import { formatVenezuelaDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { CartJSON } from "@/types";
 
 function CartCard({ cart, onDelete }: { cart: CartJSON; onDelete: (id: string) => void }) {
@@ -64,9 +65,10 @@ function CartCard({ cart, onDelete }: { cart: CartJSON; onDelete: (id: string) =
             item.variant.product.photos[0] ? (
               <Image
                 key={item.id}
-                src={item.variant.product.photos[0]}
+                src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
                 alt={item.variant.product.name}
                 width={40} height={40}
+                loading="lazy"
                 className="h-10 w-10 rounded-lg object-cover border"
                 title={`${item.variant.product.name} ${item.variant.size}`}
               />

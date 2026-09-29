@@ -13,6 +13,7 @@ import {
   Plus, Minus, Loader2, Search, ShoppingCart, AlertCircle, AlertTriangle, X, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { ProductJSON } from "@/types";
 import type { OrderStatus } from "@/app/generated/prisma/client";
 
@@ -214,9 +215,10 @@ export function AgregarProductosDialog({ orderId, orderNumber, channel, status }
                         <div className="flex-shrink-0">
                           {product.photos[0] ? (
                             <Image
-                              src={product.photos[0]}
+                              src={getOptimizedCloudinaryUrl(product.photos[0], 400)}
                               alt={product.name}
                               width={40} height={40}
+                              loading="lazy"
                               className="h-10 w-10 rounded-lg object-cover"
                             />
                           ) : (

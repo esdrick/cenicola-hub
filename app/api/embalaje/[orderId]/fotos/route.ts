@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRole, getClientIp } from "@/lib/api-auth";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { uploadToCloudinary } from "@/lib/cloudinary-server";
 import { prisma } from "@/lib/prisma";
 
 const VALID_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"] as const;

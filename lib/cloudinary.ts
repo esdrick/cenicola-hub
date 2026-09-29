@@ -1,24 +1,50 @@
-import { v2 as cloudinary } from "cloudinary";
+/**
+ * Cloudinary Helper & Optimizer
+ */
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
-  api_key:    process.env.CLOUDINARY_API_KEY!,
-  api_secret: process.env.CLOUDINARY_API_SECRET!,
-});
+/**
+ * Optimizes a Cloudinary image URL by injecting dynamic width, limit scaling,
+ * automatic modern format (AVIF/WebP), and automatic quality optimization
+ * (w_{width},c_limit,f_auto,q_auto).
+ *
+ * @param url Original image URL (handles falsy, external URLs, and existing transforms)
+ * @param width Target width in pixels (defaults to 600)
+ * @returns The optimized URL string, or the untouched original URL if not applicable
+ */
+export function getOptimizedCloudinaryUrl(
+  url?: string | null,
+  width: number = 600
+): string {
+  if (!url || typeof url !== "string") {
+    return url ?? "";
+  }
 
-export async function uploadToCloudinary(
-  file: File,
-  folder: string
-): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
+  // Only transform Cloudinary URLs
+  if (!url.includes("res.cloudinary.com")) {
+    return url;
+  }
 
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream({ folder, resource_type: "image" }, (err, result) => {
-        if (err || !result) return reject(err ?? new Error("Upload failed"));
-        resolve(result.secure_url);
-      })
-      .end(buffer);
-  });
+  const uploadSegment = "/image/upload/";
+  const uploadIndex = url.indexOf(uploadSegment);
+  if (uploadIndex === -1) {
+    return url;
+  }
+
+  const afterUpload = url.slice(uploadIndex + uploadSegment.length);
+
+  // Check if transformations are already present (w_..., f_auto, q_auto, c_limit, etc.)
+  if (
+    afterUpload.startsWith("w_") ||
+    afterUpload.startsWith("f_auto") ||
+    afterUpload.startsWith("q_auto") ||
+    afterUpload.startsWith("c_") ||
+    /(?:^|\/)(?:w_\d+|f_auto|q_auto|c_limit)(?:[,\/]|$)/.test(afterUpload)
+  ) {
+    return url;
+  }
+
+  const transformation = `w_${width},c_limit,f_auto,q_auto`;
+  return `${url.slice(0, uploadIndex + uploadSegment.length)}${transformation}/${afterUpload}`;
 }
+
+export const cloudinaryUrl = getOptimizedCloudinaryUrl;

@@ -18,6 +18,7 @@ import { PAYMENT_TYPE_LABELS, validatePaymentReference, getPaymentReferenceConfi
 import { getVenezuelaDateString, getVenezuelaTimeString } from "@/lib/date-utils";
 import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 type TasaInfo = {
@@ -421,10 +422,11 @@ export function AgregarPagoDialog({
                   </div>
                   {form.payment_photo && (
                     <Image
-                      src={form.payment_photo}
+                      src={getOptimizedCloudinaryUrl(form.payment_photo, 600)}
                       alt="Comprobante"
                       width={80}
                       height={80}
+                      loading="lazy"
                       className="mt-1 h-16 w-16 rounded object-cover"
                     />
                   )}

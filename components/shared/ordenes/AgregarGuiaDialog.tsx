@@ -20,6 +20,7 @@ import {
 import { shortOrderNumber } from "@/lib/order-utils";
 import { formatVenezuelaDateTime } from "@/lib/date-utils";
 import { validateImageFile, optimizeImage } from "@/lib/image-optimizer";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import Image from "next/image";
 
 const VALID_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -249,9 +250,10 @@ export function AgregarGuiaDialog({
             {currentGuideImage ? (
               <div className="relative group aspect-video w-full rounded-lg overflow-hidden border bg-gray-50 flex items-center justify-center">
                 <Image
-                  src={currentGuideImage}
+                  src={getOptimizedCloudinaryUrl(currentGuideImage, 1000)}
                   alt="Foto de la guía"
                   fill
+                  loading="lazy"
                   className="object-contain"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
