@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
 import { parseWhatsAppOrderMessage } from "@/lib/whatsapp-parser";
-import { generateOrderNumber } from "@/lib/order-utils";
+import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
 import { getSetting } from "@/lib/settings";
@@ -67,8 +67,8 @@ function getOfficialCatalogUnitPrice(
 
 // POST /api/orders/parse-whatsapp
 export async function POST(request: NextRequest) {
-  // Restricted strictly to admin and inventario roles
-  const auth = await withRole(["admin", "inventario"]);
+  // Allowed for admin, inventario, and vendedoras
+  const auth = await withRole(["admin", "inventario", "vendedora_online", "vendedora_tienda"]);
   if (!auth.ok) return auth.response;
 
   const body = await request.json().catch(() => null);
@@ -297,8 +297,9 @@ export async function POST(request: NextRequest) {
     const docNumber = cust.doc_number?.trim() || "00000000";
     const customerIdDoc = `${docType}-${docNumber}`;
     const phone = cust.phone?.trim() || "";
-    const address = cust.address?.trim() || "Venta de WhatsApp";
-    const shippingCompany = cust.shipping_company?.trim() || "MRW";
+    const rawAddress = cust.address?.trim() || "";
+    const address = rawAddress || (channel === "online" ? "Envío Nacional" : "Venta en Tienda");
+    const shippingCompany = cust.shipping_company?.trim() || (channel === "online" ? "MRW" : "Tienda");
 
     const tasa = await getTasa(auth.session.id).catch(() => null);
     const isBcvPayment = paymentTypeToPricingMethod(paymentType) === "bcv";
@@ -322,6 +323,22 @@ export async function POST(request: NextRequest) {
 
           if (existingCust) {
             customerId = existingCust.id;
+            const updateCust: { phone?: string; address?: string; name?: string; lastname?: string } = {};
+            if (phone?.trim() && (!existingCust.phone || existingCust.phone.length < 5)) {
+              updateCust.phone = phone.trim();
+            }
+            if (rawAddress && (!existingCust.address || existingCust.address === "Venta de WhatsApp" || existingCust.address === "Venta en Tienda" || existingCust.address === "Sin dirección")) {
+              updateCust.address = rawAddress;
+            }
+            if (customerName?.trim() && customerName !== "Cliente" && (!existingCust.name || existingCust.name === "Cliente" || existingCust.name === "Cliente de tienda")) {
+              updateCust.name = customerName.trim();
+            }
+            if (customerLastname?.trim() && customerLastname !== "WhatsApp" && (!existingCust.lastname || existingCust.lastname === "WhatsApp" || existingCust.lastname === "Tienda")) {
+              updateCust.lastname = customerLastname.trim();
+            }
+            if (Object.keys(updateCust).length > 0) {
+              await tx.customer.update({ where: { id: existingCust.id }, data: updateCust });
+            }
           } else {
             const createdCust = await tx.customer.create({
               data: {
@@ -330,7 +347,7 @@ export async function POST(request: NextRequest) {
                 name: customerName,
                 lastname: customerLastname,
                 phone: phone || null,
-                address,
+                address: rawAddress || null,
               },
             });
             customerId = createdCust.id;
@@ -409,7 +426,45 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // 4. Create Order
+        // 4. Validate payment reference if provided
+        const rawPaymentRef = cust.payment_reference?.trim();
+        const hasPaymentRef = !!rawPaymentRef;
+        let paymentData = undefined;
+
+        if (hasPaymentRef) {
+          const refValidation = validatePaymentReference(paymentType, rawPaymentRef);
+          if (!refValidation.valid) {
+            throw new Error(refValidation.error || "Referencia de pago inválida");
+          }
+          const hash = normalizeReference(rawPaymentRef);
+          const dup = await tx.orderPayment.findFirst({
+            where: {
+              reference_hash: hash,
+              payment_type: paymentType,
+              status: { not: "rechazado" },
+            },
+            include: { order: { select: { order_number: true } } },
+          });
+          if (dup) {
+            throw new Error(`La referencia de pago ya fue utilizada en la orden ${dup.order.order_number}`);
+          }
+
+          paymentData = {
+            create: {
+              payment_type: paymentType,
+              amount_usd: realTotalUsd,
+              amount_ves: amountVes,
+              exchange_rate_id: tasa?.id || null,
+              payment_date: new Date(getVenezuelaDateString()),
+              reference: rawPaymentRef,
+              reference_hash: hash,
+              payment_photo: cust.payment_photo?.trim() || null,
+              status: "pendiente" as const,
+            },
+          };
+        }
+
+        // 5. Create Order
         const newOrder = await tx.order.create({
           data: {
             order_number: orderNumber,
@@ -433,18 +488,7 @@ export async function POST(request: NextRequest) {
                 data: orderItemsData,
               },
             },
-            payments: {
-              create: {
-                payment_type: paymentType,
-                amount_usd: realTotalUsd,
-                amount_ves: amountVes,
-                exchange_rate_id: tasa?.id || null,
-                payment_date: new Date(getVenezuelaDateString()),
-                reference: `WAP-${Date.now().toString().slice(-6)}`,
-                reference_hash: `WAP${Date.now().toString().slice(-6)}`,
-                status: "pendiente",
-              },
-            },
+            ...(paymentData ? { payments: paymentData } : {}),
           },
         });
 
@@ -472,38 +516,6 @@ export async function POST(request: NextRequest) {
       const msg = err instanceof Error ? err.message : "Error al crear la orden directamente";
       return NextResponse.json({ error: msg }, { status: 400 });
     }
-  }
-
-  // ACTION 2: CART CREATION (Secondary workflow for editing)
-  if (body.action === "create_cart") {
-    const validItems = matchedItems.filter((i) => i.matchedVariant);
-    if (validItems.length === 0) {
-      return NextResponse.json({ error: "Ningún producto seleccionado coincide con la base de datos" }, { status: 400 });
-    }
-
-    const cart = await prisma.cart.create({
-      data: {
-        vendor_id: auth.session.id,
-        channel,
-        note: `Importado de WhatsApp - Cliente: ${parsed.customer.customer_name} ${parsed.customer.customer_lastname}`.trim(),
-        items: {
-          createMany: {
-            data: validItems.map((i) => ({
-              variant_id: i.matchedVariant!.id,
-              quantity: i.quantity,
-              unit_price_usd: i.officialUnitPrice,
-            })),
-          },
-        },
-      },
-    });
-
-    return NextResponse.json({
-      cartId: cart.id,
-      parsedCustomer: parsed.customer,
-      items: matchedItems,
-      totalUsd: realTotalUsd,
-    });
   }
 
   return NextResponse.json({

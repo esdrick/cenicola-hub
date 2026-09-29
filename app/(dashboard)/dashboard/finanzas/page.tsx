@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { ResumenClient } from "@/components/shared/finanzas/ResumenClient";
 import { HistorialClient } from "@/components/shared/finanzas/HistorialClient";
 import { FinanzasTabs } from "@/components/shared/finanzas/FinanzasTabs";
+import { getOrderCategory } from "@/lib/order-utils";
 import type { HistorialData, InsightType } from "@/components/shared/finanzas/HistorialClient";
 
 import { ProductosAnalisisClient } from "@/components/shared/finanzas/ProductosAnalisisClient";
@@ -38,7 +39,8 @@ function generateInsights(d: {
   totalIngresos: number; totalEgresos: number; margen: number; margenPct: number;
   ticketPromedio: number; countOrdenes: number; prevTotalIngresos: number;
   prevCountOrdenes: number; ingresosChangePct: number | null; egresosChangePct: number | null;
-  ingresosOnline: number; ingresosTienda: number; countOnline: number; countTienda: number;
+  ingresosOnline: number; ingresosTienda: number; ingresosWeb: number;
+  countOnline: number; countTienda: number; countWeb: number;
   topVendedora: { nombre: string; total: number } | null;
   categoryBreakdown: { category: string; label: string; total: number; percentage: number; count: number }[];
 }): { type: InsightType; text: string }[] {
@@ -74,14 +76,27 @@ function generateInsights(d: {
   if (d.countOrdenes > 0)
     out.push({ type: "info", text: `Ticket promedio: $${d.ticketPromedio.toFixed(2)} sobre ${d.countOrdenes} orden${d.countOrdenes !== 1 ? "es" : ""} completada${d.countOrdenes !== 1 ? "s" : ""}.` });
 
-  const totalCanal = d.ingresosOnline + d.ingresosTienda;
-  if (totalCanal > 0 && d.ingresosOnline > 0 && d.ingresosTienda > 0) {
-    const onlinePct = (d.ingresosOnline / totalCanal * 100).toFixed(0);
-    const dominant = d.ingresosOnline >= d.ingresosTienda ? "Online" : "Tienda";
-    const domPct = d.ingresosOnline >= d.ingresosTienda ? onlinePct : (100 - Number(onlinePct)).toFixed(0);
-    out.push({ type: "info", text: `Canal ${dominant} domina con el ${domPct}% de las ventas ($${(d.ingresosOnline >= d.ingresosTienda ? d.ingresosOnline : d.ingresosTienda).toFixed(2)}).` });
-  } else if (totalCanal > 0) {
-    out.push({ type: "info", text: `Todas las ventas del período son del canal ${d.ingresosOnline > 0 ? "Online" : "Tienda"}.` });
+  const totalCanal = d.ingresosOnline + d.ingresosTienda + d.ingresosWeb;
+  if (totalCanal > 0) {
+    const channels = [
+      { name: "Web", total: d.ingresosWeb, count: d.countWeb },
+      { name: "Online", total: d.ingresosOnline, count: d.countOnline },
+      { name: "Tienda", total: d.ingresosTienda, count: d.countTienda },
+    ].filter((c) => c.total > 0).sort((a, b) => b.total - a.total);
+
+    if (channels.length > 1) {
+      const top = channels[0];
+      const topPct = ((top.total / totalCanal) * 100).toFixed(0);
+      out.push({
+        type: "info",
+        text: `Canal ${top.name} lidera con el ${topPct}% de las ventas ($${top.total.toFixed(2)} sobre ${top.count} órdenes).`,
+      });
+    } else if (channels.length === 1) {
+      out.push({
+        type: "info",
+        text: `Todas las ventas del período son del canal ${channels[0].name} ($${channels[0].total.toFixed(2)}).`,
+      });
+    }
   }
 
   if (d.categoryBreakdown.length > 0) {
@@ -161,6 +176,7 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
         id: true, order_number: true, created_at: true,
         customer_name: true, customer_lastname: true,
         channel: true, total_usd: true,
+        created_by: true, notes: true,
         creator: { select: { name: true } },
       },
     }),
@@ -213,10 +229,27 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
   const countOrdenes   = ordenes.length;
   const ticketPromedio = countOrdenes > 0 ? totalIngresos / countOrdenes : 0;
 
-  const ingresosOnline = ordenes.filter(o => o.channel === "online").reduce((s, o) => s + Number(o.total_usd), 0);
-  const ingresosTienda = ordenes.filter(o => o.channel === "tienda").reduce((s, o) => s + Number(o.total_usd), 0);
-  const countOnline    = ordenes.filter(o => o.channel === "online").length;
-  const countTienda    = ordenes.filter(o => o.channel === "tienda").length;
+  let ingresosTienda = 0;
+  let countTienda = 0;
+  let ingresosOnline = 0;
+  let countOnline = 0;
+  let ingresosWeb = 0;
+  let countWeb = 0;
+
+  for (const o of ordenes) {
+    const cat = getOrderCategory(o);
+    const val = Number(o.total_usd);
+    if (cat === "web") {
+      ingresosWeb += val;
+      countWeb++;
+    } else if (cat === "online") {
+      ingresosOnline += val;
+      countOnline++;
+    } else {
+      ingresosTienda += val;
+      countTienda++;
+    }
+  }
 
   const prevTotalIngresos = Number(prevAggrOrdenes._sum.total_usd ?? 0);
   const prevTotalEgresos  = Number(prevAggrGastos._sum.amount_usd ?? 0);
@@ -251,7 +284,8 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
   const insights = generateInsights({
     totalIngresos, totalEgresos, margen, margenPct, ticketPromedio, countOrdenes,
     prevTotalIngresos, prevCountOrdenes, ingresosChangePct, egresosChangePct,
-    ingresosOnline, ingresosTienda, countOnline, countTienda,
+    ingresosOnline, ingresosTienda, ingresosWeb,
+    countOnline, countTienda, countWeb,
     topVendedora, categoryBreakdown,
   });
 
@@ -260,16 +294,20 @@ export default async function FinanzasPage({ searchParams }: { searchParams: SP 
     totalIngresos, totalEgresos, margen, margenPct, ticketPromedio, countOrdenes,
     prevTotalIngresos, prevTotalEgresos, prevCountOrdenes,
     ingresosChangePct, egresosChangePct,
-    ingresosOnline, ingresosTienda, countOnline, countTienda,
+    ingresosOnline, ingresosTienda, ingresosWeb,
+    countOnline, countTienda, countWeb,
     topVendedora, categoryBreakdown, diasActivos, insights,
-    ingresos: ordenes.map(o => ({
+    ingresos: ordenes.map((o) => ({
       id: o.id, order_number: o.order_number,
       date: o.created_at.toISOString().slice(0, 10),
       customer: `${o.customer_name} ${o.customer_lastname}`,
-      channel: o.channel, seller: o.creator?.name ?? "Web Directa",
+      channel: o.channel,
+      notes: o.notes,
+      created_by: o.created_by,
+      seller: o.creator?.name ?? (getOrderCategory(o) === "web" ? "Cliente Web" : "Sin asignar"),
       total_usd: Number(o.total_usd),
     })),
-    egresos: gastos.map(g => ({
+    egresos: gastos.map((g) => ({
       id: g.id, date: g.expense_date.toISOString().slice(0, 10),
       description: g.description, category: g.category,
       categoryLabel: CAT_LABELS[g.category] ?? g.category,

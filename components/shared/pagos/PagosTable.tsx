@@ -55,12 +55,14 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
 
   const [q,      setQ]      = useState(sp.get("q")      ?? "");
   const [metodo, setMetodo] = useState(sp.get("metodo") ?? "");
+  const [canal,  setCanal]  = useState(sp.get("canal")  ?? "");
   const [desde,  setDesde]  = useState(sp.get("desde")  ?? "");
   const [hasta,  setHasta]  = useState(sp.get("hasta")  ?? "");
 
   const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tmpMetodo, setTmpMetodo] = useState("");
+  const [tmpCanal,  setTmpCanal]  = useState("");
   const [tmpDesde,  setTmpDesde]  = useState("");
   const [tmpHasta,  setTmpHasta]  = useState("");
 
@@ -69,7 +71,7 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
     const vals: Record<string, string> = {
-      q, metodo, desde, hasta, page: String(page),
+      q, metodo, canal, desde, hasta, page: String(page),
       ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
     };
     Object.entries(vals).forEach(([k, v]) => { if (v && v !== "0") params.set(k, v); });
@@ -84,31 +86,32 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
   }
 
   function openFilters() {
-    setTmpMetodo(metodo); setTmpDesde(desde); setTmpHasta(hasta);
+    setTmpMetodo(metodo); setTmpCanal(canal); setTmpDesde(desde); setTmpHasta(hasta);
     setFiltersOpen(true);
   }
 
   function applyFilters() {
-    setMetodo(tmpMetodo); setDesde(tmpDesde); setHasta(tmpHasta);
+    setMetodo(tmpMetodo); setCanal(tmpCanal); setDesde(tmpDesde); setHasta(tmpHasta);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     if (q)         params.set("q",      q);
     if (tmpMetodo) params.set("metodo", tmpMetodo);
+    if (tmpCanal)  params.set("canal",  tmpCanal);
     if (tmpDesde)  params.set("desde",  tmpDesde);
     if (tmpHasta)  params.set("hasta",  tmpHasta);
     start(() => router.push(`/dashboard/pagos?${params.toString()}`));
   }
 
   function clearFilters() {
-    setTmpMetodo(""); setTmpDesde(""); setTmpHasta("");
-    setMetodo("");    setDesde("");    setHasta("");
+    setTmpMetodo(""); setTmpCanal(""); setTmpDesde(""); setTmpHasta("");
+    setMetodo("");    setCanal("");    setDesde("");    setHasta("");
     setFiltersOpen(false);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     start(() => router.push(`/dashboard/pagos?${params.toString()}`));
   }
 
-  const activeFilterCount = [sp.get("metodo"), sp.get("desde"), sp.get("hasta")].filter(Boolean).length;
+  const activeFilterCount = [sp.get("metodo"), sp.get("canal"), sp.get("desde"), sp.get("hasta")].filter(Boolean).length;
 
   function getMethodBadges(payments: PagoOrdenJSON["payments"]) {
     const seen = new Set<PaymentType>();
@@ -191,6 +194,29 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
                 ))}
               </div>
             </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Canal</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "web", label: "Web" },
+                  { value: "online", label: "Online" },
+                  { value: "tienda", label: "Tienda" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpCanal(tmpCanal === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpCanal === value
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0 space-y-1.5">
                 <Label>Desde</Label>
@@ -204,7 +230,7 @@ export function PagosTable({ orders, total, page, totalPages }: Props) {
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="ghost" onClick={clearFilters}
-              disabled={isPending || (!tmpMetodo && !tmpDesde && !tmpHasta && !metodo && !desde && !hasta)}>
+              disabled={isPending || (!tmpMetodo && !tmpCanal && !tmpDesde && !tmpHasta && !metodo && !canal && !desde && !hasta)}>
               Limpiar
             </Button>
             <Button onClick={applyFilters} disabled={isPending}>

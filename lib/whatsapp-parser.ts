@@ -17,6 +17,8 @@ export interface ParsedWhatsAppCustomer {
   address: string;
   shipping_company: string;
   payment_method: string; // ej: "zelle", "pago_movil", "efectivo_usd", "transferencia", etc.
+  payment_reference?: string; // ej: "12345678"
+  payment_photo?: string;
 }
 
 export interface ParsedWhatsAppOrder {
@@ -39,6 +41,8 @@ export function parseWhatsAppOrderMessage(text: string): ParsedWhatsAppOrder {
     address: "",
     shipping_company: "",
     payment_method: "zelle",
+    payment_reference: "",
+    payment_photo: "",
   };
 
   let totalUsd = 0;
@@ -139,19 +143,28 @@ export function parseWhatsAppOrderMessage(text: string): ParsedWhatsAppOrder {
       }
 
       // Shipping & Address
-      if (line.startsWith("📍")) {
-        const shipInfo = line.replace("📍", "").trim();
-        if (shipInfo.includes(":")) {
-          const parts = shipInfo.split(":");
+      if (
+        line.startsWith("📍") ||
+        /^(?:env[ií]o|direcci[oó]n|destino|agencia|ubicaci[oó]n)\s*:/i.test(line)
+      ) {
+        const cleanShip = line.replace(/^(?:📍|\b(?:env[ií]o|direcci[oó]n|destino|agencia|ubicaci[oó]n)\s*:?)\s*/i, "").trim();
+        if (cleanShip.includes(":")) {
+          const parts = cleanShip.split(":");
           customer.shipping_company = parts[0].trim();
           customer.address = parts.slice(1).join(":").trim();
-        } else if (shipInfo.includes("-")) {
-          const parts = shipInfo.split("-");
+        } else if (cleanShip.includes("-")) {
+          const parts = cleanShip.split("-");
           customer.shipping_company = parts[0].trim();
           customer.address = parts.slice(1).join("-").trim();
         } else {
-          customer.shipping_company = "MRW";
-          customer.address = shipInfo;
+          const companyMatch = cleanShip.match(/^(MRW|ZOOM|TEALCA|DOMESA|DHL|LIBERTY|SEREX)\s+(.+)$/i);
+          if (companyMatch) {
+            customer.shipping_company = companyMatch[1].toUpperCase();
+            customer.address = companyMatch[2].trim();
+          } else {
+            customer.shipping_company = customer.shipping_company || "MRW";
+            customer.address = cleanShip;
+          }
         }
         continue;
       }
@@ -166,6 +179,20 @@ export function parseWhatsAppOrderMessage(text: string): ParsedWhatsAppOrder {
         else if (payStr.includes("transferencia") || payStr.includes("banesco")) customer.payment_method = "transferencia";
         else if (payStr.includes("usdt") || payStr.includes("binance")) customer.payment_method = "usdt";
         else customer.payment_method = payStr;
+        continue;
+      }
+
+      // Payment reference
+      // Matches lines like: 🧾 Ref: 12345678, 💳 Referencia: 12345678, Ref: 12345678, Referencia: 12345678
+      const refMatch = line.match(/(?:🧾|💳|🔢|\bRef(?:\.|\b|erencia)?:?\s*)\s*:?\s*([A-Za-z0-9\-_]{4,25})/i);
+      if (
+        refMatch &&
+        !customer.payment_reference &&
+        !line.includes("Resumen") &&
+        !line.includes("Total") &&
+        !line.includes("Q´ FRANELAS")
+      ) {
+        customer.payment_reference = refMatch[1].trim();
         continue;
       }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -29,9 +30,12 @@ import {
   Sparkles,
   RefreshCw,
   Zap,
-  ShoppingCart,
+  Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { optimizeImage, validateImageFile } from "@/lib/image-optimizer";
+import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { ParsedWhatsAppCustomer } from "@/lib/whatsapp-parser";
 
 interface MatchedItem {
@@ -107,8 +111,9 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
   const [totalUsd, setTotalUsd] = useState(0);
   const [isAnyPriceTampered, setIsAnyPriceTampered] = useState(false);
 
-  const [creatingCart, setCreatingCart] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   function resetState() {
     setStep("input");
@@ -118,6 +123,33 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
     setItems([]);
     setTotalUsd(0);
     setIsAnyPriceTampered(false);
+    setUploadingPhoto(false);
+  }
+
+  async function handleUploadPhoto(file: File) {
+    const validationError = validateImageFile(file, { maxMb: 20 });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setUploadingPhoto(true);
+    setError(null);
+    try {
+      const optimized = await optimizeImage(file);
+      const fd = new FormData();
+      fd.append("file", optimized);
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      const j = await r.json();
+      if (r.ok) {
+        setCustomer((prev) => (prev ? { ...prev, payment_photo: j.url } : null));
+      } else {
+        setError(j.error ?? "Error al subir el comprobante");
+      }
+    } catch {
+      setError("Error al procesar o subir el comprobante. Intenta de nuevo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   async function handleAnalyze() {
@@ -218,51 +250,6 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
       setError(msg);
     } finally {
       setCreatingOrder(false);
-    }
-  }
-
-  // SECONDARY ACTION: OPEN IN CART FOR MANUAL EDITING
-  async function handleCreateCartAndProceed() {
-    if (!customer) return;
-    setCreatingCart(true);
-    setError(null);
-
-    try {
-      const validItems = items.filter((i) => i.matchedVariant);
-      if (validItems.length === 0) {
-        throw new Error("Selecciona al menos un producto válido que coincida con el inventario");
-      }
-
-      const res = await fetch("/api/orders/parse-whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, channel, action: "create_cart" }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Error al crear el carrito");
-      }
-
-      const params = new URLSearchParams({
-        name: customer.customer_name || "",
-        lastname: customer.customer_lastname || "",
-        doc_type: customer.doc_type || "V",
-        doc_number: customer.doc_number || "",
-        phone: customer.phone || "",
-        shipping_company: customer.shipping_company || "",
-        shipping_address: customer.address || "",
-        payment: customer.payment_method || "",
-      });
-
-      setOpen(false);
-      resetState();
-      router.push(`/dashboard/carritos/${data.cartId}/completar?${params.toString()}`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error al procesar la orden";
-      setError(msg);
-    } finally {
-      setCreatingCart(false);
     }
   }
 
@@ -369,8 +356,8 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
                   <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-600">
                     <UserCheck size={15} className="text-emerald-600" /> Datos del Cliente Extraídos
                   </span>
-                  <Badge variant="outline" className="bg-white text-emerald-700 border-emerald-200 font-semibold">
-                    Documento: {customer.doc_type}-{customer.doc_number || "Sin Doc"}
+                  <Badge variant="outline" className="bg-white text-emerald-700 border-emerald-200 font-semibold text-xs">
+                    {customer.doc_number ? `Cédula: ${customer.doc_type}-${customer.doc_number}` : "Cédula pendiente"}
                   </Badge>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -390,6 +377,35 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
                       className="bg-white h-8 text-sm"
                     />
                   </div>
+
+                  <div>
+                    <Label className="text-xs text-gray-500">Cédula / Documento</Label>
+                    <div className="flex gap-1.5">
+                      <Select
+                        value={customer.doc_type || "V"}
+                        onValueChange={(val) => {
+                          if (val) setCustomer({ ...customer, doc_type: val as "V" | "P" | "J" | "E" });
+                        }}
+                      >
+                        <SelectTrigger className="w-16 h-8 text-xs font-bold bg-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="V">V</SelectItem>
+                          <SelectItem value="E">E</SelectItem>
+                          <SelectItem value="J">J</SelectItem>
+                          <SelectItem value="P">P</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        value={customer.doc_number}
+                        onChange={(e) => setCustomer({ ...customer, doc_number: e.target.value.replace(/\D/g, "") })}
+                        placeholder="Ej: 25072960"
+                        className="bg-white h-8 text-sm flex-1 font-mono"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <Label className="text-xs text-gray-500">Teléfono</Label>
                     <Input
@@ -414,7 +430,7 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
                       className="bg-white h-8 text-sm"
                     />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <Label className="text-xs text-gray-500">Dirección / Destino</Label>
                     <Input
                       value={customer.address}
@@ -422,6 +438,94 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
                       className="bg-white h-8 text-sm"
                     />
                   </div>
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label className="text-xs text-gray-500 flex items-center justify-between">
+                      <span>Referencia Bancaria / Comprobante (Opcional)</span>
+                      <span className="text-[10px] text-gray-400">Si aún no ha pagado, déjalo en blanco</span>
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={customer.payment_reference || ""}
+                        onChange={(e) => setCustomer({ ...customer, payment_reference: e.target.value })}
+                        placeholder="Ej: 12345678 (dejar vacío si aún no envía el comprobante)"
+                        className="bg-white h-8 text-sm font-mono flex-1"
+                      />
+                      <input
+                        ref={photoInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleUploadPhoto(f);
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingPhoto}
+                        onClick={() => photoInputRef.current?.click()}
+                        className="h-8 px-2.5 text-xs gap-1.5 border-gray-300 shrink-0"
+                        title="Subir foto o capture de la transferencia"
+                      >
+                        {uploadingPhoto ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <Upload size={13} className="text-gray-600" />
+                        )}
+                        <span>{customer.payment_photo ? "Cambiar Capture" : "Subir Capture"}</span>
+                      </Button>
+                    </div>
+
+                    {customer.payment_photo && (
+                      <div className="flex items-center justify-between gap-2 p-1.5 bg-white rounded border border-gray-200">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Image
+                            src={getOptimizedCloudinaryUrl(customer.payment_photo, 200)}
+                            alt="Capture Comprobante"
+                            width={36}
+                            height={36}
+                            className="h-9 w-9 rounded object-cover border shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-xs text-emerald-800 font-medium truncate">Capture adjunto</p>
+                            <a
+                              href={customer.payment_photo}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-blue-600 hover:underline"
+                            >
+                              Ver imagen completa
+                            </a>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCustomer({ ...customer, payment_photo: "" })}
+                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X size={14} />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xs pt-1 border-t border-gray-200/60 flex items-center gap-1.5">
+                  {customer.payment_reference?.trim() ? (
+                    <span className="text-emerald-800 font-medium flex items-center gap-1">
+                      <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                      Se registrará un pago pendiente con referencia <strong>{customer.payment_reference.trim()}</strong>{customer.payment_photo ? " y capture adjunto" : ""} para verificación bancaria.
+                    </span>
+                  ) : (
+                    <span className="text-amber-800 flex items-center gap-1">
+                      <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                      <span>Sin referencia: La orden se creará en <strong>Pendiente pago ($0.00)</strong> para cargar el comprobante después.</span>
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -532,19 +636,8 @@ export function ImportWhatsAppModal({ className }: { className?: string }) {
               </Button>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCreateCartAndProceed}
-                  disabled={creatingCart || creatingOrder || items.every((i) => !i.matchedVariant)}
-                  className="gap-1.5"
-                >
-                  {creatingCart ? <Loader2 size={14} className="animate-spin" /> : <ShoppingCart size={14} />}
-                  Editar en Carrito
-                </Button>
-
-                <Button
                   onClick={handleCreateDirectOrder}
-                  disabled={isAnyPriceTampered || creatingOrder || creatingCart || items.every((i) => !i.matchedVariant)}
+                  disabled={isAnyPriceTampered || creatingOrder || items.every((i) => !i.matchedVariant)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm disabled:opacity-50 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {creatingOrder ? (

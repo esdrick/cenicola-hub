@@ -74,6 +74,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
 
   const [q,      setQ]      = useState(sp.get("q")      ?? "");
   const [metodo, setMetodo] = useState(sp.get("metodo") ?? "");
+  const [canal,  setCanal]  = useState(sp.get("canal")  ?? "");
   const [desde,  setDesde]  = useState(sp.get("desde")  ?? "");
   const [hasta,  setHasta]  = useState(sp.get("hasta")  ?? "");
   const [historial, setHistorial] = useState(sp.get("historial") === "1");
@@ -81,6 +82,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
   const [searchOpen,  setSearchOpen]  = useState(!!sp.get("q"));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tmpMetodo, setTmpMetodo] = useState("");
+  const [tmpCanal,  setTmpCanal]  = useState("");
   const [tmpDesde,  setTmpDesde]  = useState("");
   const [tmpHasta,  setTmpHasta]  = useState("");
   const [tmpHistorial, setTmpHistorial] = useState(false);
@@ -90,7 +92,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
   function buildUrl(overrides: Record<string, string | number>) {
     const params = new URLSearchParams();
     const vals: Record<string, string> = {
-      q, metodo, desde, hasta, tab: "verificados", page: String(page),
+      q, metodo, canal, desde, hasta, tab: "verificados", page: String(page),
       historial: historial ? "1" : "",
       ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
     };
@@ -106,17 +108,18 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
   }
 
   function openFilters() {
-    setTmpMetodo(metodo); setTmpDesde(desde); setTmpHasta(hasta); setTmpHistorial(historial);
+    setTmpMetodo(metodo); setTmpCanal(canal); setTmpDesde(desde); setTmpHasta(hasta); setTmpHistorial(historial);
     setFiltersOpen(true);
   }
 
   function applyFilters() {
-    setMetodo(tmpMetodo); setDesde(tmpDesde); setHasta(tmpHasta); setHistorial(tmpHistorial);
+    setMetodo(tmpMetodo); setCanal(tmpCanal); setDesde(tmpDesde); setHasta(tmpHasta); setHistorial(tmpHistorial);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     params.set("tab", "verificados");
     if (q)          params.set("q",      q);
     if (tmpMetodo)  params.set("metodo", tmpMetodo);
+    if (tmpCanal)   params.set("canal",  tmpCanal);
     if (tmpDesde)   params.set("desde",  tmpDesde);
     if (tmpHasta)   params.set("hasta",  tmpHasta);
     if (tmpHistorial) params.set("historial", "1");
@@ -124,8 +127,8 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
   }
 
   function clearFilters() {
-    setTmpMetodo(""); setTmpDesde(""); setTmpHasta(""); setTmpHistorial(false);
-    setMetodo("");    setDesde("");    setHasta("");    setHistorial(false);
+    setTmpMetodo(""); setTmpCanal(""); setTmpDesde(""); setTmpHasta(""); setTmpHistorial(false);
+    setMetodo("");    setCanal("");    setDesde("");    setHasta("");    setHistorial(false);
     setFiltersOpen(false);
     const params = new URLSearchParams();
     params.set("tab", "verificados");
@@ -133,7 +136,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
     start(() => router.push(`/dashboard/pagos?${params.toString()}`));
   }
 
-  const activeFilterCount = [sp.get("metodo"), sp.get("desde"), sp.get("hasta"), sp.get("historial")].filter(Boolean).length;
+  const activeFilterCount = [sp.get("metodo"), sp.get("canal"), sp.get("desde"), sp.get("hasta"), sp.get("historial")].filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -214,6 +217,29 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
                 ))}
               </div>
             </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Canal</p>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "web", label: "Web" },
+                  { value: "online", label: "Online" },
+                  { value: "tienda", label: "Tienda" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTmpCanal(tmpCanal === value ? "" : value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-sm transition-colors",
+                      tmpCanal === value
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-600 hover:border-gray-400"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="min-w-0 space-y-1.5">
                 <Label>Desde</Label>
@@ -241,7 +267,7 @@ export function PagosVerificadosTable({ payments, total, page, totalPages, hasCo
           </div>
           <DialogFooter className="gap-2 sm:justify-between">
             <Button variant="ghost" onClick={clearFilters}
-              disabled={isPending || (!tmpMetodo && !tmpDesde && !tmpHasta && !tmpHistorial && !metodo && !desde && !hasta && !historial)}>
+              disabled={isPending || (!tmpMetodo && !tmpCanal && !tmpDesde && !tmpHasta && !tmpHistorial && !metodo && !canal && !desde && !hasta && !historial)}>
               Limpiar
             </Button>
             <Button onClick={applyFilters} disabled={isPending}>

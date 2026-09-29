@@ -145,6 +145,14 @@ export async function POST(
         });
       }
 
+      // 2. Actualizar correo del cliente si se proporcionó uno nuevo
+      if (customer_email_input && order.customer_id && order.customer?.email !== customer_email_input.toLowerCase()) {
+        await tx.customer.update({
+          where: { id: order.customer_id },
+          data: { email: customer_email_input.toLowerCase() },
+        });
+      }
+
       // 3. Ensure order status is at least enviada
       if (order.status === "en_embalaje") {
         await tx.order.update({

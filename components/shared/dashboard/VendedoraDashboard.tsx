@@ -5,8 +5,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, TrendingUp, Clock, ShoppingCart } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { ShoppingBag, TrendingUp, Clock, ShoppingCart, Plus } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { ImportWhatsAppModal } from "@/components/shared/ordenes/ImportWhatsAppModal";
 import type { SessionUser } from "@/types";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -130,6 +133,27 @@ export async function VendedoraDashboard({ session }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Header with Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Hola, {session.name} 👋</h1>
+          <p className="text-sm text-gray-500">Resumen de tus ventas y órdenes activas</p>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <ImportWhatsAppModal className="flex-1 sm:flex-initial justify-center text-xs sm:text-sm px-2.5 sm:px-4 py-2" />
+          <Link
+            href="/dashboard/ordenes/nueva"
+            className={cn(
+              buttonVariants(),
+              "flex-1 sm:flex-initial justify-center text-xs sm:text-sm px-2.5 sm:px-4 py-2 shrink-0 whitespace-nowrap"
+            )}
+          >
+            <Plus size={16} className="shrink-0" />
+            <span>Nueva orden</span>
+          </Link>
+        </div>
+      </div>
+
       {/* Tarjetas */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {CARDS.map((c) => {

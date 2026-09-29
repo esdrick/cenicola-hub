@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
 import { rangoADateTime } from "@/lib/payroll-periods";
-import type { OrderChannel, Prisma } from "@/app/generated/prisma";
+import { buildOrderChannelWhere } from "@/lib/order-utils";
+import type { Prisma } from "@/app/generated/prisma";
 
 export async function GET(request: NextRequest) {
   const auth = await withRole(["admin"]);
@@ -21,10 +22,12 @@ export async function GET(request: NextRequest) {
     fin = range.fin;
   }
 
+  const channelWhere = buildOrderChannelWhere(canal);
+
   // Where clause for eligible orders in period
   const orderWhere: Prisma.OrderWhereInput = {
     status: { in: ["enviada", "completada"] },
-    ...(canal && canal !== "all" ? { channel: canal as OrderChannel } : {}),
+    ...(channelWhere ? channelWhere : {}),
     ...(inicio && fin ? { updated_at: { gte: inicio, lte: fin } } : {}),
   };
 

@@ -11,8 +11,9 @@ import { ImportWhatsAppModal } from "@/components/shared/ordenes/ImportWhatsAppM
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCorteActivo } from "@/lib/cierre-sistema";
+import { buildOrderChannelWhere } from "@/lib/order-utils";
 import type { OrderJSON, CartJSON, CartItemJSON } from "@/types";
-import type { OrderStatus, OrderChannel, Prisma } from "@/app/generated/prisma/client";
+import type { OrderStatus, Prisma } from "@/app/generated/prisma/client";
 
 // Estatus que cuentan como "ya resueltos" para el Corte de Sistema — todo lo demás
 // (aún pendiente de pago, en embalaje, enviado…) sigue visible sin importar su fecha,
@@ -30,7 +31,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
 
   const q        = s(searchParams.q);
   const status   = s(searchParams.status) as OrderStatus | "";
-  const channel  = s(searchParams.channel) as OrderChannel | "";
+  const channel  = s(searchParams.channel);
   const seller   = s(searchParams.seller);
   const desde    = s(searchParams.desde);
   const hasta    = s(searchParams.hasta);
@@ -40,17 +41,19 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
   const isRestricted = session.role === "vendedora_online" || session.role === "vendedora_tienda";
   const canSeeAll    = !isRestricted;
   const canUseCarts  = isRestricted || session.role === "admin" || session.role === "inventario";
-  const isWhatsAppImportAllowed = session.role === "admin" || session.role === "inventario";
+  const isWhatsAppImportAllowed = isRestricted || session.role === "admin" || session.role === "inventario";
 
   const corteActivo = await getCorteActivo();
   const corte = historial ? null : corteActivo;
+
+  const channelWhere = buildOrderChannelWhere(channel);
 
   const where: Prisma.OrderWhereInput = {
     AND: [
       ...(isRestricted ? [{ created_by: session.id }] : []),
       ...(canSeeAll && seller ? [{ created_by: seller }] : []),
       ...(status  ? [{ status }] : []),
-      ...(channel ? [{ channel }] : []),
+      ...(channelWhere ? [channelWhere] : []),
       ...(desde && !hasta ? [{ created_at: { gte: new Date(desde) } }] : []),
       ...(hasta && !desde ? [{ created_at: { lte: new Date(`${hasta}T23:59:59`) } }] : []),
       ...(desde && hasta  ? [{ created_at: { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) } }] : []),

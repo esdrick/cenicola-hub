@@ -60,7 +60,7 @@ type AnalisisData = {
 };
 
 type Preset = "dia" | "semana" | "quincena" | "mes" | "custom";
-type CanalFiltro = "all" | "online" | "tienda";
+type CanalFiltro = "all" | "web" | "online" | "tienda";
 
 const MONTH = rangoMes(new Date());
 const today = new Date().toISOString().slice(0, 10);
@@ -176,6 +176,15 @@ export function ProductosAnalisisClient() {
             >
               <Filter size={12} />
               Todos
+            </button>
+            <button
+              onClick={() => setCanal("web")}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition ${
+                canal === "web" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <Globe size={12} className="text-purple-500" />
+              Web
             </button>
             <button
               onClick={() => setCanal("online")}

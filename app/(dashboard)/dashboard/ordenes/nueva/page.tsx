@@ -26,9 +26,7 @@ export default async function NuevaOrdenPage() {
           <BackToOrdersButton />
           <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
         </div>
-        {isAdmin && (
-          <ImportWhatsAppModal className="w-full sm:w-auto justify-center text-xs sm:text-sm px-3 py-2" />
-        )}
+        <ImportWhatsAppModal className="w-full sm:w-auto justify-center text-xs sm:text-sm px-3 py-2" />
       </div>
       <CartBuilder
         cart={null}

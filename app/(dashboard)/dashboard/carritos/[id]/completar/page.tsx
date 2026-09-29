@@ -1,11 +1,12 @@
+import { Suspense } from "react";
+import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSetting } from "@/lib/settings";
 import { ConvertCartForm } from "@/components/shared/carritos/ConvertCartForm";
-import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CartJSON, CartItemJSON } from "@/types";
 
@@ -115,7 +116,9 @@ export default async function CompletarCarritoPage({ params }: Params) {
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Nueva orden</h1>
       </div>
-      <ConvertCartForm cart={cartJSON} isAdmin={session.role === "admin"} />
+      <Suspense fallback={<div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-gray-400" /></div>}>
+        <ConvertCartForm cart={cartJSON} isAdmin={session.role === "admin"} />
+      </Suspense>
     </div>
   );
 }

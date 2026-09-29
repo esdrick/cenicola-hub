@@ -40,6 +40,7 @@ export function EmbalajeTable({ initialOrders, total, page, totalPages }: Embala
     const params = new URLSearchParams(sp.toString());
     const vals: Record<string, string> = {
       q,
+      canal: sp.get("canal") ?? "",
       page: String(page),
       ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])),
     };
@@ -61,29 +62,55 @@ export function EmbalajeTable({ initialOrders, total, page, totalPages }: Embala
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
-          <Input
-            placeholder="Buscar por orden o cliente..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") applySearch();
-            }}
-            className="pl-9 pr-9"
-          />
-          {q && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-            >
-              <X size={14} />
-            </button>
-          )}
+      {/* Search and Channel filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 max-w-sm">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+            <Input
+              placeholder="Buscar por orden o cliente..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") applySearch();
+              }}
+              className="pl-9 pr-9"
+            />
+            {q && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {isPending && <Loader2 size={16} className="animate-spin text-gray-400" />}
         </div>
-        {isPending && <Loader2 size={16} className="animate-spin text-gray-400" />}
+
+        {/* Canal Filter Buttons */}
+        <div className="flex items-center gap-1 rounded-lg border bg-gray-50 p-1">
+          {[
+            { id: "", label: "Todos" },
+            { id: "web", label: "Web", textClass: "text-purple-700 font-medium" },
+            { id: "online", label: "Online", textClass: "text-blue-700 font-medium" },
+            { id: "tienda", label: "Tienda", textClass: "text-emerald-700 font-medium" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                start(() => router.push(buildUrl({ canal: item.id, page: 1 })));
+              }}
+              className={`rounded-md px-3 py-1 text-xs transition ${
+                (sp.get("canal") ?? "") === item.id
+                  ? "bg-white font-semibold text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span className={item.textClass}>{item.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}

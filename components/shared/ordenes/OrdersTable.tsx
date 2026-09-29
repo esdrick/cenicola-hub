@@ -209,8 +209,12 @@ export function OrdersTable({ orders, total, page, totalPages, sellers, isAdmin,
             {/* Canal */}
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">Canal</p>
-              <div className="flex gap-2">
-                {[{ value: "online", label: "Online" }, { value: "tienda", label: "Tienda" }].map(({ value, label }) => (
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "web", label: "Web" },
+                  { value: "online", label: "Online" },
+                  { value: "tienda", label: "Tienda" },
+                ].map(({ value, label }) => (
                   <button
                     key={value}
                     onClick={() => setTmpChannel(tmpChannel === value ? "" : value)}

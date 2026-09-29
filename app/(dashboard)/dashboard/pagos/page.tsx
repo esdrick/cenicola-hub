@@ -7,7 +7,7 @@ import { PagosTable } from "@/components/shared/pagos/PagosTable";
 import { PagosVerificadosTable, type PagoVerificadoJSON } from "@/components/shared/pagos/PagosVerificadosTable";
 import { PagosTabs } from "@/components/shared/pagos/PagosTabs";
 import { getCorteActivo } from "@/lib/cierre-sistema";
-import { isWebStorePickup } from "@/lib/order-utils";
+import { isWebStorePickup, buildOrderChannelWhere } from "@/lib/order-utils";
 import type { PagoOrdenJSON } from "@/types";
 import type { PaymentType, OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
 
@@ -24,6 +24,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
   const tab    = s(searchParams.tab) || "pendientes";
   const q      = s(searchParams.q);
   const metodo = s(searchParams.metodo) as PaymentType | "";
+  const canal  = s(searchParams.canal);
   const desde  = s(searchParams.desde);
   const hasta  = s(searchParams.hasta);
   const historial = s(searchParams.historial) === "1";
@@ -38,6 +39,8 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
     },
   });
 
+  const channelWhere = buildOrderChannelWhere(canal);
+
   // ── Historial de pagos confirmados ─────────────────────────────────────────
   if (tab === "verificados") {
     const corteActivo = await getCorteActivo();
@@ -51,6 +54,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
       status: "verificado" as const,
       ...(metodo && { payment_type: metodo }),
       ...(dateFilter && { verified_at: dateFilter }),
+      ...(channelWhere && { order: channelWhere }),
       ...(q && {
         OR: [
           { order: { customer_name:     { contains: q, mode: "insensitive" as const } } },
@@ -143,6 +147,7 @@ export default async function PagosPage({ searchParams }: { searchParams: SP }) 
   const where = {
     OR: pendienteOr,
     ...(metodo && { payments: { some: { payment_type: metodo } } }),
+    ...(channelWhere ? channelWhere : {}),
     ...(dateFilter && { created_at: dateFilter }),
     ...(q && {
       AND: [

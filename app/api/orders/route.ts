@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
-import type { OrderStatus, OrderChannel } from "@/app/generated/prisma/client";
+import { buildOrderChannelWhere } from "@/lib/order-utils";
+import type { OrderStatus } from "@/app/generated/prisma/client";
 
 // GET /api/orders
 export async function GET(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const q      = sp.get("q")?.trim() ?? "";
   const status = sp.get("status") as OrderStatus | null;
-  const channel = sp.get("channel") as OrderChannel | null;
+  const channel = sp.get("channel");
   const sellerId = sp.get("seller") ?? "";
   const desde  = sp.get("desde") ?? "";
   const hasta  = sp.get("hasta") ?? "";
@@ -20,13 +21,15 @@ export async function GET(request: NextRequest) {
 
   const isRestricted = auth.session.role === "vendedora_online" || auth.session.role === "vendedora_tienda";
 
+  const channelWhere = buildOrderChannelWhere(channel);
+
   const where = {
     // Vendedoras only see their own orders
     ...(isRestricted && { created_by: auth.session.id }),
     // Admin filter by seller
     ...(!isRestricted && sellerId && { created_by: sellerId }),
     ...(status  && { status }),
-    ...(channel && { channel }),
+    ...(channelWhere ? channelWhere : {}),
     ...(desde && !hasta && { created_at: { gte: new Date(desde) } }),
     ...(hasta && !desde && { created_at: { lte: new Date(`${hasta}T23:59:59`) } }),
     ...(desde && hasta && { created_at: { gte: new Date(desde), lte: new Date(`${hasta}T23:59:59`) } }),

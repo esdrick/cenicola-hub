@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
-import { isWebStorePickup } from "@/lib/order-utils";
+import { isWebStorePickup, buildOrderChannelWhere } from "@/lib/order-utils";
 
 // GET /api/embalaje — orders in en_embalaje
 export async function GET(request: NextRequest) {
@@ -12,11 +12,15 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const q = sp.get("q")?.trim() ?? "";
+  const canal = sp.get("canal");
   const page = Math.max(1, parseInt(sp.get("page") || "1"));
   const limit = Math.max(1, parseInt(sp.get("limit") || "25"));
 
+  const channelWhere = buildOrderChannelWhere(canal);
+
   const where = {
     status: "en_embalaje" as const,
+    ...(channelWhere ? channelWhere : {}),
     // Vendedoras online solo empacan las órdenes que ellas mismas vendieron.
     ...(auth.session.role === "vendedora_online" && { created_by: auth.session.id }),
     ...(q && {

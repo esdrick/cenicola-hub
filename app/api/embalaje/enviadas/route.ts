@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
+import { buildOrderChannelWhere } from "@/lib/order-utils";
 
 // GET /api/embalaje/enviadas — orders in enviada
 export async function GET(request: NextRequest) {
@@ -11,11 +12,15 @@ export async function GET(request: NextRequest) {
 
   const sp = request.nextUrl.searchParams;
   const q = sp.get("q")?.trim() ?? "";
+  const canal = sp.get("canal");
   const page = Math.max(1, parseInt(sp.get("page") || "1"));
   const limit = Math.max(1, parseInt(sp.get("limit") || "25"));
 
+  const channelWhere = buildOrderChannelWhere(canal);
+
   const where: Record<string, unknown> = {
     status: { in: ["enviada", "completada"] },
+    ...(channelWhere ? channelWhere : {}),
     ...(auth.session.role === "vendedora_online" && {
       OR: [
         { created_by: auth.session.id },

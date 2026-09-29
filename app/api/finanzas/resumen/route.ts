@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole } from "@/lib/api-auth";
+import { getOrderCategory } from "@/lib/order-utils";
 
 export async function GET(request: NextRequest) {
   const auth = await withRole(["admin"]);
@@ -28,15 +29,20 @@ export async function GET(request: NextRequest) {
       ? { lte: new Date(hasta) }
       : undefined;
 
-  const [ventas, gastos, cobrar, pagar, pagosPendientes, ingresosPorMetodo, montoPorConfirmar] =
+  const [ordenesCompletadas, gastos, cobrar, pagar, pagosPendientes, ingresosPorMetodo, montoPorConfirmar] =
     await Promise.all([
-      prisma.order.aggregate({
+      prisma.order.findMany({
         where: {
           status: "completada",
           ...(orderDateFilter && { created_at: orderDateFilter }),
         },
-        _sum: { total_usd: true },
-        _count: { id: true },
+        select: {
+          total_usd: true,
+          channel: true,
+          order_number: true,
+          created_by: true,
+          notes: true,
+        },
       }),
       prisma.expense.aggregate({
         where: {
@@ -71,15 +77,45 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+  let ventasTienda = 0;
+  let countTienda = 0;
+  let ventasOnline = 0;
+  let countOnline = 0;
+  let ventasWeb = 0;
+  let countWeb = 0;
+
+  for (const o of ordenesCompletadas) {
+    const cat = getOrderCategory(o);
+    const val = Number(o.total_usd);
+    if (cat === "web") {
+      ventasWeb += val;
+      countWeb++;
+    } else if (cat === "online") {
+      ventasOnline += val;
+      countOnline++;
+    } else {
+      ventasTienda += val;
+      countTienda++;
+    }
+  }
+
   const totalCobrar = cobrar.reduce(
     (s, r) => s + Number(r.amount_usd) - Number(r.amount_paid_usd),
     0
   );
   const totalPagar = pagar.reduce((s, p) => s + Number(p.monto), 0);
 
+  const totalVentas = ventasTienda + ventasOnline + ventasWeb;
+  const totalOrdenes = countTienda + countOnline + countWeb;
+
   return NextResponse.json({
-    ventas: Number(ventas._sum.total_usd ?? 0),
-    ordenes_completadas: ventas._count.id,
+    ventas: totalVentas,
+    ordenes_completadas: totalOrdenes,
+    ventas_por_canal: {
+      tienda: { total: ventasTienda, count: countTienda },
+      online: { total: ventasOnline, count: countOnline },
+      web: { total: ventasWeb, count: countWeb },
+    },
     gastos: Number(gastos._sum.amount_usd ?? 0),
     cobrar: totalCobrar,
     pagar: totalPagar,

@@ -254,6 +254,36 @@ export async function POST(request: NextRequest, { params }: Params) {
 
         if (existingCustomer) {
           customerId = existingCustomer.id;
+          const updateData: {
+            email?: string;
+            phone?: string;
+            address?: string;
+            name?: string;
+            lastname?: string;
+          } = {};
+
+          if (cleanEmail && cleanEmail !== existingCustomer.email?.toLowerCase()) {
+            updateData.email = cleanEmail;
+          }
+          if (customer_phone?.trim() && customer_phone.trim() !== existingCustomer.phone) {
+            updateData.phone = customer_phone.trim();
+          }
+          if (customer_address?.trim() && customer_address.trim() !== existingCustomer.address) {
+            updateData.address = customer_address.trim();
+          }
+          if (customer_name?.trim() && (!existingCustomer.name || existingCustomer.name === "Cliente de tienda")) {
+            updateData.name = customer_name.trim();
+          }
+          if (customer_lastname?.trim() && !existingCustomer.lastname) {
+            updateData.lastname = customer_lastname.trim();
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            await tx.customer.update({
+              where: { id: existingCustomer.id },
+              data: updateData,
+            });
+          }
         } else {
           // Cliente nuevo en directorio POS de tienda física.
           const createdCustomer = await tx.customer.create({

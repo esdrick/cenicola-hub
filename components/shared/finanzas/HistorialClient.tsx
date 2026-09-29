@@ -17,6 +17,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { rangoDia, rangoSemana, rangoQuincena } from "@/lib/payroll-periods";
 import { getOrderChannelDisplay } from "@/lib/order-utils";
+import { Pagination } from "@/components/shared/Pagination";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ type IngresosRow = {
   customer: string;
   channel: string;
   seller: string;
+  notes?: string | null;
+  created_by?: string | null;
   total_usd: number;
 };
 
@@ -60,8 +63,10 @@ export type HistorialData = {
   egresosChangePct: number | null;
   ingresosOnline: number;
   ingresosTienda: number;
+  ingresosWeb: number;
   countOnline: number;
   countTienda: number;
+  countWeb: number;
   topVendedora: { nombre: string; total: number } | null;
   categoryBreakdown: { category: string; label: string; total: number; percentage: number; count: number }[];
   diasActivos: { dia: string; dayNum: number; count: number; total: number }[];
@@ -349,8 +354,9 @@ function ResumenTab({ data }: { data: HistorialData }) {
           ) : (
             <div className="space-y-3">
               {[
-                { label: "Online",  value: data.ingresosOnline, count: data.countOnline,  color: "bg-blue-500" },
-                { label: "Tienda",  value: data.ingresosTienda, count: data.countTienda,  color: "bg-violet-500" },
+                { label: "Web",     value: data.ingresosWeb,    count: data.countWeb,    color: "bg-purple-500" },
+                { label: "Online",  value: data.ingresosOnline, count: data.countOnline, color: "bg-blue-500" },
+                { label: "Tienda",  value: data.ingresosTienda, count: data.countTienda, color: "bg-emerald-500" },
               ].map((c) => {
                 const pctVal = data.totalIngresos > 0 ? (c.value / data.totalIngresos) * 100 : 0;
                 return (
@@ -461,19 +467,72 @@ function ResumenTab({ data }: { data: HistorialData }) {
 
 // ─── Ingresos Tab ─────────────────────────────────────────────────────────────
 
+const PAGE_SIZE_INGRESOS = 20;
+
 function IngresosTab({ rows }: { rows: IngresosRow[] }) {
-  const total = rows.reduce((s, r) => s + r.total_usd, 0);
+  const [channelFilter, setChannelFilter] = useState<"all" | "web" | "online" | "tienda">("all");
+  const [page, setPage] = useState(1);
+
+  const filteredRows = rows.filter((r) => {
+    if (channelFilter === "all") return true;
+    const isWeb =
+      r.order_number?.toUpperCase().startsWith("WEB-") ||
+      r.notes?.includes("[Correo Web") ||
+      r.notes?.includes("Venta Web") ||
+      r.seller === "Cliente Web" ||
+      (!r.created_by && r.seller !== "Vendedora Online" && r.seller !== "Vendedora Tienda");
+    if (channelFilter === "web") return isWeb;
+    if (channelFilter === "online") return r.channel === "online" && !isWeb;
+    if (channelFilter === "tienda") return r.channel === "tienda" && !isWeb;
+    return true;
+  });
+
+  const total = filteredRows.reduce((s, r) => s + r.total_usd, 0);
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE_INGRESOS) || 1;
+  const paginatedRows = filteredRows.slice((page - 1) * PAGE_SIZE_INGRESOS, page * PAGE_SIZE_INGRESOS);
+
+  const handleChannelChange = (tab: "all" | "web" | "online" | "tienda") => {
+    setChannelFilter(tab);
+    setPage(1);
+  };
 
   if (rows.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">No hay ingresos en el período.</p>;
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-500">{rows.length} órdenes completadas</p>
-        <p className="text-sm font-semibold text-gray-800">Total: ${total.toFixed(2)}</p>
+    <div className="space-y-4">
+      {/* Channel filter pills */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1 rounded-lg border bg-gray-50 p-1">
+          {[
+            { id: "all", label: "Todos" },
+            { id: "web", label: "Web", badgeClass: "text-purple-700 font-medium" },
+            { id: "online", label: "Online", badgeClass: "text-blue-700 font-medium" },
+            { id: "tienda", label: "Tienda", badgeClass: "text-emerald-700 font-medium" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleChannelChange(tab.id as "all" | "web" | "online" | "tienda")}
+              className={`rounded-md px-3 py-1 text-xs transition ${
+                channelFilter === tab.id
+                  ? "bg-white font-semibold text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-900"
+              }`}
+            >
+              <span className={tab.badgeClass}>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3 text-sm">
+          <p className="text-xs text-gray-500">
+            {filteredRows.length} de {rows.length} órdenes completadas
+          </p>
+          <p className="text-sm font-semibold text-gray-900">Total: ${total.toFixed(2)}</p>
+        </div>
       </div>
+
       <div className="rounded-lg border overflow-hidden">
         <Table>
           <TableHeader>
@@ -487,37 +546,61 @@ function IngresosTab({ rows }: { rows: IngresosRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => {
-              const channelInfo = getOrderChannelDisplay({
-                channel: r.channel,
-                order_number: r.order_number,
-                created_by: r.seller === "Cliente Web" ? null : "user",
-                creator: r.seller && r.seller !== "Cliente Web" ? { name: r.seller } : null,
-              });
+            {paginatedRows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-6 text-sm text-gray-400">
+                  No hay órdenes para el canal seleccionado.
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedRows.map((r) => {
+                const channelInfo = getOrderChannelDisplay({
+                  channel: r.channel,
+                  order_number: r.order_number,
+                  notes: r.notes,
+                  created_by: r.seller === "Cliente Web" ? null : (r.created_by ?? "user"),
+                  creator: r.seller && r.seller !== "Cliente Web" ? { name: r.seller } : null,
+                });
 
-              return (
-                <TableRow key={r.id} className="text-sm">
-                  <TableCell className="font-mono text-xs text-blue-600">{r.order_number}</TableCell>
-                  <TableCell className="text-gray-500">{r.date}</TableCell>
-                  <TableCell>{r.customer}</TableCell>
-                  <TableCell>
-                    <Badge className={`text-xs border ${channelInfo.badgeClass}`}>
-                      {channelInfo.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-gray-600">{channelInfo.vendedora}</TableCell>
-                  <TableCell className="text-right font-semibold text-emerald-700">${r.total_usd.toFixed(2)}</TableCell>
-                </TableRow>
-              );
-            })}
+                return (
+                  <TableRow key={r.id} className="text-sm">
+                    <TableCell className="font-mono text-xs text-blue-600">{r.order_number}</TableCell>
+                    <TableCell className="text-gray-500">{r.date}</TableCell>
+                    <TableCell>{r.customer}</TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs border ${channelInfo.badgeClass}`}>
+                        {channelInfo.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-gray-600">{channelInfo.vendedora}</TableCell>
+                    <TableCell className="text-right font-semibold text-emerald-700">${r.total_usd.toFixed(2)}</TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
+
+      {filteredRows.length > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={filteredRows.length}
+          noun="orden"
+          nounPlural="órdenes"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPageChange={(p) => setPage(p)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Egresos Tab ──────────────────────────────────────────────────────────────
+
+const PAGE_SIZE_EGRESOS = 20;
 
 function EgresosTab({
   rows,
@@ -526,7 +609,10 @@ function EgresosTab({
   rows: EgresosRow[];
   breakdown: { category: string; label: string; total: number; percentage: number; count: number }[];
 }) {
+  const [page, setPage] = useState(1);
   const total = rows.reduce((s, r) => s + r.amount_usd, 0);
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE_EGRESOS) || 1;
+  const paginatedRows = rows.slice((page - 1) * PAGE_SIZE_EGRESOS, page * PAGE_SIZE_EGRESOS);
 
   if (rows.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-8">No hay gastos en el período.</p>;
@@ -566,7 +652,7 @@ function EgresosTab({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => (
+            {paginatedRows.map((r) => (
               <TableRow key={r.id} className="text-sm">
                 <TableCell className="text-gray-500 text-xs">{r.date}</TableCell>
                 <TableCell className="max-w-[200px] truncate">{r.description}</TableCell>
@@ -584,6 +670,19 @@ function EgresosTab({
           </TableBody>
         </Table>
       </div>
+
+      {rows.length > 0 && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={rows.length}
+          noun="registro"
+          nounPlural="registros"
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          onPageChange={(p) => setPage(p)}
+        />
+      )}
     </div>
   );
 }

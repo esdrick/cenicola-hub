@@ -180,7 +180,7 @@ export function isWebOrder(order: {
   notes?: string | null;
   order_number?: string | null;
   created_by?: string | null;
-  creator?: { name: string; lastname?: string | null } | null;
+  creator?: { name?: string | null; lastname?: string | null } | null;
 }): boolean {
   return Boolean(
     order.order_number?.toUpperCase().startsWith("WEB-") ||
@@ -194,7 +194,7 @@ export function isWebStorePickup(order: {
   notes?: string | null;
   order_number?: string | null;
   created_by?: string | null;
-  creator?: { name: string; lastname?: string | null } | null;
+  creator?: { name?: string | null; lastname?: string | null } | null;
   address?: string | null;
   shipping_company?: string | null;
   channel?: string | null;
@@ -219,12 +219,63 @@ export function isWebStorePickup(order: {
   );
 }
 
+export function getOrderCategory(order: {
+  channel?: string | null;
+  notes?: string | null;
+  order_number?: string | null;
+  created_by?: string | null;
+  creator?: { name?: string | null; lastname?: string | null } | null;
+}): "web" | "online" | "tienda" {
+  if (isWebOrder(order)) return "web";
+  if (order.channel === "online") return "online";
+  return "tienda";
+}
+
+export function buildOrderChannelWhere(
+  channel: string | null | undefined
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
+  if (!channel || channel === "all") return undefined;
+  if (channel === "web") {
+    return {
+      OR: [
+        { order_number: { startsWith: "WEB-", mode: "insensitive" } },
+        { notes: { contains: "[Correo Web", mode: "insensitive" } },
+        { notes: { contains: "Venta Web", mode: "insensitive" } },
+        { created_by: null },
+      ],
+    };
+  }
+  if (channel === "online") {
+    return {
+      channel: "online",
+      created_by: { not: null },
+      NOT: [
+        { order_number: { startsWith: "WEB-", mode: "insensitive" } },
+        { notes: { contains: "[Correo Web", mode: "insensitive" } },
+        { notes: { contains: "Venta Web", mode: "insensitive" } },
+      ],
+    };
+  }
+  if (channel === "tienda") {
+    return {
+      channel: "tienda",
+      NOT: [
+        { order_number: { startsWith: "WEB-", mode: "insensitive" } },
+        { notes: { contains: "[Correo Web", mode: "insensitive" } },
+        { notes: { contains: "Venta Web", mode: "insensitive" } },
+      ],
+    };
+  }
+  return undefined;
+}
+
 export function getOrderChannelDisplay(order: {
   channel?: string | null;
   notes?: string | null;
   order_number?: string | null;
   created_by?: string | null;
-  creator?: { name: string; lastname?: string | null } | null;
+  creator?: { name?: string | null; lastname?: string | null } | null;
   address?: string | null;
   shipping_company?: string | null;
 }): {

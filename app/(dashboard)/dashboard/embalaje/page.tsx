@@ -8,7 +8,7 @@ import { EmbalajeTable } from "@/components/shared/embalaje/EmbalajeTable";
 import { EnviadasTable } from "@/components/shared/embalaje/EnviadasTable";
 import { EmbalajeAdminTabs } from "@/components/shared/embalaje/EmbalajeAdminTabs";
 import { getCorteActivo } from "@/lib/cierre-sistema";
-import { isWebStorePickup } from "@/lib/order-utils";
+import { isWebStorePickup, buildOrderChannelWhere } from "@/lib/order-utils";
 import type { EmbalajeOrdenJSON, EmbalajeShipmentJSON } from "@/types";
 import type { Prisma } from "@/app/generated/prisma/client";
 
@@ -27,7 +27,10 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   const tab = hasHistorialTab && searchParams.tab === "historial" ? "historial" : "embalaje";
   const historial = searchParams.historial === "1";
   const q = s(searchParams.q).trim();
+  const canal = s(searchParams.canal);
   const page = Math.max(1, parseInt(s(searchParams.page) || "1"));
+
+  const channelWhere = buildOrderChannelWhere(canal);
 
   // ── Historial de Envíos (admin, inventario y vendedora_online, tab=historial) ──
   if (hasHistorialTab && tab === "historial") {
@@ -36,6 +39,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
 
     const where: Prisma.OrderWhereInput = {
       status: { in: ["enviada", "completada"] },
+      ...(channelWhere ? channelWhere : {}),
       ...(isVendedoraOnline && {
         OR: [
           { created_by: session.id },
@@ -190,6 +194,7 @@ export default async function EmbalajeListPage({ searchParams }: { searchParams:
   // Vendedoras online solo empacan las órdenes que ellas mismas vendieron.
   const embalajeWhere: Prisma.OrderWhereInput = {
     status: "en_embalaje" as const,
+    ...(channelWhere ? channelWhere : {}),
     ...(session.role === "vendedora_online" && { created_by: session.id }),
     ...(q && {
       OR: [

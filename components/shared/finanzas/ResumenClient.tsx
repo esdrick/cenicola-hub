@@ -26,9 +26,16 @@ type IngresoMetodo = {
   count: number;
 };
 
+type CanalStat = { total: number; count: number };
+
 type Resumen = {
   ventas: number;
   ordenes_completadas: number;
+  ventas_por_canal?: {
+    tienda: CanalStat;
+    online: CanalStat;
+    web: CanalStat;
+  };
   gastos: number;
   cobrar: number;
   pagar: number;
@@ -274,6 +281,81 @@ export function ResumenClient() {
               </Card>
             ))}
       </div>
+
+      {/* Ventas por canal */}
+      {!loading && data && data.ventas_por_canal && (
+        <div className="rounded-xl border bg-white">
+          <div className="flex items-center justify-between border-b px-5 py-3">
+            <div>
+              <h2 className="font-semibold text-gray-900">Ventas por canal</h2>
+              <p className="text-xs text-gray-500">Desglose de órdenes completadas en el período</p>
+            </div>
+            <span className="text-sm font-semibold text-gray-900">
+              Total: ${data.ventas.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="divide-y">
+            {[
+              {
+                id: "web",
+                label: "Ventas Web",
+                desc: "Página web / E-commerce",
+                total: data.ventas_por_canal.web.total,
+                count: data.ventas_por_canal.web.count,
+                badgeClass: "bg-purple-100 text-purple-800",
+                barColor: "bg-purple-500",
+              },
+              {
+                id: "online",
+                label: "Online (Vendedoras)",
+                desc: "Asesoras de ventas online",
+                total: data.ventas_por_canal.online.total,
+                count: data.ventas_por_canal.online.count,
+                badgeClass: "bg-blue-100 text-blue-800",
+                barColor: "bg-blue-500",
+              },
+              {
+                id: "tienda",
+                label: "Tienda Física",
+                desc: "Ventas presenciales en tienda",
+                total: data.ventas_por_canal.tienda.total,
+                count: data.ventas_por_canal.tienda.count,
+                badgeClass: "bg-emerald-100 text-emerald-800",
+                barColor: "bg-emerald-500",
+              },
+            ].map((ch) => {
+              const pct = data.ventas > 0 ? (ch.total / data.ventas) * 100 : 0;
+              return (
+                <div key={ch.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${ch.badgeClass}`}>
+                    {ch.label}
+                  </span>
+                  <div className="flex-1">
+                    <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className={`h-full rounded-full ${ch.barColor}`}
+                        style={{ width: `${pct.toFixed(1)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="w-12 text-right text-xs text-gray-500">
+                    {pct.toFixed(0)}%
+                  </span>
+                  <div className="text-right min-w-[90px]">
+                    <p className="text-sm font-semibold text-gray-900">
+                      ${ch.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {ch.count} orden{ch.count !== 1 ? "es" : ""}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Ingresos por método de pago */}
       {!loading && data && (
