@@ -75,3 +75,30 @@ export function isCashPayment(paymentType: PaymentType): boolean {
   return paymentType === "efectivo_bs" || paymentType === "efectivo_usd";
 }
 
+/**
+ * Computes order/cart totals from line items.
+ * Applies Math.ceil to each currency bucket (BCV and Divisas) so both the split buckets
+ * and the grand total are clean integer amounts in USD.
+ */
+export function calculateOrderTotals(
+  items: { subtotal_bcv_usd: number; subtotal_divisas_usd: number }[]
+): {
+  total_bcv_usd: number;
+  total_divisas_usd: number;
+  total_usd: number;
+} {
+  const rawBcv = items.reduce((s, i) => s + (Number(i.subtotal_bcv_usd) || 0), 0);
+  const rawDivisas = items.reduce((s, i) => s + (Number(i.subtotal_divisas_usd) || 0), 0);
+
+  const total_bcv_usd = Math.ceil(parseFloat(rawBcv.toFixed(2)));
+  const total_divisas_usd = Math.ceil(parseFloat(rawDivisas.toFixed(2)));
+  const total_usd = total_bcv_usd + total_divisas_usd;
+
+  return {
+    total_bcv_usd,
+    total_divisas_usd,
+    total_usd,
+  };
+}
+
+

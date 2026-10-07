@@ -39,7 +39,8 @@ export function generateWhatsAppOrderUrl({
   );
 
   const isDivisas = pricingMethod === "divisas" || isDivisasPayment;
-  const totalVes = (totalUsd * bcvRate).toFixed(2);
+  const roundedTotalUsd = Math.ceil(totalUsd);
+  const totalVes = (roundedTotalUsd * bcvRate).toFixed(2);
 
   let message = `*¡Hola! Quisiera realizar un pedido con asesoría en Cenicola*\n\n`;
   message += `👤 *Cliente:* ${customerName}\n`;
@@ -61,10 +62,10 @@ export function generateWhatsAppOrderUrl({
   });
 
   message += `\n💰 *Total Estimado:*\n`;
-  message += `• *USD:* $${totalUsd.toFixed(2)}\n`;
+  message += `• *USD:* $${roundedTotalUsd.toFixed(2)}\n`;
 
   if (isDivisas) {
-    message += `• *Total en Divisas:* $${totalUsd.toFixed(2)} USD\n\n`;
+    message += `• *Total en Divisas:* $${roundedTotalUsd.toFixed(2)} USD\n\n`;
   } else {
     message += `• *Bolívares (BCV):* Bs. ${totalVes}\n\n`;
   }

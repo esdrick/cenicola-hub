@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { CartBuilder } from "@/components/shared/carritos/CartBuilder";
 import { BackToOrdersButton } from "@/components/shared/ordenes/BackToOrdersButton";
+import { calculateOrderTotals } from "@/lib/pricing";
 import type { CartJSON, CartItemJSON } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -75,9 +76,7 @@ export default async function CartPage({ params }: Params) {
     };
   });
 
-  const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-  const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
-  const total_usd = parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2));
+  const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
 
   const cartJSON: CartJSON = {
     id: cart.id,

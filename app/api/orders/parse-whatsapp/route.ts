@@ -264,9 +264,8 @@ export async function POST(request: NextRequest) {
     })
   );
 
-  const realTotalUsd = parseFloat(
-    matchedItems.reduce((sum, i) => sum + i.officialSubtotalUsd, 0).toFixed(2)
-  );
+  const rawSum = matchedItems.reduce((sum, i) => sum + i.officialSubtotalUsd, 0);
+  const realTotalUsd = Math.ceil(parseFloat(rawSum.toFixed(2)));
   const isAnyPriceTampered = matchedItems.some((i) => i.isPriceTampered);
 
   // ACTION 1: DIRECT ORDER CREATION
@@ -360,6 +359,8 @@ export async function POST(request: NextRequest) {
           quantity: number;
           unit_price_usd: number;
           subtotal_usd: number;
+          quantity_bcv: number;
+          subtotal_bcv_usd: number;
           quantity_divisas: number;
           subtotal_divisas_usd: number;
           variant_snapshot: object;
@@ -376,7 +377,14 @@ export async function POST(request: NextRequest) {
 
           const availableStock = channel === "online" ? variant.stock_online : variant.stock_store;
           if (availableStock < item.quantity) {
-            throw new Error(`Stock insuficiente para ${variant.product.name} talla ${variant.size}: disponible ${availableStock}, solicitado ${item.quantity}`);
+            if (availableStock <= 0) {
+              throw new Error(
+                `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) se encuentra agotado.`
+              );
+            }
+            throw new Error(
+              `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) solo tiene ${availableStock} unidad${availableStock === 1 ? "" : "es"} disponible${availableStock === 1 ? "" : "s"} (solicitaste ${item.quantity}).`
+            );
           }
 
           const unitPrice = item.officialUnitPrice;
@@ -387,8 +395,10 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             unit_price_usd: unitPrice,
             subtotal_usd: subtotal,
-            quantity_divisas: item.quantity,
-            subtotal_divisas_usd: subtotal,
+            quantity_bcv: isBcvPayment ? item.quantity : 0,
+            subtotal_bcv_usd: isBcvPayment ? subtotal : 0,
+            quantity_divisas: isBcvPayment ? 0 : item.quantity,
+            subtotal_divisas_usd: isBcvPayment ? 0 : subtotal,
             variant_snapshot: {
               product_name: variant.product.name,
               color: variant.product.color,
@@ -505,7 +515,7 @@ export async function POST(request: NextRequest) {
         });
 
         return newOrder;
-      });
+      }, { isolationLevel: "Serializable" });
 
       return NextResponse.json({
         orderId: result.id,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
-import { resolveSplitSubtotal } from "@/lib/pricing";
+import { resolveSplitSubtotal, calculateOrderTotals } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
 
 // Recomputes subtotal_bcv_usd/subtotal_divisas_usd/unit_price_usd for every line against the
@@ -105,9 +105,7 @@ function serializeCart(
     };
   });
 
-  const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-  const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
-  const total_usd = parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2));
+  const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
   const has_stock_issues = items.some((i) => i.stock_warning);
 
   return {
@@ -248,6 +246,23 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
       if (auth.session.role === "vendedora_tienda" && !variant.product.quick_sale) {
         return NextResponse.json({ error: "Este producto no está disponible para venta rápida" }, { status: 403 });
+      }
+
+      const channelStock = cart.channel === "online" ? variant.stock_online : variant.stock_store;
+      if (channelStock < quantity) {
+        if (channelStock <= 0) {
+          return NextResponse.json(
+            { error: `Esta talla (${variant.size}) se encuentra agotada en el canal ${cart.channel}.`, available_stock: 0 },
+            { status: 422 }
+          );
+        }
+        return NextResponse.json(
+          {
+            error: `Solo queda${channelStock === 1 ? "" : "n"} ${channelStock} unidad${channelStock === 1 ? "" : "es"} disponible${channelStock === 1 ? "" : "s"} de la talla ${variant.size} en ${cart.channel}.`,
+            available_stock: channelStock,
+          },
+          { status: 422 }
+        );
       }
 
       // Any explicit quantity change (via product-step editing) resets this line back to a

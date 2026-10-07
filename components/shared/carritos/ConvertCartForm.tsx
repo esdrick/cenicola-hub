@@ -2,8 +2,9 @@
 
 import { Fragment, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -92,8 +93,10 @@ type CustomerData = {
 const BCV_TYPES: PaymentType[] = ["efectivo_bs", "transferencia", "pago_movil"];
 const DIVISAS_TYPES: PaymentType[] = ["efectivo_usd", "zelle", "usdt"];
 
-const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
-  payment_type: channel === "tienda" ? "efectivo_bs" : "transferencia",
+const makeEmptyPayment = (channel: "online" | "tienda", pricingMethod?: "bcv" | "divisas" | null): PaymentFormInput => ({
+  payment_type: channel === "tienda"
+    ? (pricingMethod === "divisas" ? "efectivo_usd" : "efectivo_bs")
+    : (pricingMethod === "divisas" ? "zelle" : "transferencia"),
   amount_usd: "",
   payment_date: getVenezuelaDateString(),
   payment_time: channel === "tienda" ? getVenezuelaTimeString() : "",
@@ -105,7 +108,7 @@ const makeEmptyPayment = (channel: "online" | "tienda"): PaymentFormInput => ({
 export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: boolean }) {
   const router = useRouter();
 
-  const [step, setStep] = useState(cart.channel === "tienda" ? 3 : 1);
+  const [step, setStep] = useState(cart.has_stock_issues ? 1 : (cart.channel === "tienda" ? 3 : 1));
   const [showAddCustomer, setShowAddCustomer] = useState(false);
 
   const [customer, setCustomer] = useState<CustomerData>({
@@ -127,7 +130,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [payments, setPayments] = useState<PaymentFormInput[]>([]);
-  const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment(cart.channel));
+  const [draft, setDraft] = useState<PaymentFormInput>(makeEmptyPayment(cart.channel, cart.pricing_method));
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [paymentPhotoError, setPaymentPhotoError] = useState(false);
@@ -135,6 +138,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   const [isPartialAgreed, setIsPartialAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [repricingCart, setRepricingCart] = useState(false);
+  const [checkingStepStock, setCheckingStepStock] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Reparto por moneda: opcional, apagado por defecto — el flujo de una sola moneda
   // (ya probado) queda intacto mientras el vendedor no lo active explícitamente.
@@ -239,6 +243,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   // Fetch exchange rate when entering step 3
   useEffect(() => {
+    refreshStock();
     if (step !== 3 || tasa || tasaLoading) return;
     setTasaLoading(true);
     fetch("/api/tasa")
@@ -253,19 +258,42 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   // Live cart state — refreshable to check current stock
   const [cartData, setCartData] = useState<CartJSON>(cart);
-  const [refreshingStock, setRefreshingStock] = useState(false);
+  const [updatingItem, setUpdatingItem] = useState<string | null>(null);
 
   const channel = cartData.channel;
   const cartTotal = cartData.total_usd;
   const hasStockIssues = cartData.has_stock_issues;
 
   async function refreshStock() {
-    setRefreshingStock(true);
     try {
       const r = await fetch(`/api/carts/${cart.id}`);
       if (r.ok) setCartData(await r.json());
     } catch { /* silent */ }
-    finally { setRefreshingStock(false); }
+  }
+
+  async function updateCartItemQuantity(variant_id: string, quantity: number) {
+    setUpdatingItem(variant_id);
+    setError(null);
+    try {
+      const r = await fetch(`/api/carts/${cart.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item: { variant_id, quantity } }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        setCartData(j);
+        if (j.items?.length === 0 || j.deleted) {
+          router.push(`/dashboard/carritos/${cart.id}`);
+        }
+      } else {
+        setError(j.error ?? "Error al actualizar producto");
+      }
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setUpdatingItem(null);
+    }
   }
 
   async function uploadPhoto(file: File) {
@@ -289,7 +317,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   function cancelEdit() {
     setEditingIndex(null);
-    setDraft({ ...makeEmptyPayment(channel), payment_type: nextDefaultPaymentType(payments) });
+    setDraft({ ...makeEmptyPayment(channel, cartData.pricing_method), payment_type: nextDefaultPaymentType(payments) });
     setError(null);
   }
 
@@ -298,18 +326,25 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   // solo se ofrece la familia contraria a la del primero. Se usa para que el tipo por defecto
   // del borrador nunca quede en una opción que el select ya no muestra.
   function nextDefaultPaymentType(committed: PaymentFormInput[]): PaymentType {
-    if (committed.length === 0) return channel === "tienda" ? "efectivo_bs" : "transferencia";
+    if (committed.length === 0) {
+      if (channel === "tienda") {
+        return cartData.pricing_method === "divisas" ? "efectivo_usd" : "efectivo_bs";
+      }
+      return cartData.pricing_method === "divisas" ? "zelle" : "transferencia";
+    }
     const firstFamily: "bcv" | "divisas" =
       DIVISAS_TYPES.includes(committed[0].payment_type as PaymentType) ? "divisas" : "bcv";
     const family = splitEnabled ? (firstFamily === "bcv" ? "divisas" : "bcv") : firstFamily;
-    return family === "divisas" ? "zelle" : (channel === "tienda" ? "efectivo_bs" : "transferencia");
+    return family === "divisas"
+      ? (channel === "tienda" ? "efectivo_usd" : "zelle")
+      : (channel === "tienda" ? "efectivo_bs" : "transferencia");
   }
 
   function addPayment() {
     const amt = parseFloat(draft.amount_usd);
     if (isNaN(amt) || amt <= 0) { setError("Monto inválido"); return; }
     const draftIsBcv = BCV_TYPES.includes(draft.payment_type as PaymentType);
-    const maxAmt = (draftIsBcv ? remainingBcv : remainingDivisas) + 1.00;
+    const maxAmt = (isMixed ? (draftIsBcv ? remainingBcv : remainingDivisas) : remaining) + 1.00;
     if (amt > maxAmt) { setError(`El monto excede el límite de redondeo. Máximo $${maxAmt.toFixed(2)}`); return; }
     // Mismo piso que exige el servidor: si este pago deja el pedido cerrado en total pero una
     // moneda todavía sin cubrir (más allá del margen), no se deja agregar — se avisa aquí mismo
@@ -378,12 +413,25 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
   // agregado cuadre, cada moneda tiene que cubrirse con pagos de esa misma moneda.
   const splitNeedsBothCurrencies = isMixed && remaining <= 0.005 && (remainingBcv > 1.00 || remainingDivisas > 1.00);
 
-  // Pre-fill default draft amount when entering Step 3 if no payment has been added yet
+  // Pre-fill default draft amount only once when entering Step 3 if no payment has been added yet
+  const hasAutoFilledStep3 = useRef(false);
+
   useEffect(() => {
-    if (step === 3 && !draft.amount_usd && remaining > 0 && payments.length === 0) {
-      setDraft((p) => ({ ...p, amount_usd: remaining.toFixed(2) }));
+    if (step === 3) {
+      if (!hasAutoFilledStep3.current && payments.length === 0) {
+        hasAutoFilledStep3.current = true;
+        const initialAmt = isMixed
+          ? (BCV_TYPES.includes(draft.payment_type as PaymentType) ? remainingBcv : remainingDivisas)
+          : remaining;
+        if (initialAmt > 0 && !draft.amount_usd) {
+          setDraft((p) => ({ ...p, amount_usd: initialAmt.toFixed(2) }));
+        }
+      }
+    } else {
+      hasAutoFilledStep3.current = false;
     }
-  }, [step, remaining, payments.length, draft.amount_usd]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, payments.length, isMixed, remainingBcv, remainingDivisas, remaining, draft.payment_type]);
 
   // El input nativo type="number" con `max` no bloquea el tecleo — solo invalida el form en
   // submit. Sin esto, se podía escribir cualquier cantidad aunque no tuviera sentido para el
@@ -447,7 +495,13 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
         }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Error al crear la orden"); return; }
+      if (!res.ok) {
+        if (data.error && (data.error.includes("Stock insuficiente") || data.error.includes("simultánea") || data.error.includes("agotado"))) {
+          refreshStock();
+        }
+        setError(data.error ?? "Error al crear la orden");
+        return;
+      }
       router.push(`/dashboard/ordenes/${data.id}`);
     } catch {
       setError("Error de conexión");
@@ -486,26 +540,31 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
   return (
     <div className="max-w-3xl mx-auto">
-      {channel !== "tienda" && <StepIndicator step={step} channel={channel} />}
+      <StepIndicator step={step} channel={channel} />
 
       {/* ── Step 1: Review products ── */}
       {step === 1 && (
         <div key="step-1" className="space-y-4">
           {hasStockIssues && (
             <Alert className="border-orange-200 bg-orange-50">
-              <AlertTriangle size={14} className="text-orange-500" />
-              <AlertDescription className="text-orange-700 text-sm flex items-center justify-between gap-3">
-                <span>Hay productos con stock insuficiente. No puedes continuar hasta que el stock esté disponible.</span>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={refreshStock}
-                    disabled={refreshingStock}
-                    className="shrink-0 text-xs font-medium text-orange-700 underline underline-offset-2 hover:text-orange-900 disabled:opacity-50"
-                  >
-                    <span>{refreshingStock ? "Verificando…" : "Actualizar stock"}</span>
-                  </button>
-                )}
+              <AlertTriangle size={15} className="text-orange-500 mt-0.5 shrink-0" />
+              <AlertDescription className="text-orange-800 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span>
+                    Hay productos con stock insuficiente. Usa el botón <strong>&quot;Ajustar&quot;</strong> o <strong>&quot;Eliminar&quot;</strong> en las prendas marcadas, o ve al catálogo para elegir otros productos.
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/dashboard/carritos/${cart.id}`}
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "h-7 text-xs border-orange-300 text-orange-800 hover:bg-orange-100 font-medium"
+                      )}
+                    >
+                      Ir a productos
+                    </Link>
+                  </div>
+                </div>
               </AlertDescription>
             </Alert>
           )}
@@ -545,37 +604,78 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
               {cartData.items.map((item) => (
                 <div key={item.variant_id}
                   className={cn(
-                    "flex items-center gap-3 py-2.5",
-                    item.stock_warning && "bg-orange-50 -mx-2 px-2 rounded"
+                    "flex items-center justify-between gap-3 py-3",
+                    item.stock_warning && "bg-orange-50/80 -mx-3 px-3 rounded-lg border border-orange-200"
                   )}>
-                  {item.variant.product.photos[0] && (
-                    <Image
-                      src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
-                      alt={item.variant.product.name}
-                      width={40} height={40}
-                      loading="lazy"
-                      className="h-10 w-10 flex-shrink-0 rounded object-cover" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{item.variant.product.name}</p>
-                    <p className="text-xs text-gray-400">
-                      {[item.variant.product.color, item.variant.size].filter(Boolean).join(" · ")}
-                    </p>
-                    {item.stock_warning && (
-                      <p className="text-xs text-orange-600 flex items-center gap-1 mt-0.5">
-                        <AlertTriangle size={11} />
-                        <span>
-                          {item.stock_available === 0
-                            ? "Sin stock disponible"
-                            : `Solo ${item.stock_available} disponible${item.stock_available !== 1 ? "s" : ""}`
-                          }
-                        </span>
-                      </p>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {item.variant.product.photos[0] && (
+                      <Image
+                        src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
+                        alt={item.variant.product.name}
+                        width={44} height={44}
+                        loading="lazy"
+                        className="h-11 w-11 flex-shrink-0 rounded-lg object-cover" />
                     )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-gray-900">{item.variant.product.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {[item.variant.product.color, item.variant.size].filter(Boolean).join(" · ")}
+                      </p>
+                      {item.stock_warning && (
+                        <p className="text-xs font-medium text-orange-700 flex items-center gap-1 mt-1">
+                          <AlertTriangle size={13} className="shrink-0 text-orange-600" />
+                          <span>
+                            {item.stock_available === 0
+                              ? `Agotado (solicitas ${item.quantity})`
+                              : `Solo quedan ${item.stock_available} (solicitas ${item.quantity})`
+                            }
+                          </span>
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-gray-400"><span>{item.quantity} × ${item.unit_price_usd.toFixed(2)}</span></p>
-                    <p className="text-sm font-semibold"><span>${(item.unit_price_usd * item.quantity).toFixed(2)}</span></p>
+
+                  {/* Right side: price and quick adjustment actions */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {item.stock_warning ? (
+                      <div className="flex items-center gap-2">
+                        {item.stock_available > 0 ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingItem === item.variant_id}
+                            onClick={() => updateCartItemQuantity(item.variant_id, item.stock_available)}
+                            className="h-7 text-xs border-orange-300 bg-white hover:bg-orange-50 text-orange-800 font-medium"
+                          >
+                            {updatingItem === item.variant_id ? (
+                              <Loader2 size={12} className="animate-spin mr-1" />
+                            ) : null}
+                            Ajustar a {item.stock_available}
+                          </Button>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={updatingItem === item.variant_id}
+                          onClick={() => updateCartItemQuantity(item.variant_id, 0)}
+                          className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          {updatingItem === item.variant_id ? (
+                            <Loader2 size={12} className="animate-spin mr-1" />
+                          ) : (
+                            <Trash2 size={13} className="mr-1" />
+                          )}
+                          Eliminar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400"><span>{item.quantity} × ${item.unit_price_usd.toFixed(2)}</span></p>
+                        <p className="text-sm font-semibold text-gray-900"><span>${(item.unit_price_usd * item.quantity).toFixed(2)}</span></p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -586,7 +686,21 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
       {/* ── Step 2: Customer data ── */}
       {step === 2 && (
-        <div key="step-2" className="rounded-xl border bg-white p-6 space-y-5">
+        <div key="step-2" className="space-y-4">
+          {hasStockIssues && (
+            <Alert className="border-orange-200 bg-orange-50">
+              <AlertTriangle size={15} className="text-orange-500 mt-0.5 shrink-0" />
+              <AlertDescription className="text-orange-800 text-sm flex items-center justify-between gap-3">
+                <span>
+                  <strong>Stock insuficiente:</strong> {error && (error.includes("Stock insuficiente") || error.includes("agotado")) ? error.replace(/^Stock insuficiente:\s*/i, "") : "Hay productos con stock insuficiente en este pedido. Regresa al paso 1 para corregir las cantidades."}
+                </span>
+                <Button type="button" variant="outline" size="sm" onClick={() => { setError(null); setStep(1); }} className="h-7 text-xs border-orange-300 text-orange-800 hover:bg-orange-100 font-medium">
+                  Ver productos
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="rounded-xl border bg-white p-6 space-y-5">
           {/* Documento */}
           <div className="space-y-1.5">
             <Label>Documento{channel === "online" && <span className="text-red-500"> *</span>}</Label>
@@ -794,6 +908,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
               placeholder="Instrucciones especiales…" />
           </div>
         </div>
+      </div>
       )}
 
       {/* ── Step 3: Payment ── */}
@@ -1204,7 +1319,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
                   {(() => {
                     const num = parseFloat(draft.amount_usd);
                     const draftIsBcv = BCV_TYPES.includes(draft.payment_type as PaymentType);
-                    const maxAmt = (draftIsBcv ? remainingBcv : remainingDivisas) + 1.00;
+                    const maxAmt = (isMixed ? (draftIsBcv ? remainingBcv : remainingDivisas) : remaining) + 1.00;
                     const projRemainingBcv = remainingBcv - (draftIsBcv && !isNaN(num) ? num : 0);
                     const projRemainingDivisas = remainingDivisas - (!draftIsBcv && !isNaN(num) ? num : 0);
                     const projRemaining = remaining - (isNaN(num) ? 0 : num);
@@ -1379,6 +1494,22 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
               ) : null
           )}
 
+          {hasStockIssues && (
+            <Alert className="border-orange-200 bg-orange-50">
+              <AlertTriangle size={15} className="text-orange-500 mt-0.5 shrink-0" />
+              <AlertDescription className="text-orange-800 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <span>
+                    <strong>Stock insuficiente:</strong> {error && (error.includes("Stock insuficiente") || error.includes("agotado")) ? error.replace(/^Stock insuficiente:\s*/i, "") : "Hay productos en el pedido cuya cantidad excede las unidades disponibles en stock. Debes ajustar o retirar esas prendas en el Paso 1 para poder crear la orden."}
+                  </span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => { setError(null); setStep(1); }} className="shrink-0 h-7 text-xs border-orange-300 text-orange-800 hover:bg-orange-100 font-medium">
+                    Regresar al Paso 1
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {splitNeedsBothCurrencies && (
             <Alert variant="destructive">
               <AlertCircle size={14} />
@@ -1388,7 +1519,7 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
             </Alert>
           )}
 
-          {error && (
+          {error && !(hasStockIssues && (error.includes("Stock insuficiente") || error.includes("agotado"))) && (
             <Alert variant="destructive">
               <AlertCircle size={14} />
               <AlertDescription><span>{error}</span></AlertDescription>
@@ -1399,30 +1530,70 @@ export function ConvertCartForm({ cart, isAdmin }: { cart: CartJSON; isAdmin: bo
 
       {/* ── Navigation ── */}
       <div className="mt-6 flex items-center justify-between">
-        {channel !== "tienda" ? (
-          <Button variant="ghost" disabled={step === 1}
-            onClick={() => { setStep((s) => s - 1); setError(null); }}>
-            <ChevronLeft size={14} className="mr-1" />
-            <span>Anterior</span>
-          </Button>
-        ) : <span />}
+        <Button
+          variant="ghost"
+          disabled={step === 1}
+          onClick={() => { setStep((s) => s - 1); setError(null); }}
+        >
+          <ChevronLeft size={14} className="mr-1" />
+          <span>Anterior</span>
+        </Button>
+
         {step < 3 ? (
           <Button
-            disabled={(step === 1 && hasStockIssues) || (step === 2 && !step2Valid())}
-            onClick={() => { setError(null); setStep((s) => s + 1); }}>
+            disabled={
+              checkingStepStock ||
+              (step === 1 && hasStockIssues) ||
+              (step === 2 && (!step2Valid() || hasStockIssues))
+            }
+            onClick={async () => {
+              setError(null);
+              setCheckingStepStock(true);
+              try {
+                const r = await fetch(`/api/carts/${cart.id}`);
+                if (r.ok) {
+                  const freshCart: CartJSON = await r.json();
+                  setCartData(freshCart);
+                  if (freshCart.has_stock_issues) {
+                    setError("Hay productos con stock insuficiente. Por favor verifica las cantidades en el Paso 1.");
+                    setStep(1);
+                    return;
+                  }
+                }
+                setStep((s) => s + 1);
+              } catch {
+                setStep((s) => s + 1);
+              } finally {
+                setCheckingStepStock(false);
+              }
+            }}
+          >
+            {checkingStepStock && <Loader2 size={14} className="animate-spin mr-2" />}
             <span>Siguiente</span>
             <ChevronRight size={14} className="ml-1" />
           </Button>
         ) : (
-          <Button
-            disabled={
-              submitting || payments.length === 0 || (!isPartialAgreed && remaining > 0.005) ||
-              hasStockIssues || splitNeedsBothCurrencies
-            }
-            onClick={handleSubmit}>
-            {submitting && <Loader2 size={14} className="animate-spin mr-2" />}
-            <span>Crear orden</span>
-          </Button>
+          <div className="flex flex-col items-end gap-1.5">
+            <Button
+              disabled={
+                submitting || payments.length === 0 || (!isPartialAgreed && remaining > 0.005) ||
+                hasStockIssues || splitNeedsBothCurrencies
+              }
+              onClick={handleSubmit}
+            >
+              {submitting && <Loader2 size={14} className="animate-spin mr-2" />}
+              <span>Crear orden</span>
+            </Button>
+            {!hasStockIssues && !isPartialAgreed && remaining > 0.005 && payments.length > 0 ? (
+              <p className="text-xs text-gray-500">
+                Faltan ${remaining.toFixed(2)} USD por cubrir para completar el pago.
+              </p>
+            ) : !hasStockIssues && payments.length === 0 ? (
+              <p className="text-xs text-gray-500">
+                Agrega al menos un pago para habilitar la creación de la orden.
+              </p>
+            ) : null}
+          </div>
         )}
       </div>
     </div>

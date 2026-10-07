@@ -144,8 +144,14 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             const photo = product.photos[0];
             const activeVariants = product.variants.filter((v) => v.is_active);
             const price = activeVariants[0]?.price_bcv;
-            const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
-            const outOfStock = totalStock === 0;
+            const channelStock = activeVariants.reduce(
+              (s, v) => s + (channel === "online" ? v.stock_online : v.stock_store),
+              0
+            );
+            const outOfStock = channelStock === 0;
+            const hasLowStock = activeVariants.some(
+              (v) => (channel === "online" ? v.stock_online : v.stock_store) > 0 && (channel === "online" ? v.stock_online : v.stock_store) < 3
+            );
 
             const productHref = fromUrl
               ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
@@ -186,7 +192,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                         Agotado
                       </span>
                     )}
-                    {!outOfStock && product.hasLowStock && (
+                    {!outOfStock && hasLowStock && (
                       <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white">
                         <AlertTriangle size={10} />
                         Stock bajo
@@ -226,8 +232,14 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
             const photo = product.photos[0];
             const activeVariants = product.variants.filter((v) => v.is_active);
             const price = activeVariants[0]?.price_bcv;
-            const totalStock = activeVariants.reduce((s, v) => s + v.stock_total, 0);
-            const outOfStock = totalStock === 0;
+            const channelStock = activeVariants.reduce(
+              (s, v) => s + (channel === "online" ? v.stock_online : v.stock_store),
+              0
+            );
+            const outOfStock = channelStock === 0;
+            const hasLowStock = activeVariants.some(
+              (v) => (channel === "online" ? v.stock_online : v.stock_store) > 0 && (channel === "online" ? v.stock_online : v.stock_store) < 3
+            );
 
             const productHref = fromUrl
               ? `/dashboard/productos/${product.id}?from=${encodeURIComponent(fromUrl)}`
@@ -269,7 +281,7 @@ export function ProductCatalog({ products, channel: defaultChannel, initialCarts
                     {outOfStock && (
                       <Badge variant="destructive" className="text-[11px]">Agotado</Badge>
                     )}
-                    {!outOfStock && product.hasLowStock && (
+                    {!outOfStock && hasLowStock && (
                       <span className="flex items-center gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white">
                         <AlertTriangle size={10} />
                         Stock bajo

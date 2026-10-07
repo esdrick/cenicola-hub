@@ -11,6 +11,7 @@ import { QuickSaleLimitButton } from "@/components/shared/productos/QuickSaleLim
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSetting } from "@/lib/settings";
+import { calculateOrderTotals } from "@/lib/pricing";
 import type { ProductJSON, CartJSON, CartItemJSON } from "@/types";
 
 type SearchParams = { [key: string]: string | string[] | undefined };
@@ -193,8 +194,7 @@ export default async function ProductosPage({
           },
         };
       });
-      const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-      const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
+      const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
       return {
         id: cart.id,
         vendor_id: cart.vendor_id,
@@ -206,7 +206,7 @@ export default async function ProductosPage({
         updated_at: cart.updated_at.toISOString(),
         vendor: cart.vendor,
         items,
-        total_usd: parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2)),
+        total_usd,
         total_bcv_usd,
         total_divisas_usd,
         has_stock_issues: items.some((i) => i.stock_warning),

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Plus, Minus, ShoppingCart, Loader2, ImageOff, Check } from "lucide-react";
+import { Plus, Minus, ShoppingCart, Loader2, ImageOff, Check, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -57,16 +57,18 @@ export function AddToCartButton({
   const [qty, setQty] = useState<Record<string, number>>({});
   const [adding, setAdding] = useState<string | null>(null);
   const [added, setAdded] = useState<string | null>(null);
+  const [liveStock, setLiveStock] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
 
   const variants = product.variants.filter((v) => {
-    const stock = channel === "online" ? v.stock_online : v.stock_store;
+    const stock = liveStock[v.id] !== undefined ? liveStock[v.id] : (channel === "online" ? v.stock_online : v.stock_store);
     return v.is_active && stock > 0;
   });
 
-  if (variants.length === 0) return null;
+  if (variants.length === 0 && Object.keys(liveStock).length === 0) return null;
 
   function getStock(variantId: string) {
+    if (liveStock[variantId] !== undefined) return liveStock[variantId];
     const v = product.variants.find((x) => x.id === variantId);
     if (!v) return 0;
     return channel === "online" ? v.stock_online : v.stock_store;
@@ -104,7 +106,13 @@ export function AddToCartButton({
         body: JSON.stringify({ item: { variant_id: variantId, quantity } }),
       });
       const j = await r.json();
-      if (!r.ok) { setError(j.error ?? "Error al agregar"); return; }
+      if (!r.ok) {
+        if (j.available_stock !== undefined) {
+          setLiveStock((p) => ({ ...p, [variantId]: j.available_stock }));
+        }
+        setError(j.error ?? "Error al agregar");
+        return;
+      }
       handleCartUpdate(j);
 
       // Flash success
@@ -188,12 +196,13 @@ export function AddToCartButton({
             const q = getQty(v.id);
             const isAdding = adding === v.id;
             const isAdded = added === v.id;
+            const isOutOfStock = stock <= 0;
 
             return (
-              <div key={v.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+              <div key={v.id} className={cn("flex items-center gap-3 rounded-lg border px-3 py-2.5", isOutOfStock && "bg-gray-50 opacity-60")}>
                 <span className="w-12 text-sm font-semibold text-gray-800">{v.size}</span>
                 <span className="flex-1 text-xs text-gray-400">
-                  ${v.price_bcv.toFixed(2)} · {stock} disp.
+                  ${v.price_bcv.toFixed(2)} · {isOutOfStock ? <span className="text-red-500 font-medium">Agotado</span> : `${stock} disp.`}
                 </span>
 
                 {/* Qty stepper */}
@@ -201,7 +210,7 @@ export function AddToCartButton({
                   <button
                     type="button"
                     onClick={() => setQty((p) => ({ ...p, [v.id]: Math.max(1, (p[v.id] ?? 1) - 1) }))}
-                    disabled={q <= 1}
+                    disabled={isOutOfStock || q <= 1}
                     className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
                   >
                     <Minus size={10} />
@@ -209,8 +218,9 @@ export function AddToCartButton({
                   <Input
                     type="number"
                     min={1}
-                    max={stock}
+                    max={Math.max(1, stock)}
                     value={q}
+                    disabled={isOutOfStock}
                     onFocus={(e) => e.currentTarget.select()}
                     onChange={(e) =>
                       setQty((p) => ({
@@ -218,12 +228,12 @@ export function AddToCartButton({
                         [v.id]: Math.max(1, Math.min(stock, parseInt(e.target.value) || 1)),
                       }))
                     }
-                    className="h-6 w-12 text-center text-xs px-1"
+                    className="h-6 w-12 text-center text-xs px-1 disabled:opacity-40"
                   />
                   <button
                     type="button"
                     onClick={() => setQty((p) => ({ ...p, [v.id]: Math.min(stock, (p[v.id] ?? 1) + 1) }))}
-                    disabled={q >= stock}
+                    disabled={isOutOfStock || q >= stock}
                     className="h-6 w-6 rounded border flex items-center justify-center hover:bg-gray-50 disabled:opacity-40"
                   >
                     <Plus size={10} />
@@ -234,13 +244,15 @@ export function AddToCartButton({
                 <Button
                   size="sm"
                   className={cn("h-7 w-20 text-xs transition-colors", isAdded && "bg-emerald-600 hover:bg-emerald-600")}
-                  disabled={isAdding || !!added}
+                  disabled={isOutOfStock || isAdding || !!added}
                   onClick={() => addToCart(v.id)}
                 >
                   {isAdding ? (
                     <Loader2 size={11} className="animate-spin" />
                   ) : isAdded ? (
                     <><Check size={11} className="mr-1" />Listo</>
+                  ) : isOutOfStock ? (
+                    "Agotado"
                   ) : (
                     "Agregar"
                   )}
@@ -311,7 +323,10 @@ export function AddToCartButton({
         </div>
 
         {error && (
-          <p className="mt-2 text-xs text-red-600">{error}</p>
+          <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800 flex items-start gap-2">
+            <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
+            <span>{error}</span>
+          </div>
         )}
       </DialogContent>
       </Dialog>

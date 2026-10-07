@@ -8,6 +8,7 @@ import { ConvertCartForm } from "@/components/shared/carritos/ConvertCartForm";
 import { buttonVariants } from "@/components/ui/button";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { calculateOrderTotals } from "@/lib/pricing";
 import type { CartJSON, CartItemJSON } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -77,9 +78,7 @@ export default async function CompletarCarritoPage({ params }: Params) {
     };
   });
 
-  const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-  const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
-  const total_usd = parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2));
+  const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
 
   const [mayorThreshold, bundleThreshold] = await Promise.all([
     getSetting("mayor_threshold"),

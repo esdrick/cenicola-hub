@@ -12,6 +12,7 @@ import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getCorteActivo } from "@/lib/cierre-sistema";
 import { buildOrderChannelWhere } from "@/lib/order-utils";
+import { calculateOrderTotals } from "@/lib/pricing";
 import type { OrderJSON, CartJSON, CartItemJSON } from "@/types";
 import type { OrderStatus, Prisma } from "@/app/generated/prisma/client";
 
@@ -161,8 +162,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
         },
       };
     });
-    const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-    const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
+    const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
     return {
       id: cart.id,
       vendor_id: cart.vendor_id,
@@ -174,7 +174,7 @@ export default async function OrdenesPage({ searchParams }: { searchParams: SP }
       updated_at: cart.updated_at.toISOString(),
       vendor: cart.vendor,
       items,
-      total_usd: parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2)),
+      total_usd,
       total_bcv_usd,
       total_divisas_usd,
       has_stock_issues: items.some((i) => i.stock_warning),

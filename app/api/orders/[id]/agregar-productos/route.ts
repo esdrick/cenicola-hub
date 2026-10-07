@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
-import { resolveSplitSubtotal } from "@/lib/pricing";
+import { resolveSplitSubtotal, calculateOrderTotals } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
 import type { OrderStatus } from "@/app/generated/prisma/client";
 
@@ -186,15 +186,15 @@ export async function POST(
         where: { order_id: order.id },
         select: { subtotal_usd: true, subtotal_bcv_usd: true, subtotal_divisas_usd: true },
       });
-      const newTotalUsd = parseFloat(
-        allItems.reduce((s, i) => s + Number(i.subtotal_usd), 0).toFixed(2)
+      const totals = calculateOrderTotals(
+        allItems.map((i) => ({
+          subtotal_bcv_usd: Number(i.subtotal_bcv_usd),
+          subtotal_divisas_usd: Number(i.subtotal_divisas_usd),
+        }))
       );
-      const newTotalBcvUsd = parseFloat(
-        allItems.reduce((s, i) => s + Number(i.subtotal_bcv_usd), 0).toFixed(2)
-      );
-      const newTotalDivisasUsd = parseFloat(
-        allItems.reduce((s, i) => s + Number(i.subtotal_divisas_usd), 0).toFixed(2)
-      );
+      const newTotalUsd = totals.total_usd;
+      const newTotalBcvUsd = totals.total_bcv_usd;
+      const newTotalDivisasUsd = totals.total_divisas_usd;
 
       const activePayments = await tx.orderPayment.findMany({
         where: { order_id: order.id, status: { not: "rechazado" } },

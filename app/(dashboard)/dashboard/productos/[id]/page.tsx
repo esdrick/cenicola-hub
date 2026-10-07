@@ -18,6 +18,7 @@ import { BackButton } from "@/components/shared/BackButton";
 import { formatVenezuelaDate } from "@/lib/date-utils";
 import { Pencil, ImageOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { calculateOrderTotals } from "@/lib/pricing";
 import type { CartJSON, CartItemJSON } from "@/types";
 
 
@@ -116,8 +117,7 @@ export default async function ProductoDetailPage({
           },
         };
       });
-      const total_bcv_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_bcv_usd, 0).toFixed(2));
-      const total_divisas_usd = parseFloat(items.reduce((s, i) => s + i.subtotal_divisas_usd, 0).toFixed(2));
+      const { total_bcv_usd, total_divisas_usd, total_usd } = calculateOrderTotals(items);
       return {
         id: cart.id,
         vendor_id: cart.vendor_id,
@@ -129,7 +129,7 @@ export default async function ProductoDetailPage({
         updated_at: cart.updated_at.toISOString(),
         vendor: cart.vendor,
         items,
-        total_usd: parseFloat((total_bcv_usd + total_divisas_usd).toFixed(2)),
+        total_usd,
         total_bcv_usd,
         total_divisas_usd,
         has_stock_issues: items.some((i) => i.stock_warning),

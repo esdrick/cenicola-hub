@@ -4,7 +4,7 @@ import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
-import { resolveSplitSubtotal, paymentTypeToPricingMethod } from "@/lib/pricing";
+import { resolveSplitSubtotal, paymentTypeToPricingMethod, calculateOrderTotals } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -111,8 +111,13 @@ export async function POST(request: NextRequest, { params }: Params) {
         const qty = item.quantity;
         const availableStock = channel === "online" ? variant.stock_online : variant.stock_store;
         if (availableStock < qty) {
+          if (availableStock <= 0) {
+            throw new Error(
+              `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) se acaba de agotar.`
+            );
+          }
           throw new Error(
-            `Stock insuficiente para ${variant.product.name} talla ${variant.size}: disponible ${availableStock}, solicitado ${qty}`
+            `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) solo tiene ${availableStock} unidad${availableStock === 1 ? "" : "es"} disponible${availableStock === 1 ? "" : "s"} (solicitaste ${qty}).`
           );
         }
 
@@ -145,9 +150,10 @@ export async function POST(request: NextRequest, { params }: Params) {
           },
         });
       }
-      totalBcvUsd = parseFloat(totalBcvUsd.toFixed(2));
-      totalDivisasUsd = parseFloat(totalDivisasUsd.toFixed(2));
-      totalUsd = parseFloat(totalUsd.toFixed(2));
+      const totals = calculateOrderTotals(orderItems);
+      totalBcvUsd = totals.total_bcv_usd;
+      totalDivisasUsd = totals.total_divisas_usd;
+      totalUsd = totals.total_usd;
 
       const isSplitOrder = totalBcvUsd > 0 && totalDivisasUsd > 0;
 
@@ -449,12 +455,19 @@ export async function POST(request: NextRequest, { params }: Params) {
       });
 
       return order;
-    });
+    }, { isolationLevel: "Serializable" });
 
     return NextResponse.json({ id: result.id, order_number: result.order_number }, { status: 201 });
   } catch (err) {
     // Revert cart to active on failure
     await prisma.cart.update({ where: { id }, data: { status: "active" } }).catch(() => null);
+
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2034") {
+      return NextResponse.json(
+        { error: "Hubo una venta simultánea para uno de estos productos hace un instante. Por favor revisa el carrito e intenta nuevamente." },
+        { status: 409 }
+      );
+    }
 
     const msg = err instanceof Error ? err.message : "Error al crear la orden";
     if (msg.startsWith("La referencia")) {
