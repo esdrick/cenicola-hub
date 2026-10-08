@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Bloqueo pesimista para evitar colisiones con ventas o cancelaciones simultáneas
+      await tx.$queryRaw`
+        SELECT id FROM product_variants
+        WHERE id = ${variant_id}
+        FOR UPDATE
+      `;
+
       // Read inside transaction so qty_before reflects the committed state at lock time
       const variant = await tx.productVariant.findUnique({ where: { id: variant_id } });
       if (!variant) throw new Error("NOT_FOUND");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/app/generated/prisma";
 import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
@@ -90,6 +91,17 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // 0. Bloqueo pesimista determinista ordenado por variant_id para prevenir deadlocks y condiciones de carrera
+      const variantIds = Array.from(new Set(cart.items.map((i) => i.variant_id))).sort();
+      if (variantIds.length > 0) {
+        await tx.$queryRaw`
+          SELECT id FROM product_variants
+          WHERE id IN (${Prisma.join(variantIds)})
+          ORDER BY id ASC
+          FOR UPDATE
+        `;
+      }
+
       // 1. Build order items from cart items
       const orderItems: Array<{
         variant_id: string; quantity: number; unit_price_usd: number;
@@ -111,13 +123,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         const qty = item.quantity;
         const availableStock = channel === "online" ? variant.stock_online : variant.stock_store;
         if (availableStock < qty) {
-          if (availableStock <= 0) {
-            throw new Error(
-              `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) se acaba de agotar.`
-            );
-          }
           throw new Error(
-            `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) solo tiene ${availableStock} unidad${availableStock === 1 ? "" : "es"} disponible${availableStock === 1 ? "" : "s"} (solicitaste ${qty}).`
+            `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
           );
         }
 
@@ -358,11 +365,20 @@ export async function POST(request: NextRequest, { params }: Params) {
           },
         });
 
-        const variant = await tx.productVariant.findUnique({ where: { id: item.variant_id } });
+        const variant = await tx.productVariant.findUnique({
+          where: { id: item.variant_id },
+          include: { product: { select: { name: true } } },
+        });
         if (!variant) throw new Error("Variante no encontrada");
 
         const newOnline = channel === "online" ? variant.stock_online - item.quantity : variant.stock_online;
         const newStore  = channel === "tienda" ? variant.stock_store - item.quantity : variant.stock_store;
+
+        if (newOnline < 0 || newStore < 0) {
+          throw new Error(
+            `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
+          );
+        }
 
         await tx.productVariant.update({
           where: { id: item.variant_id },
@@ -455,18 +471,31 @@ export async function POST(request: NextRequest, { params }: Params) {
       });
 
       return order;
-    }, { isolationLevel: "Serializable" });
+    });
 
     return NextResponse.json({ id: result.id, order_number: result.order_number }, { status: 201 });
   } catch (err) {
     // Revert cart to active on failure
     await prisma.cart.update({ where: { id }, data: { status: "active" } }).catch(() => null);
 
-    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2034") {
-      return NextResponse.json(
-        { error: "Hubo una venta simultánea para uno de estos productos hace un instante. Por favor revisa el carrito e intenta nuevamente." },
-        { status: 409 }
-      );
+    if (typeof err === "object" && err !== null && "code" in err) {
+      const prismaErr = err as { code?: string; message?: string };
+      if (prismaErr.code === "P2034") {
+        return NextResponse.json(
+          { error: "Hubo una venta simultánea para uno de estos productos hace un instante. Por favor revisa el carrito e intenta nuevamente." },
+          { status: 409 }
+        );
+      }
+      if (
+        prismaErr.code === "P2010" ||
+        prismaErr.code === "P2002" ||
+        (typeof prismaErr.message === "string" && prismaErr.message.includes("violates check constraint"))
+      ) {
+        return NextResponse.json(
+          { error: "Uno de los productos seleccionados no cuenta con stock suficiente o acaba de agotarse." },
+          { status: 422 }
+        );
+      }
     }
 
     const msg = err instanceof Error ? err.message : "Error al crear la orden";
@@ -504,7 +533,12 @@ export async function POST(request: NextRequest, { params }: Params) {
         { status: 409 }
       );
     }
-    if (msg.includes("Stock insuficiente") || msg.includes("inactiva") || msg.includes("no encontrada")) {
+    if (
+      msg.includes("no cuenta con stock suficiente") ||
+      msg.includes("Stock insuficiente") ||
+      msg.includes("inactiva") ||
+      msg.includes("no encontrada")
+    ) {
       return NextResponse.json({ error: msg }, { status: 422 });
     }
     console.error("POST /api/carts/[id]/convert:", err);

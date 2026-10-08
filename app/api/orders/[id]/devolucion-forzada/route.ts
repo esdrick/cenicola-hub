@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/app/generated/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
 
 export async function PATCH(
@@ -31,6 +32,17 @@ export async function PATCH(
   const ip = getClientIp(request);
 
   await prisma.$transaction(async (tx) => {
+    // Bloqueo pesimista determinista ordenado por variant_id para restaurar inventario con consistencia total
+    const variantIds = Array.from(new Set(order.items.map((i) => i.variant_id))).sort();
+    if (variantIds.length > 0) {
+      await tx.$queryRaw`
+        SELECT id FROM product_variants
+        WHERE id IN (${Prisma.join(variantIds)})
+        ORDER BY id ASC
+        FOR UPDATE
+      `;
+    }
+
     for (const item of order.items) {
       const variant = await tx.productVariant.findUnique({ where: { id: item.variant_id } });
       if (!variant) continue;

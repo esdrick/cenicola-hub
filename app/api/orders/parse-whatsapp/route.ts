@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/app/generated/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
 import { parseWhatsAppOrderMessage } from "@/lib/whatsapp-parser";
 import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
@@ -354,6 +355,19 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Compute totals & verify stock
+        const variantIds = Array.from(
+          new Set(validItems.map((item) => item.matchedVariant?.id).filter((id): id is string => Boolean(id)))
+        ).sort();
+
+        if (variantIds.length > 0) {
+          await tx.$queryRaw`
+            SELECT id FROM product_variants
+            WHERE id IN (${Prisma.join(variantIds)})
+            ORDER BY id ASC
+            FOR UPDATE
+          `;
+        }
+
         const orderItemsData: Array<{
           variant_id: string;
           quantity: number;
@@ -377,13 +391,8 @@ export async function POST(request: NextRequest) {
 
           const availableStock = channel === "online" ? variant.stock_online : variant.stock_store;
           if (availableStock < item.quantity) {
-            if (availableStock <= 0) {
-              throw new Error(
-                `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) se encuentra agotado.`
-              );
-            }
             throw new Error(
-              `Stock insuficiente: El producto "${variant.product.name}" (Talla ${variant.size}) solo tiene ${availableStock} unidad${availableStock === 1 ? "" : "es"} disponible${availableStock === 1 ? "" : "s"} (solicitaste ${item.quantity}).`
+              `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
             );
           }
 
@@ -407,9 +416,14 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          // Deduct stock
+          // Deduct stock strictly
           const newOnline = channel === "online" ? variant.stock_online - item.quantity : variant.stock_online;
           const newStore = channel === "tienda" ? variant.stock_store - item.quantity : variant.stock_store;
+          if (newOnline < 0 || newStore < 0) {
+            throw new Error(
+              `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
+            );
+          }
           const newTotal = newOnline + newStore;
 
           await tx.productVariant.update({
@@ -515,7 +529,7 @@ export async function POST(request: NextRequest) {
         });
 
         return newOrder;
-      }, { isolationLevel: "Serializable" });
+      });
 
       return NextResponse.json({
         orderId: result.id,
@@ -523,8 +537,28 @@ export async function POST(request: NextRequest) {
         message: "¡Orden creada automáticamente con éxito!",
       });
     } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "code" in err) {
+        const prismaErr = err as { code?: string; message?: string };
+        if (prismaErr.code === "P2034") {
+          return NextResponse.json(
+            { error: "Hubo una venta simultánea para uno de estos productos hace un instante. Por favor intenta nuevamente." },
+            { status: 409 }
+          );
+        }
+        if (
+          prismaErr.code === "P2010" ||
+          prismaErr.code === "P2002" ||
+          (typeof prismaErr.message === "string" && prismaErr.message.includes("violates check constraint"))
+        ) {
+          return NextResponse.json(
+            { error: "Uno de los productos seleccionados no cuenta con stock suficiente o acaba de agotarse." },
+            { status: 422 }
+          );
+        }
+      }
       const msg = err instanceof Error ? err.message : "Error al crear la orden directamente";
-      return NextResponse.json({ error: msg }, { status: 400 });
+      const status = msg.includes("no cuenta con stock suficiente") ? 422 : 400;
+      return NextResponse.json({ error: msg }, { status });
     }
   }
 

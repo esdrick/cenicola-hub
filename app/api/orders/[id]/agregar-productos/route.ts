@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/app/generated/prisma";
 import { withRole, getClientIp } from "@/lib/api-auth";
 import { resolveSplitSubtotal, calculateOrderTotals } from "@/lib/pricing";
 import { getSetting } from "@/lib/settings";
@@ -55,6 +56,17 @@ export async function POST(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // 0. Bloqueo pesimista determinista ordenado por variant_id
+      const variantIds = Array.from(new Set(lines.map((l) => l.variant_id))).sort();
+      if (variantIds.length > 0) {
+        await tx.$queryRaw`
+          SELECT id FROM product_variants
+          WHERE id IN (${Prisma.join(variantIds)})
+          ORDER BY id ASC
+          FOR UPDATE
+        `;
+      }
+
       const order = await tx.order.findUnique({
         where: { id: params.id },
         include: { items: { include: { variant: true } } },
@@ -92,7 +104,7 @@ export async function POST(
         const availableStock = order.channel === "online" ? variant.stock_online : variant.stock_store;
         if (availableStock < line.quantity) {
           throw new Error(
-            `INSUFFICIENT_STOCK:${variant.product.name} talla ${variant.size}: disponible ${availableStock}, solicitado ${line.quantity}`
+            `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
           );
         }
 
@@ -127,6 +139,12 @@ export async function POST(
 
         const newOnline = order.channel === "online" ? variant.stock_online - line.quantity : variant.stock_online;
         const newStore  = order.channel === "tienda" ? variant.stock_store - line.quantity : variant.stock_store;
+
+        if (newOnline < 0 || newStore < 0) {
+          throw new Error(
+            `La prenda ${variant.product.name} (Talla ${variant.size}) no cuenta con stock suficiente o acaba de agotarse`
+          );
+        }
 
         await tx.productVariant.update({
           where: { id: variant.id },
@@ -286,10 +304,30 @@ export async function POST(
       });
 
       return { status: newStatus, total_usd: newTotalUsd };
-    }, { isolationLevel: "Serializable" });
+    });
 
     return NextResponse.json({ success: true, ...result }, { status: 201 });
   } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err) {
+      const prismaErr = err as { code?: string; message?: string };
+      if (prismaErr.code === "P2034") {
+        return NextResponse.json(
+          { error: "Hubo una modificación simultánea para uno de estos productos. Por favor intenta nuevamente." },
+          { status: 409 }
+        );
+      }
+      if (
+        prismaErr.code === "P2010" ||
+        prismaErr.code === "P2002" ||
+        (typeof prismaErr.message === "string" && prismaErr.message.includes("violates check constraint"))
+      ) {
+        return NextResponse.json(
+          { error: "Uno de los productos seleccionados no cuenta con stock suficiente o acaba de agotarse." },
+          { status: 422 }
+        );
+      }
+    }
+
     const msg = err instanceof Error ? err.message : "";
     if (msg === "NOT_FOUND")
       return NextResponse.json({ error: "Orden no encontrada" }, { status: 404 });
@@ -310,8 +348,8 @@ export async function POST(
       );
     if (msg.startsWith("VARIANT_INACTIVE:"))
       return NextResponse.json({ error: "Uno de los productos seleccionados ya no está disponible" }, { status: 409 });
-    if (msg.startsWith("INSUFFICIENT_STOCK:"))
-      return NextResponse.json({ error: `Stock insuficiente para ${msg.slice("INSUFFICIENT_STOCK:".length)}` }, { status: 422 });
+    if (msg.includes("no cuenta con stock suficiente") || msg.startsWith("INSUFFICIENT_STOCK:"))
+      return NextResponse.json({ error: msg.startsWith("INSUFFICIENT_STOCK:") ? `Stock insuficiente para ${msg.slice("INSUFFICIENT_STOCK:".length)}` : msg }, { status: 422 });
     console.error("POST /api/orders/[id]/agregar-productos:", err);
     return NextResponse.json({ error: "Error interno al agregar productos" }, { status: 500 });
   }
