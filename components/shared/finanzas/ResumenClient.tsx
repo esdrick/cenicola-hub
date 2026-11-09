@@ -16,6 +16,7 @@ import {
   FileText,
   AlertTriangle,
   Hourglass,
+  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import { rangoMes, rangoPorTipo } from "@/lib/payroll-periods";
@@ -167,6 +168,7 @@ export function ResumenClient() {
 
   const LINKS = [
     { href: "/dashboard/finanzas/nominas",       label: "Nóminas",            icon: DollarSign, desc: "Comisiones y pagos por vendedora" },
+    { href: "/dashboard/finanzas/web",           label: "Ventas Web",         icon: Globe,      desc: "Órdenes, productos y facturación web" },
     { href: "/dashboard/finanzas/gastos",         label: "Gastos",             icon: Receipt,    desc: "Registro de gastos operativos" },
     { href: "/dashboard/finanzas/cuentas-cobrar", label: "Cuentas por cobrar", icon: BarChart3,   desc: "Abonos y deudas de clientes" },
     { href: "/dashboard/finanzas/cuentas-pagar",  label: "Cuentas por pagar",  icon: FileText,   desc: "Deudas a proveedores" },
@@ -433,7 +435,7 @@ export function ResumenClient() {
       {/* Accesos rápidos */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-700">Accesos rápidos</h2>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {LINKS.map((l) => (
             <Link
               key={l.href}

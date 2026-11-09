@@ -10,7 +10,14 @@ import { ShoppingBag, TrendingUp, Clock, ShoppingCart, Plus } from "lucide-react
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ImportWhatsAppModal } from "@/components/shared/ordenes/ImportWhatsAppModal";
+import { getVenezuelaStartOfDay, getVenezuelaParts, formatVenezuelaDate } from "@/lib/date-utils";
+import { formatRangoLabel, rangoMes, rangoADateTime } from "@/lib/payroll-periods";
 import type { SessionUser } from "@/types";
+
+const MESES_NOMBRE = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente_pago:   "Pendiente pago",
@@ -37,17 +44,36 @@ function fmt(n: number) {
 }
 
 function fmtDate(d: Date) {
-  return d.toLocaleDateString("es-VE", { day: "2-digit", month: "short", year: "numeric" });
+  return formatVenezuelaDate(d, { day: "2-digit", month: "short", year: "numeric" });
 }
 
 type Props = { session: SessionUser };
 
 export async function VendedoraDashboard({ session }: Props) {
   const now = new Date();
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayStart = getVenezuelaStartOfDay(now);
+  const { month: currentMonth } = getVenezuelaParts(now);
+  const mesNombre = MESES_NOMBRE[currentMonth - 1] ?? "este mes";
 
-  const [ordenesHoy, unidadesMes, ordenesActivas, ordenesEnProceso, misUltimasOrdenes] = await Promise.all([
+  const mesActualRango = rangoMes(now);
+  const { inicio: startOfMonth, fin: endOfMonth } = rangoADateTime(
+    mesActualRango.desde,
+    mesActualRango.hasta
+  );
+
+  const ultimoCorte = await prisma.payrollRecord.findFirst({
+    where: { userId: session.id, status: "pagada" },
+    orderBy: [{ periodo_fin: "desc" }, { paid_at: "desc" }],
+    select: { periodo_inicio: true, periodo_fin: true, paid_at: true },
+  });
+
+  const ultimoInicioISO = ultimoCorte ? ultimoCorte.periodo_inicio.toISOString().slice(0, 10) : null;
+  const ultimoFinISO    = ultimoCorte ? ultimoCorte.periodo_fin.toISOString().slice(0, 10) : null;
+  const corteDesde      = ultimoInicioISO && ultimoFinISO
+    ? rangoADateTime(ultimoInicioISO, ultimoFinISO).inicio
+    : null;
+
+  const [ordenesHoy, unidadesCorte, unidadesMes, ordenesActivas, ordenesEnProceso, misUltimasOrdenes] = await Promise.all([
     prisma.order.count({
       where: {
         created_by: session.id,
@@ -59,7 +85,18 @@ export async function VendedoraDashboard({ session }: Props) {
         order: {
           created_by: session.id,
           status: { in: ["enviada", "completada"] },
-          created_at: { gte: startOfMonth },
+          incluido_en_nomina_id: null,
+          ...(corteDesde ? { updated_at: { gte: corteDesde } } : {}),
+        },
+      },
+      _sum: { quantity: true },
+    }),
+    prisma.orderItem.aggregate({
+      where: {
+        order: {
+          created_by: session.id,
+          status: { in: ["enviada", "completada"] },
+          updated_at: { gte: startOfMonth, lte: endOfMonth },
         },
       },
       _sum: { quantity: true },
@@ -92,20 +129,28 @@ export async function VendedoraDashboard({ session }: Props) {
     }),
   ]);
 
+  const piezasCorte = unidadesCorte._sum.quantity ?? 0;
+  const piezasMes   = unidadesMes._sum.quantity ?? 0;
+  const descCorte   = ultimoInicioISO && ultimoFinISO
+    ? `Desde último corte (${formatRangoLabel(ultimoInicioISO, ultimoFinISO)})`
+    : "Pendientes de corte (sin cortes previos)";
+
   const CARDS = [
     {
       label: "Órdenes hoy",
       value: String(ordenesHoy),
       desc: "Creadas por ti hoy",
+      sub: null as string | null,
       icon: ShoppingBag,
       color: "text-blue-600",
       bg: "bg-blue-50",
       href: "/dashboard/ordenes",
     },
     {
-      label: "Vendido este mes",
-      value: String(unidadesMes._sum.quantity ?? 0),
-      desc: "Unidades enviadas o completadas",
+      label: "Piezas (corte actual)",
+      value: String(piezasCorte),
+      desc: descCorte,
+      sub: `Total en ${mesNombre}: ${piezasMes} pza${piezasMes === 1 ? "" : "s"}`,
       icon: TrendingUp,
       color: "text-emerald-600",
       bg: "bg-emerald-50",
@@ -115,6 +160,7 @@ export async function VendedoraDashboard({ session }: Props) {
       label: "Órdenes activas",
       value: String(ordenesActivas),
       desc: "En proceso actualmente",
+      sub: null as string | null,
       icon: Clock,
       color: "text-amber-600",
       bg: "bg-amber-50",
@@ -124,6 +170,7 @@ export async function VendedoraDashboard({ session }: Props) {
       label: "En proceso",
       value: String(ordenesEnProceso),
       desc: "Preórdenes sin confirmar",
+      sub: null as string | null,
       icon: ShoppingCart,
       color: "text-violet-600",
       bg: "bg-violet-50",
@@ -158,7 +205,7 @@ export async function VendedoraDashboard({ session }: Props) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {CARDS.map((c) => {
           const inner = (
-            <Card key={c.label} className={c.href ? "cursor-pointer hover:border-gray-300 transition-colors" : ""}>
+            <Card key={c.label} className={cn("h-full", c.href ? "cursor-pointer hover:border-gray-300 transition-colors" : "")}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">{c.label}</CardTitle>
                 <div className={`rounded-lg p-2 ${c.bg}`}>
@@ -168,6 +215,11 @@ export async function VendedoraDashboard({ session }: Props) {
               <CardContent>
                 <p className="text-3xl font-bold text-gray-900">{c.value}</p>
                 <p className="mt-0.5 text-xs text-gray-500">{c.desc}</p>
+                {c.sub && (
+                  <p className="mt-1.5 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                    {c.sub}
+                  </p>
+                )}
               </CardContent>
             </Card>
           );
