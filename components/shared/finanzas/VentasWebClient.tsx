@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -48,7 +47,6 @@ import {
   Store,
   CreditCard,
   Calendar,
-  Search,
   ChevronRight,
   Sparkles,
   AlertTriangle,
@@ -134,7 +132,7 @@ type Props = {
 
 type ScopeMode = "confirmadas" | "completadas" | "en_proceso" | "todas";
 type ModalidadFilter = "all" | "envio" | "retiro";
-type DetailTab = "clientes" | "ordenes" | "productos" | "dias";
+type DetailTab = "clientes" | "productos" | "dias";
 type InsightType = "positive" | "negative" | "warning" | "info";
 
 type ClienteWebSummary = {
@@ -270,10 +268,9 @@ export function VentasWebClient({
   const [modalidadFilter, setModalidadFilter] = useState<ModalidadFilter>("all");
   const [metodoFilter, setMetodoFilter] = useState<string>("all");
   const [diaFilter, setDiaFilter] = useState<number | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<DetailTab>("clientes");
 
-  // Modals (Nóminas style)
+  // Modals
   const [selectedCliente, setSelectedCliente] = useState<ClienteWebSummary | null>(null);
   const [selectedOrden, setSelectedOrden] = useState<WebOrderRecord | null>(null);
 
@@ -310,7 +307,6 @@ export function VentasWebClient({
     setModalidadFilter("all");
     setMetodoFilter("all");
     setDiaFilter(null);
-    setSearchQuery("");
   }
 
   // Counts by status across all web orders in period
@@ -357,9 +353,8 @@ export function VentasWebClient({
     });
   }, [ordenes, scope]);
 
-  // Step 2: Orders filtered by interactive controls (modalidad, método de pago, día, búsqueda)
+  // Step 2: Orders filtered by interactive controls (modalidad, método de pago, día)
   const filteredOrders = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
     return scopedOrders.filter((o) => {
       if (modalidadFilter === "envio" && o.isPickup) return false;
       if (modalidadFilter === "retiro" && !o.isPickup) return false;
@@ -368,23 +363,9 @@ export function VentasWebClient({
         if (!hasMethod) return false;
       }
       if (diaFilter !== null && o.dayOfWeek !== diaFilter) return false;
-      if (q) {
-        const fullName = `${o.customer_name} ${o.customer_lastname}`.toLowerCase();
-        const matchOrder = o.order_number.toLowerCase().includes(q) ||
-          shortOrderNumber(o.order_number).toLowerCase().includes(q);
-        const matchCust =
-          fullName.includes(q) || o.customer_id_doc.toLowerCase().includes(q);
-        const matchProd = o.items.some(
-          (i) =>
-            i.product_name.toLowerCase().includes(q) ||
-            i.product_type.toLowerCase().includes(q) ||
-            (i.product_color && i.product_color.toLowerCase().includes(q))
-        );
-        if (!matchOrder && !matchCust && !matchProd) return false;
-      }
       return true;
     });
-  }, [scopedOrders, modalidadFilter, metodoFilter, diaFilter, searchQuery]);
+  }, [scopedOrders, modalidadFilter, metodoFilter, diaFilter]);
 
   // Aggregate KPIs from filteredOrders
   const kpis = useMemo(() => {
@@ -722,8 +703,7 @@ export function VentasWebClient({
   const hasActiveSubFilters =
     modalidadFilter !== "all" ||
     metodoFilter !== "all" ||
-    diaFilter !== null ||
-    searchQuery.trim() !== "";
+    diaFilter !== null;
 
   const maxDayUsd = Math.max(1, ...diasSemanaList.map((d) => d.totalUsd));
   const maxProdUnits = Math.max(1, productosList[0]?.totalUnits ?? 1);
@@ -1255,29 +1235,24 @@ export function VentasWebClient({
         </div>
       </div>
 
-      {/* Tabla principal con submenú uniforme en móvil (cuadrícula 2x2) y escritorio */}
+      {/* Resumen Top 10: Clientes / Productos / Últimas 10 Fechas */}
       <div className="rounded-xl border bg-white overflow-hidden">
-        <div className="flex flex-col gap-3 border-b p-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3">
-          <div className="grid grid-cols-2 sm:flex w-full sm:w-auto gap-1 rounded-lg border bg-gray-50 p-1">
+        <div className="flex flex-col gap-2.5 border-b p-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3">
+          <div className="grid grid-cols-3 sm:flex w-full sm:w-auto gap-1 rounded-lg border bg-gray-50 p-1">
             {[
               {
                 id: "clientes",
-                label: `Clientes (${clientesList.length})`,
+                label: "Top Clientes",
                 icon: Users,
               },
               {
-                id: "ordenes",
-                label: `Órdenes (${filteredOrders.length})`,
-                icon: ShoppingBag,
-              },
-              {
                 id: "productos",
-                label: `Productos (${productosList.length})`,
+                label: "Top Productos",
                 icon: Package,
               },
               {
                 id: "dias",
-                label: `Por Fecha (${fechasList.length})`,
+                label: "Por Fecha",
                 icon: Calendar,
               },
             ].map((t) => (
@@ -1285,7 +1260,7 @@ export function VentasWebClient({
                 key={t.id}
                 type="button"
                 onClick={() => setActiveTab(t.id as DetailTab)}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap transition ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium whitespace-nowrap transition ${
                   activeTab === t.id
                     ? "bg-gray-900 text-white shadow-sm"
                     : "text-gray-500 hover:text-gray-900"
@@ -1297,32 +1272,17 @@ export function VentasWebClient({
             ))}
           </div>
 
-          {/* Buscador en tiempo real */}
-          <div className="relative w-full sm:w-64">
-            <Search
-              size={14}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <Input
-              type="text"
-              placeholder="Buscar cliente, # orden o producto..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-9 sm:h-8 pl-8 pr-7 text-xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
+          <span className="text-[11px] text-gray-400">
+            {activeTab === "clientes" &&
+              `Top ${Math.min(10, clientesList.length)} de ${clientesList.length} clientes`}
+            {activeTab === "productos" &&
+              `Top ${Math.min(10, productosList.length)} de ${productosList.length} productos`}
+            {activeTab === "dias" &&
+              `Últimas ${Math.min(10, fechasList.length)} de ${fechasList.length} fechas`}
+          </span>
         </div>
 
-        {/* TAB 1: POR CLIENTE */}
+        {/* TAB 1: TOP 10 CLIENTES */}
         {activeTab === "clientes" && (
           <div>
             {clientesList.length === 0 ? (
@@ -1333,6 +1293,7 @@ export function VentasWebClient({
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="w-10">#</TableHead>
                     <TableHead>Cliente Web</TableHead>
                     <TableHead className="text-center">Modalidad</TableHead>
                     <TableHead className="text-center">Órdenes</TableHead>
@@ -1343,12 +1304,15 @@ export function VentasWebClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clientesList.map((c) => (
+                  {clientesList.slice(0, 10).map((c, idx) => (
                     <TableRow
                       key={c.key}
                       className="cursor-pointer hover:bg-gray-50"
                       onClick={() => setSelectedCliente(c)}
                     >
+                      <TableCell className="font-bold text-xs text-gray-400">
+                        {idx + 1}
+                      </TableCell>
                       <TableCell>
                         <p className="font-medium text-sm text-gray-900">{c.nombre}</p>
                         <p className="text-xs text-gray-400">
@@ -1358,12 +1322,12 @@ export function VentasWebClient({
                       <TableCell className="text-center">
                         <div className="inline-flex flex-wrap justify-center gap-1">
                           {c.envio_count > 0 && (
-                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800">
+                            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800 whitespace-nowrap">
                               Envío ({c.envio_count})
                             </span>
                           )}
                           {c.pickup_count > 0 && (
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800">
+                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-800 whitespace-nowrap">
                               Retiro ({c.pickup_count})
                             </span>
                           )}
@@ -1378,15 +1342,15 @@ export function VentasWebClient({
                             <Package size={13} className="text-gray-400" />
                             {c.productos_vendidos}
                           </span>
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[10px] text-gray-400 whitespace-nowrap">
                             {formatDocenas(c.productos_vendidos)}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right text-xs text-gray-600">
+                      <TableCell className="text-right text-xs text-gray-600 whitespace-nowrap">
                         {fmtUSD(c.ticket_promedio)}
                       </TableCell>
-                      <TableCell className="text-right text-sm font-semibold text-emerald-700">
+                      <TableCell className="text-right text-sm font-semibold text-emerald-700 whitespace-nowrap">
                         {fmtUSD(c.total_ventas)}
                       </TableCell>
                       <TableCell className="text-right">
@@ -1410,134 +1374,7 @@ export function VentasWebClient({
           </div>
         )}
 
-        {/* TAB 2: ÓRDENES WEB */}
-        {activeTab === "ordenes" && (
-          <div>
-            {filteredOrders.length === 0 ? (
-              <div className="py-12 text-center text-sm text-gray-400">
-                No hay órdenes web en este período con los filtros actuales.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="whitespace-nowrap"># Orden</TableHead>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>Modalidad</TableHead>
-                    <TableHead>Pago</TableHead>
-                    <TableHead className="text-center">Estado</TableHead>
-                    <TableHead className="text-center">Productos</TableHead>
-                    <TableHead className="text-right">Total USD</TableHead>
-                    <TableHead className="w-12" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders.map((o) => (
-                    <TableRow
-                      key={o.id}
-                      className="cursor-pointer hover:bg-gray-50"
-                      onClick={() => setSelectedOrden(o)}
-                    >
-                      <TableCell className="font-mono text-xs font-semibold text-purple-700">
-                        {shortOrderNumber(o.order_number)}
-                        <span className="block text-[10px] font-normal text-gray-400">
-                          {o.order_number}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-gray-600 whitespace-nowrap">
-                        {o.dateStr}
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium text-gray-900">
-                          {o.customer_name} {o.customer_lastname}
-                        </p>
-                        <p className="text-xs text-gray-400">{o.customer_id_doc}</p>
-                      </TableCell>
-                      <TableCell>
-                        {o.isPickup ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                            <Store size={11} />
-                            Retiro en tienda
-                          </span>
-                        ) : (
-                          <div>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                              <Truck size={11} />
-                              Envío Web
-                            </span>
-                            {o.shipping_company && (
-                              <span className="block text-[10px] text-gray-400 mt-0.5">
-                                {o.shipping_company}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {o.payments.length === 0 ? (
-                          <span className="text-xs text-gray-400">Sin pago</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {o.payments.map((p) => (
-                              <span
-                                key={p.id}
-                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                  METODO_COLORS[p.payment_type] ??
-                                  "bg-gray-100 text-gray-700"
-                                }`}
-                              >
-                                {p.payment_label}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          className={`border-0 text-[11px] ${
-                            STATUS_CLASSES[o.status] ?? "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {STATUS_LABELS[o.status] ?? o.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="inline-flex flex-col items-center">
-                          <span className="inline-flex items-center gap-1 text-sm font-medium">
-                            <Package size={13} className="text-gray-400" />
-                            {o.productos_count}
-                          </span>
-                          <span className="text-[10px] text-gray-400">
-                            {formatDocenas(o.productos_count)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-semibold text-emerald-700">
-                        {fmtUSD(o.total_usd)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs text-gray-500"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedOrden(o);
-                          }}
-                        >
-                          <ChevronRight size={14} />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        )}
-
-        {/* TAB 3: PRODUCTOS VENDIDOS EN WEB */}
+        {/* TAB 2: TOP 10 PRODUCTOS VENDIDOS EN WEB */}
         {activeTab === "productos" && (
           <div>
             {productosList.length === 0 ? (
@@ -1557,7 +1394,7 @@ export function VentasWebClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {productosList.map((p, idx) => {
+                  {productosList.slice(0, 10).map((p, idx) => {
                     const pct = (p.totalUnits / maxProdUnits) * 100;
                     return (
                       <TableRow key={p.id} className="hover:bg-gray-50">
@@ -1606,10 +1443,10 @@ export function VentasWebClient({
                         <TableCell>
                           <div className="space-y-1">
                             <div className="flex items-baseline justify-between gap-2">
-                              <span className="font-semibold text-sm text-gray-900">
+                              <span className="font-semibold text-sm text-gray-900 whitespace-nowrap">
                                 {p.totalUnits} {p.totalUnits === 1 ? "pieza" : "piezas"}
                               </span>
-                              <span className="text-[11px] text-gray-400">
+                              <span className="text-[11px] text-gray-400 whitespace-nowrap">
                                 {formatDocenas(p.totalUnits)}
                               </span>
                             </div>
@@ -1634,7 +1471,7 @@ export function VentasWebClient({
                             ))}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-semibold text-sm text-emerald-700">
+                        <TableCell className="text-right font-semibold text-sm text-emerald-700 whitespace-nowrap">
                           {fmtUSD(p.totalUsd)}
                         </TableCell>
                       </TableRow>
@@ -1646,7 +1483,7 @@ export function VentasWebClient({
           </div>
         )}
 
-        {/* TAB 4: DESGLOSE POR FECHA */}
+        {/* TAB 3: ÚLTIMAS 10 FECHAS */}
         {activeTab === "dias" && (
           <div>
             {fechasList.length === 0 ? (
@@ -1666,11 +1503,11 @@ export function VentasWebClient({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {fechasList.map((f) => {
+                  {fechasList.slice(0, 10).map((f) => {
                     const pct = (f.totalUsd / maxFechaUsd) * 100;
                     return (
                       <TableRow key={f.dateStr} className="hover:bg-gray-50">
-                        <TableCell className="font-mono text-xs font-medium text-gray-800">
+                        <TableCell className="font-mono text-xs font-medium text-gray-800 whitespace-nowrap">
                           {f.dateStr}
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">
@@ -1684,7 +1521,7 @@ export function VentasWebClient({
                             <span className="text-sm font-medium text-gray-900">
                               {f.productos}
                             </span>
-                            <span className="text-[10px] text-gray-400">
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
                               {formatDocenas(f.productos)}
                             </span>
                           </div>
@@ -1697,7 +1534,7 @@ export function VentasWebClient({
                             />
                           </div>
                         </TableCell>
-                        <TableCell className="text-right text-sm font-semibold text-emerald-700">
+                        <TableCell className="text-right text-sm font-semibold text-emerald-700 whitespace-nowrap">
                           {fmtUSD(f.totalUsd)}
                         </TableCell>
                       </TableRow>
