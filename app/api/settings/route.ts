@@ -1,17 +1,67 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getSetting } from "@/lib/settings";
+import {
+  getSetting,
+  getCatalogPillsConfig,
+  validateCatalogPills,
+  STORE_CATALOG_PILLS_KEY,
+} from "@/lib/settings";
+import { withRole } from "@/lib/api-auth";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const [low_stock_threshold, quick_sale_limit] = await Promise.all([
+  const [low_stock_threshold, quick_sale_limit, catalogPills] = await Promise.all([
     getSetting("low_stock_threshold"),
     getSetting("quick_sale_limit"),
+    getCatalogPillsConfig(),
   ]);
-  return NextResponse.json({ low_stock_threshold, quick_sale_limit });
+  return NextResponse.json({
+    low_stock_threshold,
+    quick_sale_limit,
+    store_catalog_pills: catalogPills.pills,
+    systemCategories: catalogPills.systemCategories,
+  });
+}
+
+export async function PUT(req: NextRequest) {
+  const auth = await withRole(["admin", "inventario"]);
+  if (!auth.ok) return auth.response;
+
+  try {
+    const body = await req.json();
+    const rawList = Array.isArray(body)
+      ? body
+      : body?.pills ?? body?.store_catalog_pills;
+
+    const validation = validateCatalogPills(rawList);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    await prisma.systemSetting.upsert({
+      where: { key: STORE_CATALOG_PILLS_KEY },
+      create: {
+        key: STORE_CATALOG_PILLS_KEY,
+        value: JSON.stringify(validation.pills),
+        updated_by: auth.session.id,
+      },
+      update: {
+        value: JSON.stringify(validation.pills),
+        updated_by: auth.session.id,
+      },
+    });
+
+    return NextResponse.json({ pills: validation.pills });
+  } catch (error) {
+    console.error("PUT /api/settings error:", error);
+    return NextResponse.json(
+      { error: "Error al guardar la configuración" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest) {

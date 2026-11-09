@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AjusteManualDialog } from "@/components/shared/inventario/AjusteManualDialog";
 import { StockThresholdDialog } from "@/components/shared/inventario/StockThresholdDialog";
+import { CatalogPillsButton } from "@/components/shared/productos/CatalogPillsButton";
 import { SlidersHorizontal, Settings2 } from "lucide-react";
 
 type Props = {
@@ -25,6 +26,8 @@ export function InventarioHeader({ subtitle, canAdjust, lowStockThreshold }: Pro
 
       {canAdjust && (
         <div className="flex items-center gap-2 shrink-0">
+          <CatalogPillsButton />
+
           <Button variant="outline" size="sm" onClick={() => setThresholdOpen(true)}>
             <Settings2 size={14} className="sm:mr-1.5" />
             <span className="hidden sm:inline">Stock bajo</span>

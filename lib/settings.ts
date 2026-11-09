@@ -47,3 +47,144 @@ export async function saveCustomColor(color: string | null | undefined, userId?:
     });
   }
 }
+
+// ─── Píldoras de filtros del catálogo web (store_catalog_pills) ──────────────
+
+export type CatalogPill = {
+  name: string;
+  visible: boolean;
+};
+
+export const STORE_CATALOG_PILLS_KEY = "store_catalog_pills";
+export const BASE_CATALOG_CATEGORIES = ["Mujer", "Hombre", "Niños"] as const;
+
+export async function getCatalogPillsConfig(): Promise<{
+  pills: CatalogPill[];
+  systemCategories: string[];
+  hasSavedConfig: boolean;
+}> {
+  const [setting, productTypeRows] = await Promise.all([
+    prisma.systemSetting.findUnique({
+      where: { key: STORE_CATALOG_PILLS_KEY },
+    }),
+    prisma.product.groupBy({
+      by: ["type"],
+      where: { is_active: true },
+      orderBy: { type: "asc" },
+    }),
+  ]);
+
+  // 1. Construir lista de categorías del sistema (base + tipos de productos activos)
+  const systemCategories: string[] = [];
+  const systemSeen = new Set<string>();
+
+  for (const base of BASE_CATALOG_CATEGORIES) {
+    const key = base.toLowerCase();
+    if (!systemSeen.has(key)) {
+      systemSeen.add(key);
+      systemCategories.push(base);
+    }
+  }
+
+  for (const row of productTypeRows) {
+    const trimmed = row.type?.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!systemSeen.has(key)) {
+      systemSeen.add(key);
+      systemCategories.push(trimmed);
+    }
+  }
+
+  // 2. Leer configuración guardada en system_settings (si existe)
+  const savedPills: CatalogPill[] = [];
+  const seen = new Set<string>();
+  let hasSavedConfig = false;
+
+  if (setting && setting.value) {
+    try {
+      const parsed = JSON.parse(setting.value);
+      if (Array.isArray(parsed)) {
+        hasSavedConfig = true;
+        for (const item of parsed) {
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof item.name === "string" &&
+            typeof item.visible === "boolean"
+          ) {
+            const trimmedName = item.name.trim();
+            if (!trimmedName) continue;
+            const key = trimmedName.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              savedPills.push({ name: trimmedName, visible: item.visible });
+            }
+          }
+        }
+      }
+    } catch {
+      hasSavedConfig = false;
+    }
+  }
+
+  // 3. Combinar: primero los guardados en su orden/estado, y al final los nuevos
+  const pills: CatalogPill[] = [...savedPills];
+
+  for (const category of systemCategories) {
+    const key = category.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      pills.push({
+        name: category,
+        visible: !hasSavedConfig, // true si no había config previa, false si ya existía
+      });
+    }
+  }
+
+  return {
+    pills,
+    systemCategories,
+    hasSavedConfig,
+  };
+}
+
+export function validateCatalogPills(
+  input: unknown
+): { ok: true; pills: CatalogPill[] } | { ok: false; error: string } {
+  if (!Array.isArray(input)) {
+    return { ok: false, error: "Se esperaba una lista de filtros" };
+  }
+
+  const normalized: CatalogPill[] = [];
+  const seen = new Set<string>();
+
+  for (const item of input) {
+    if (!item || typeof item !== "object") {
+      return { ok: false, error: "Formato de filtro inválido" };
+    }
+
+    const rawName = (item as Record<string, unknown>).name;
+    const rawVisible = (item as Record<string, unknown>).visible;
+
+    const name = typeof rawName === "string" ? rawName.trim() : "";
+    if (!name) {
+      return { ok: false, error: "Los nombres de los filtros no pueden estar vacíos" };
+    }
+
+    if (typeof rawVisible !== "boolean") {
+      return { ok: false, error: `El estado visible de "${name}" debe ser booleano` };
+    }
+
+    const key = name.toLowerCase();
+    if (seen.has(key)) {
+      return { ok: false, error: `El filtro "${name}" está duplicado` };
+    }
+
+    seen.add(key);
+    normalized.push({ name, visible: rawVisible });
+  }
+
+  return { ok: true, pills: normalized };
+}
+

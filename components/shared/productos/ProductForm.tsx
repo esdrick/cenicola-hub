@@ -158,32 +158,43 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
   }, []);
 
   // ── Types guardados en el sistema ───────────────────────────────────────────
-  const [availableTypes, setAvailableTypes] = useState<string[]>([]);
-  const [typeSuggestions, setTypeSuggestions] = useState<string[]>([]);
-  const [showTypeSuggestions, setShowTypeSuggestions] = useState(false);
+  const [availableTypes, setAvailableTypes] = useState<string[]>(
+    initialData?.type ? [initialData.type] : []
+  );
+  const [showCustomTypeInput, setShowCustomTypeInput] = useState(false);
+  const [customTypeInput, setCustomTypeInput] = useState("");
 
   useEffect(() => {
     fetch("/api/products/types")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data.types)) {
-          setAvailableTypes(data.types);
+          setAvailableTypes((prev) => {
+            const map = new Map<string, string>();
+            for (const t of [...prev, ...data.types]) {
+              const trimmed = t?.trim();
+              if (trimmed && !map.has(trimmed.toLowerCase())) {
+                map.set(trimmed.toLowerCase(), trimmed);
+              }
+            }
+            if (initialData?.type) {
+              const initTrimmed = initialData.type.trim();
+              if (initTrimmed && !map.has(initTrimmed.toLowerCase())) {
+                map.set(initTrimmed.toLowerCase(), initTrimmed);
+              }
+            }
+            const list = Array.from(map.values()).sort((a, b) =>
+              a.localeCompare(b, "es", { sensitivity: "base" })
+            );
+            if (list.length === 0) {
+              setShowCustomTypeInput(true);
+            }
+            return list;
+          });
         }
       })
       .catch(() => { /* ignore */ });
-  }, []);
-
-  const filterTypeSuggestions = useCallback((val: string) => {
-    const q = val.trim().toLowerCase();
-    if (!q) {
-      setTypeSuggestions(availableTypes);
-      setShowTypeSuggestions(availableTypes.length > 0);
-      return;
-    }
-    const filtered = availableTypes.filter((t) => t.toLowerCase().includes(q));
-    setTypeSuggestions(filtered);
-    setShowTypeSuggestions(filtered.length > 0);
-  }, [availableTypes]);
+  }, [initialData?.type]);
 
   // ── Name autocomplete ────────────────────────────────────────────────────────
   type SuggestionItem = { name: string; type?: string; description?: string | null };
@@ -209,7 +220,21 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
     setName(item.name);
     setShowSuggestions(false);
     if (item.type) {
-      setType(item.type);
+      const matchedType = availableTypes.find(
+        (t) => t.toLowerCase() === item.type!.trim().toLowerCase()
+      );
+      if (matchedType) {
+        setType(matchedType);
+        setShowCustomTypeInput(false);
+      } else {
+        setAvailableTypes((prev) =>
+          [...prev, item.type!].sort((a, b) =>
+            a.localeCompare(b, "es", { sensitivity: "base" })
+          )
+        );
+        setType(item.type);
+        setShowCustomTypeInput(false);
+      }
     }
     if (item.description && !description) {
       setDescription(item.description);
@@ -442,42 +467,75 @@ export function ProductForm({ initialData, productId, quickSaleLimit = 4 }: Prop
             )}
           </div>
 
-          <div className="relative space-y-1.5">
-            <Label htmlFor="type">Tipo *</Label>
-            <Input
-              id="type"
-              value={type}
-              onChange={(e) => {
-                const val = capitalizeWords(e.target.value);
-                setType(val);
-                filterTypeSuggestions(val);
-              }}
-              onFocus={() => filterTypeSuggestions(type)}
-              onBlur={() => {
-                setType((prev) => capitalizeWords(prev.trim()));
-                setTimeout(() => setShowTypeSuggestions(false), 150);
-              }}
-              placeholder="Ej: Blusa, Pantalón, Falda"
-              disabled={loading}
-              autoComplete="off"
-              autoCapitalize="words"
-            />
-            {showTypeSuggestions && (
-              <ul className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-lg border bg-white py-1 shadow-lg">
-                {typeSuggestions.map((t) => (
-                  <li
-                    key={t}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setType(t);
-                      setShowTypeSuggestions(false);
-                    }}
-                    className="cursor-pointer px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between"
-                  >
-                    <span>{t}</span>
-                  </li>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="type">Tipo *</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showCustomTypeInput;
+                  setShowCustomTypeInput(next);
+                  if (next) {
+                    setCustomTypeInput(type ?? "");
+                  } else {
+                    const fallbackType =
+                      type && availableTypes.includes(type) ? type : "";
+                    setType(fallbackType);
+                  }
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline"
+              >
+                {showCustomTypeInput ? "Seleccionar de la lista" : "+ Nuevo tipo"}
+              </button>
+            </div>
+
+            {showCustomTypeInput ? (
+              <Input
+                id="type"
+                value={customTypeInput}
+                onChange={(e) => {
+                  const val = capitalizeWords(e.target.value);
+                  setCustomTypeInput(val);
+                  const trimmed = val.trim();
+                  setType(trimmed ? capitalizeWords(trimmed) : "");
+                }}
+                onBlur={() => {
+                  setCustomTypeInput((prev) => {
+                    const formatted = capitalizeWords(prev.trim());
+                    setType(formatted.trim() ? formatted : "");
+                    return formatted;
+                  });
+                }}
+                placeholder="Ej: Blusa, Pantalón, Falda"
+                disabled={loading}
+                autoComplete="off"
+                autoCapitalize="words"
+              />
+            ) : (
+              <select
+                id="type"
+                value={type}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__NEW_TYPE__") {
+                    setShowCustomTypeInput(true);
+                    setCustomTypeInput("");
+                    setType("");
+                  } else {
+                    setType(v);
+                  }
+                }}
+                disabled={loading}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              >
+                <option value="">Seleccionar tipo...</option>
+                {availableTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
-              </ul>
+                <option value="__NEW_TYPE__">+ Escribir nuevo tipo...</option>
+              </select>
             )}
           </div>
 

@@ -8,6 +8,7 @@ import { ProductCatalog } from "@/components/shared/productos/ProductCatalog";
 import { ProductFilters } from "@/components/shared/productos/ProductFilters";
 import { Pagination } from "@/components/shared/Pagination";
 import { QuickSaleLimitButton } from "@/components/shared/productos/QuickSaleLimitButton";
+import { CatalogPillsButton } from "@/components/shared/productos/CatalogPillsButton";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getSetting } from "@/lib/settings";
@@ -247,6 +248,7 @@ export default async function ProductosPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && <CatalogPillsButton />}
           {session.role === "admin" && <QuickSaleLimitButton current={quickSaleLimit} />}
           {canEdit && (
             <Link href="/dashboard/productos/nuevo" className={cn(buttonVariants())}>
