@@ -28,6 +28,7 @@ export default withPWA({
   aggressiveFrontEndNavCaching: false,
   reloadOnOnline: true,
   disable: process.env.NODE_ENV === "development",
+  publicExcludes: ["!uploads/**/*", "!icon-original.png"],
   workboxOptions: {
     disableDevLogs: true,
   },

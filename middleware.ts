@@ -56,7 +56,13 @@ function canAccess(role: UserRole, path: string): boolean {
   return ALLOWED_PATHS[role]?.some((p) => path === p || path.startsWith(p + "/")) ?? false;
 }
 
-const STATIC_PATTERNS = [/^\/sw\.js$/, /^\/swe-worker-.*\.js$/, /^\/workbox-.*\.js$/, /^\/manifest\.json$/];
+const STATIC_PATTERNS = [
+  /^\/sw\.js$/,
+  /^\/swe-worker-.*\.js$/,
+  /^\/workbox-.*\.js$/,
+  /^\/manifest\.json$/,
+  /\.(?:svg|png|jpg|jpeg|gif|webp|ico)$/i,
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
