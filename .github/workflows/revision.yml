@@ -1,0 +1,35 @@
+name: Revisión
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: revision-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  revision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+      - name: Tipos de Next
+        run: |
+          [ -f next-env.d.ts ] || printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' > next-env.d.ts
+      - name: Revisar tipos
+        run: npx tsc --noEmit
+      - name: Revisar lint
+        run: npm run lint
