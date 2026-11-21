@@ -1,4 +1,8 @@
 import type { PricingMethod, PaymentType, Prisma } from "../app/generated/prisma";
+import {
+  resolvePromoPriceForProduct,
+  type ActivePromoContext,
+} from "./promotions-client";
 
 type Decimal = Prisma.Decimal;
 
@@ -63,6 +67,76 @@ export function resolveSplitSubtotal(
   return {
     subtotalBcv: parseFloat(subtotalBcv.toFixed(2)),
     subtotalDivisas: parseFloat(subtotalDivisas.toFixed(2)),
+  };
+}
+
+export type SplitSubtotalWithPromo = {
+  subtotalBcv: number;
+  subtotalDivisas: number;
+  originalUnitPrice: number | null;
+  promoCampaignName: string | null;
+  promoGroupName: string | null;
+  promoTier: number | null;
+};
+
+/**
+ * Igual que `resolveSplitSubtotal`, pero aplica precios promocionales si hay una promoción
+ * vigente para el canal y el `productType` pertenece a un grupo promocional.
+ */
+export function resolveSplitSubtotalWithPromo(
+  variant: VariantPrices,
+  productType: string | null | undefined,
+  quantityBcv: number,
+  quantityDivisas: number,
+  totalItems: number,
+  mayorThreshold: number,
+  bundleThreshold: number,
+  promo: ActivePromoContext | null | undefined,
+): SplitSubtotalWithPromo {
+  const normalBcv = Number(resolveUnitPrice(variant, "bcv", totalItems, mayorThreshold, bundleThreshold));
+  const normalDivisas = Number(resolveUnitPrice(variant, "divisas", totalItems, mayorThreshold, bundleThreshold));
+
+  const rawPromoBcv = quantityBcv > 0
+    ? resolvePromoPriceForProduct(promo, productType, "bcv", totalItems, mayorThreshold, bundleThreshold)
+    : null;
+  const rawPromoDivisas = quantityDivisas > 0
+    ? resolvePromoPriceForProduct(promo, productType, "divisas", totalItems, mayorThreshold, bundleThreshold)
+    : null;
+
+  // Solo aplicar el precio promocional si es estrictamente menor que el precio normal (paquete o mayor)
+  const promoBcv = rawPromoBcv && rawPromoBcv.promoPrice < normalBcv ? rawPromoBcv : null;
+  const promoDivisas = rawPromoDivisas && rawPromoDivisas.promoPrice < normalDivisas ? rawPromoDivisas : null;
+
+  const effectiveBcv = promoBcv ? promoBcv.promoPrice : normalBcv;
+  const effectiveDivisas = promoDivisas ? promoDivisas.promoPrice : normalDivisas;
+
+  const subtotalBcv = quantityBcv > 0 ? effectiveBcv * quantityBcv : 0;
+  const subtotalDivisas = quantityDivisas > 0 ? effectiveDivisas * quantityDivisas : 0;
+
+  const appliedPromo = promoBcv ?? promoDivisas;
+  const lineQty = quantityBcv + quantityDivisas;
+
+  if (appliedPromo && lineQty > 0) {
+    const originalSubtotal =
+      (quantityBcv > 0 ? normalBcv * quantityBcv : 0) +
+      (quantityDivisas > 0 ? normalDivisas * quantityDivisas : 0);
+    return {
+      subtotalBcv: parseFloat(subtotalBcv.toFixed(2)),
+      subtotalDivisas: parseFloat(subtotalDivisas.toFixed(2)),
+      originalUnitPrice: parseFloat((originalSubtotal / lineQty).toFixed(2)),
+      promoCampaignName: appliedPromo.promoCampaignName,
+      promoGroupName: appliedPromo.promoGroupName,
+      promoTier: appliedPromo.promoTier,
+    };
+  }
+
+  return {
+    subtotalBcv: parseFloat(subtotalBcv.toFixed(2)),
+    subtotalDivisas: parseFloat(subtotalDivisas.toFixed(2)),
+    originalUnitPrice: null,
+    promoCampaignName: null,
+    promoGroupName: null,
+    promoTier: null,
   };
 }
 

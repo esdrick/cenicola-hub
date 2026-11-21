@@ -301,6 +301,10 @@ model OrderItem {
   subtotal_bcv_usd      Decimal @default(0) @db.Decimal(10, 2)
   subtotal_divisas_usd  Decimal @default(0) @db.Decimal(10, 2)
   variant_snapshot Json
+  promoCampaignName String?  @map("promo_campaign_name")
+  promoGroupName    String?  @map("promo_group_name")
+  promoTier         Int?     @map("promo_tier")
+  originalUnitPrice Decimal? @map("original_unit_price") @db.Decimal(10, 2)
 
   order   Order          @relation(fields: [order_id], references: [id])
   variant ProductVariant @relation(fields: [variant_id], references: [id])
@@ -589,4 +593,56 @@ model CierreSistema {
 
   @@index([created_at])
   @@map("cierres_sistema")
+}
+
+model PromoSettings {
+  id              String       @id @default("default")
+  campaignName    String       @map("campaign_name")
+  themePreset     String       @default("generico") @map("theme_preset")
+  badgeText       String       @default("Oferta") @map("badge_text")
+  bannerActive    Boolean      @default(false) @map("banner_active")
+  bannerTitle     String       @default("") @map("banner_title")
+  bannerSubtitle  String?      @map("banner_subtitle")
+  bannerCtaText   String?      @map("banner_cta_text")
+  discountsActive Boolean      @default(false) @map("discounts_active")
+  applyToWeb      Boolean      @default(true) @map("apply_to_web")
+  applyToOnline   Boolean      @default(true) @map("apply_to_online")
+  applyToStore    Boolean      @default(false) @map("apply_to_store")
+  startsAt        DateTime?    @map("starts_at")
+  endsAt          DateTime?    @map("ends_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  updatedBy       String?      @map("updated_by")
+
+  groups          PromoGroup[]
+
+  @@map("promo_settings")
+}
+
+model PromoGroup {
+  id           String               @id @default(uuid())
+  settingsId   String               @default("default") @map("settings_id")
+  name         String
+  sortOrder    Int                  @default(0) @map("sort_order")
+  price3Divisa Decimal?             @map("price3_divisa") @db.Decimal(10, 2)
+  price6Divisa Decimal?             @map("price6_divisa") @db.Decimal(10, 2)
+  price3Bcv    Decimal?             @map("price3_bcv") @db.Decimal(10, 2)
+  price6Bcv    Decimal?             @map("price6_bcv") @db.Decimal(10, 2)
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  settings   PromoSettings        @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  categories PromoGroupCategory[]
+
+  @@map("promo_groups")
+}
+
+model PromoGroupCategory {
+  id         String     @id @default(uuid())
+  groupId    String     @map("group_id")
+  categoryId String     @map("category_id")
+
+  group      PromoGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId])
+  @@map("promo_group_categories")
 }

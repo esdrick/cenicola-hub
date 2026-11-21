@@ -12,6 +12,7 @@ import {
   Users,
   UserCog,
   Store,
+  Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { UserRole } from "@/app/generated/prisma/client";
@@ -25,6 +26,7 @@ export type NavItem = {
 const ADMIN_NAV: NavItem[] = [
   { label: "Dashboard",   href: "/dashboard",             icon: LayoutDashboard },
   { label: "Productos",   href: "/dashboard/productos",   icon: Package },
+  { label: "Promociones Web", href: "/dashboard/promociones", icon: Sparkles },
   { label: "Inventario",  href: "/dashboard/inventario",  icon: Boxes },
   { label: "Órdenes",     href: "/dashboard/ordenes",     icon: ShoppingCart },
   { label: "Clientes",    href: "/dashboard/clientes",    icon: Users },

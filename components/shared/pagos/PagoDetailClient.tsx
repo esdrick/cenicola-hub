@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   CheckCircle2, XCircle, AlertTriangle, TriangleAlert,
-  Loader2, ExternalLink, ArrowLeft, Check, X, Phone, Mail,
+  Loader2, ExternalLink, ArrowLeft, Check, X, Phone, Mail, Tag,
 } from "lucide-react";
 import Link from "next/link";
 import type { PagoOrdenDetailJSON } from "@/types";
@@ -114,6 +114,26 @@ export function PagoDetailClient({ order }: Props) {
   const canVerifyAll = isActionable && (isFullyPaid || order.is_partial_agreed) && pendingPayments.length > 0;
 
   const hasDuplicates = order.payments.some((p) => p.duplicate_order_number !== null);
+
+  const promoCampaigns = Array.from(
+    new Set(
+      order.items
+        .map((item) => item.promo_campaign_name)
+        .filter((name): name is string => Boolean(name))
+    )
+  );
+  const totalPromoSavings = parseFloat(
+    order.items
+      .reduce((sum, item) => {
+        if (item.original_unit_price != null && item.original_unit_price > item.unit_price_usd) {
+          return sum + (item.original_unit_price - item.unit_price_usd) * item.quantity;
+        }
+        return sum;
+      }, 0)
+      .toFixed(2)
+  );
+  const hasPromo = promoCampaigns.length > 0;
+  const originalTotalUsd = parseFloat((totalUsd + totalPromoSavings).toFixed(2));
 
   // ─── Global actions ──────────────────────────────────────────────────────────
 
@@ -413,8 +433,14 @@ export function PagoDetailClient({ order }: Props) {
 
           {/* Products — cards on mobile, table on sm+ */}
           <div className="rounded-xl border bg-white">
-            <div className="border-b px-4 sm:px-5 py-3">
+            <div className="border-b px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold text-gray-900">Productos</h2>
+              {hasPromo && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                  <Tag size={11} />
+                  Precios {promoCampaigns.join(" · ")}
+                </span>
+              )}
             </div>
 
             {/* Mobile: card list */}
@@ -424,6 +450,8 @@ export function PagoDetailClient({ order }: Props) {
                 const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
                 const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
                 const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
+                const hasItemDiscount =
+                  item.original_unit_price != null && item.original_unit_price > item.unit_price_usd;
                 return (
                   <div key={item.id} className="flex items-center justify-between gap-2 px-4 py-3">
                     <div className="min-w-0">
@@ -431,10 +459,26 @@ export function PagoDetailClient({ order }: Props) {
                       <p className="text-xs text-gray-400">
                         {[color, `Talla ${size}`].filter(Boolean).join(" · ")}
                       </p>
+                      {item.promo_campaign_name && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                          <Tag size={9} />
+                          {item.promo_campaign_name}
+                          {item.promo_group_name ? ` · ${item.promo_group_name}` : ""}
+                        </span>
+                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-semibold">${item.subtotal_usd.toFixed(2)}</p>
-                      <p className="text-xs text-gray-400">{item.quantity} × ${item.unit_price_usd.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">
+                        {item.quantity} ×{" "}
+                        {hasItemDiscount && (
+                          <span className="line-through">${item.original_unit_price!.toFixed(2)}</span>
+                        )}
+                        {hasItemDiscount ? " " : ""}
+                        <span className={hasItemDiscount ? "font-medium text-emerald-700" : ""}>
+                          ${item.unit_price_usd.toFixed(2)}
+                        </span>
+                      </p>
                     </div>
                   </div>
                 );
@@ -459,16 +503,38 @@ export function PagoDetailClient({ order }: Props) {
                     const name  = item.variant?.product?.name ?? (snap?.product_name as string | undefined) ?? "—";
                     const color = item.variant?.product?.color ?? (snap?.color as string | undefined) ?? null;
                     const size  = item.variant?.size ?? (snap?.size as string | undefined) ?? "—";
+                    const hasItemDiscount =
+                      item.original_unit_price != null && item.original_unit_price > item.unit_price_usd;
                     return (
                       <TableRow key={item.id}>
                         <TableCell>
                           <p className="text-sm font-medium">{name}</p>
-                          {color && <p className="text-xs text-gray-400">{color}</p>}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                            {color && <span className="text-xs text-gray-400">{color}</span>}
+                            {item.promo_campaign_name && (
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                <Tag size={9} />
+                                {item.promo_campaign_name}
+                                {item.promo_group_name ? ` · ${item.promo_group_name}` : ""}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center text-sm">{size}</TableCell>
                         <TableCell className="text-center text-sm">{item.quantity}</TableCell>
-                        <TableCell className="text-right text-sm">${item.unit_price_usd.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-semibold text-sm">${item.subtotal_usd.toFixed(2)}</TableCell>
+                        <TableCell className="text-right text-sm">
+                          {hasItemDiscount && (
+                            <p className="text-xs text-gray-400 line-through">
+                              ${item.original_unit_price!.toFixed(2)}
+                            </p>
+                          )}
+                          <span className={hasItemDiscount ? "font-medium text-emerald-700" : ""}>
+                            ${item.unit_price_usd.toFixed(2)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-sm">
+                          ${item.subtotal_usd.toFixed(2)}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -742,7 +808,31 @@ export function PagoDetailClient({ order }: Props) {
         <div className="space-y-4">
           <div className="rounded-xl border bg-white p-5">
             <h2 className="mb-4 font-semibold text-gray-900">Resumen de pago</h2>
+            {hasPromo && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+                <Tag size={13} className="flex-shrink-0 text-amber-700" />
+                <span>
+                  Precios aplicados: <strong>{promoCampaigns.join(" · ")}</strong>
+                </span>
+              </div>
+            )}
             <div className="space-y-3 text-sm">
+              {totalPromoSavings > 0.005 && (
+                <>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-400">Subtotal regular</span>
+                    <span className="text-gray-400 line-through">${originalTotalUsd.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-emerald-700 font-medium">
+                      Descuento ({promoCampaigns.join(" · ")})
+                    </span>
+                    <span className="text-emerald-700 font-semibold">
+                      -${totalPromoSavings.toFixed(2)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between">
                 <span className="text-gray-500">Total orden</span>
                 <span className="font-semibold">${totalUsd.toFixed(2)}</span>

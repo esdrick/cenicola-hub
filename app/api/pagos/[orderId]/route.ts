@@ -85,6 +85,10 @@ export async function GET(
       unit_price_usd: Number(item.unit_price_usd),
       subtotal_usd: Number(item.subtotal_usd),
       variant_snapshot: item.variant_snapshot,
+      promo_campaign_name: item.promoCampaignName ?? null,
+      promo_group_name: item.promoGroupName ?? null,
+      promo_tier: item.promoTier ?? null,
+      original_unit_price: item.originalUnitPrice != null ? Number(item.originalUnitPrice) : null,
       variant: {
         id: item.variant.id,
         size: item.variant.size,

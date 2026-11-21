@@ -5,7 +5,8 @@ import { withAuth, getClientIp } from "@/lib/api-auth";
 import { generateOrderNumber, normalizeReference, validatePaymentReference } from "@/lib/order-utils";
 import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
-import { resolveSplitSubtotal, paymentTypeToPricingMethod, calculateOrderTotals } from "@/lib/pricing";
+import { resolveSplitSubtotalWithPromo, paymentTypeToPricingMethod, calculateOrderTotals } from "@/lib/pricing";
+import { getActivePromoForChannel } from "@/lib/promotions";
 import { getSetting } from "@/lib/settings";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
@@ -81,9 +82,10 @@ export async function POST(request: NextRequest, { params }: Params) {
   // for every line — recomputed here rather than trusting each CartItem's stored
   // unit_price_usd, as a defense-in-depth against any staleness.
   const totalQty = cart.items.reduce((s, i) => s + i.quantity, 0);
-  const [mayorThreshold, bundleThreshold] = await Promise.all([
+  const [mayorThreshold, bundleThreshold, activePromo] = await Promise.all([
     getSetting("mayor_threshold"),
     getSetting("bundle_threshold"),
+    getActivePromoForChannel(channel),
   ]);
 
   // Mark cart as converting to prevent concurrent conversions
@@ -107,6 +109,8 @@ export async function POST(request: NextRequest, { params }: Params) {
         variant_id: string; quantity: number; unit_price_usd: number;
         subtotal_usd: number; quantity_bcv: number; quantity_divisas: number;
         subtotal_bcv_usd: number; subtotal_divisas_usd: number; variant_snapshot: object;
+        promoCampaignName: string | null; promoGroupName: string | null;
+        promoTier: number | null; originalUnitPrice: number | null;
       }> = [];
       let totalUsd = 0;
       let totalBcvUsd = 0;
@@ -115,7 +119,7 @@ export async function POST(request: NextRequest, { params }: Params) {
       for (const item of cart.items) {
         const variant = await tx.productVariant.findUnique({
           where: { id: item.variant_id },
-          include: { product: { select: { name: true, color: true } } },
+          include: { product: { select: { name: true, color: true, type: true } } },
         });
         if (!variant) throw new Error(`Variante ${item.variant_id} no encontrada`);
         if (!variant.is_active) throw new Error(`Variante ${variant.size} inactiva`);
@@ -130,8 +134,22 @@ export async function POST(request: NextRequest, { params }: Params) {
 
         // Defense-in-depth against stale CartItem prices/split, same as before — recompute
         // fresh from the variant instead of trusting stored subtotal_*_usd.
-        const { subtotalBcv, subtotalDivisas } = resolveSplitSubtotal(
-          variant, item.quantity_bcv, item.quantity_divisas, totalQty, mayorThreshold, bundleThreshold,
+        const {
+          subtotalBcv,
+          subtotalDivisas,
+          originalUnitPrice,
+          promoCampaignName,
+          promoGroupName,
+          promoTier,
+        } = resolveSplitSubtotalWithPromo(
+          variant,
+          variant.product.type,
+          item.quantity_bcv,
+          item.quantity_divisas,
+          totalQty,
+          mayorThreshold,
+          bundleThreshold,
+          activePromo,
         );
         const subtotal = parseFloat((subtotalBcv + subtotalDivisas).toFixed(2));
         const unitPrice = qty > 0 ? parseFloat((subtotal / qty).toFixed(2)) : 0;
@@ -155,6 +173,10 @@ export async function POST(request: NextRequest, { params }: Params) {
             sku: variant.sku,
             price_bcv: unitPrice,
           },
+          promoCampaignName,
+          promoGroupName,
+          promoTier,
+          originalUnitPrice,
         });
       }
       const totals = calculateOrderTotals(orderItems);
@@ -235,12 +257,10 @@ export async function POST(request: NextRequest, { params }: Params) {
       );
       const isFullPayment = totalPaidAmt >= totalUsd - 0.005;
       const isCompletada = channel === "tienda" && allCash && isFullPayment;
-      // Online + all cash + fully paid → pago_verificado (payment is auto-verified but order still needs shipping)
-      const isAutoVerifiedOnline = channel === "online" && allCash && isFullPayment;
+      // Online cash payments require manual verification once in Pagos, which then moves
+      // the order straight to en_embalaje — only in-person tienda cash auto-completes.
       const orderStatus = isCompletada
         ? "completada"
-        : isAutoVerifiedOnline
-        ? "pago_verificado"
         : partialAgreed
         ? "pago_parcial"
         : "pendiente_pago";
@@ -328,7 +348,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           order_number: orderNumber,
           channel,
           status: orderStatus,
-          pago_verificado_at: isCompletada || isAutoVerifiedOnline ? new Date() : null,
+          pago_verificado_at: isCompletada ? new Date() : null,
           customer_id: customerId,
           customer_account_id: customerAccountId,
           customer_name: finalCustomerName,
@@ -362,6 +382,10 @@ export async function POST(request: NextRequest, { params }: Params) {
             subtotal_bcv_usd: item.subtotal_bcv_usd,
             subtotal_divisas_usd: item.subtotal_divisas_usd,
             variant_snapshot: item.variant_snapshot,
+            promoCampaignName: item.promoCampaignName ?? null,
+            promoGroupName: item.promoGroupName ?? null,
+            promoTier: item.promoTier ?? null,
+            originalUnitPrice: item.originalUnitPrice ?? null,
           },
         });
 
@@ -422,7 +446,7 @@ export async function POST(request: NextRequest, { params }: Params) {
             reference: isEfectivo ? "EFECTIVO" : (pay.reference?.trim() ?? ""),
             reference_hash: hash,
             payment_photo: pay.payment_photo?.trim() || null,
-            status: isEfectivo || isCompletada ? "verificado" : "pendiente",
+            status: (isEfectivo && channel === "tienda") || isCompletada ? "verificado" : "pendiente",
           },
         });
       }

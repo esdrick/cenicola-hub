@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withAuth } from "@/lib/api-auth";
-import { resolveSplitSubtotal, calculateOrderTotals } from "@/lib/pricing";
+import { resolveSplitSubtotalWithPromo, calculateOrderTotals } from "@/lib/pricing";
+import { getActivePromoForChannel } from "@/lib/promotions";
 import { getSetting } from "@/lib/settings";
 
 // Recomputes subtotal_bcv_usd/subtotal_divisas_usd/unit_price_usd for every line against the
@@ -9,14 +10,25 @@ import { getSetting } from "@/lib/settings";
 // is split between currencies — that split is only ever changed explicitly (item upsert defaults
 // it, or the dedicated `split` action below).
 async function repriceAllCartItems(cartId: string, mayorThreshold: number, bundleThreshold: number) {
-  const items = await prisma.cartItem.findMany({
-    where: { cart_id: cartId },
-    include: { variant: true },
-  });
+  const [cart, items] = await Promise.all([
+    prisma.cart.findUnique({ where: { id: cartId }, select: { channel: true } }),
+    prisma.cartItem.findMany({
+      where: { cart_id: cartId },
+      include: { variant: { include: { product: { select: { type: true } } } } },
+    }),
+  ]);
+  const activePromo = cart ? await getActivePromoForChannel(cart.channel) : null;
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   for (const item of items) {
-    const { subtotalBcv, subtotalDivisas } = resolveSplitSubtotal(
-      item.variant, item.quantity_bcv, item.quantity_divisas, totalQty, mayorThreshold, bundleThreshold,
+    const { subtotalBcv, subtotalDivisas } = resolveSplitSubtotalWithPromo(
+      item.variant,
+      item.variant.product.type,
+      item.quantity_bcv,
+      item.quantity_divisas,
+      totalQty,
+      mayorThreshold,
+      bundleThreshold,
+      activePromo,
     );
     const newUnitPrice = item.quantity > 0 ? (subtotalBcv + subtotalDivisas) / item.quantity : 0;
     if (

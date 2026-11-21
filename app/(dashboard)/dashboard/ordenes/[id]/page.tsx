@@ -20,7 +20,7 @@ import { paymentTypeToPricingMethod } from "@/lib/pricing";
 import { getOptimizedCloudinaryUrl } from "@/lib/cloudinary";
 import type { PaymentType } from "@/app/generated/prisma";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone, Mail } from "lucide-react";
+import { ChevronLeft, MapPin, Truck, FileText, User, Check, AlertTriangle, Package2, Hash, ExternalLink, Phone, Mail, Tag } from "lucide-react";
 
 // ─── Status timeline ──────────────────────────────────────────────────────────
 const TIMELINE_ONLINE = ["pendiente_pago", "pago_verificado", "en_embalaje", "enviada", "completada"] as const;
@@ -196,6 +196,28 @@ export default async function OrderDetailPage({
   const totalDivisasUsd = Number(order.total_divisas_usd);
   const isMixedOrder = totalBcvUsd > 0 && totalDivisasUsd > 0;
 
+  const promoCampaigns = Array.from(
+    new Set(
+      order.items
+        .map((item) => item.promoCampaignName)
+        .filter((name): name is string => Boolean(name))
+    )
+  );
+  const totalPromoSavings = parseFloat(
+    order.items
+      .reduce((sum, item) => {
+        const orig = item.originalUnitPrice != null ? Number(item.originalUnitPrice) : null;
+        const unit = Number(item.unit_price_usd);
+        if (orig != null && orig > unit) {
+          return sum + (orig - unit) * item.quantity;
+        }
+        return sum;
+      }, 0)
+      .toFixed(2)
+  );
+  const hasPromo = promoCampaigns.length > 0;
+  const originalTotalUsd = parseFloat((totalUsd + totalPromoSavings).toFixed(2));
+
   // Only count non-rejected payments toward paid total
   const activeOrderPayments = order.payments.filter((p) => p.status !== "rechazado");
   const paidTotal = activeOrderPayments.reduce((s, p) => s + Number(p.amount_usd), 0);
@@ -294,8 +316,16 @@ export default async function OrderDetailPage({
 
           {/* Items */}
           <div className="rounded-xl border bg-white overflow-hidden">
-            <div className="border-b px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Productos</h2>
+            <div className="border-b px-3 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold text-gray-700">Productos</h2>
+                {hasPromo && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-900 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                    <Tag size={11} />
+                    Precios {promoCampaigns.join(" · ")}
+                  </span>
+                )}
+              </div>
               {canAddProduct && (
                 <AgregarProductosDialog
                   orderId={order.id}
@@ -306,38 +336,73 @@ export default async function OrderDetailPage({
               )}
             </div>
             <div className="divide-y">
-              {order.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 px-3 sm:px-5 py-3">
-                  {item.variant.product.photos[0] && (
-                    <Image
-                      src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
-                      alt={item.variant.product.name}
-                      width={48} height={48}
-                      loading="lazy"
-                      className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{item.variant.product.name}</p>
-                    <p className="text-xs text-gray-400">
-                      {[item.variant.product.color ?? null, item.variant.size, item.variant.sku].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">${Number(item.subtotal_usd).toFixed(2)}</p>
-                    <p className="text-xs text-gray-400">
-                      {item.quantity} × ${Number(item.unit_price_usd).toFixed(2)}
-                    </p>
-                    {item.quantity_bcv > 0 && item.quantity_divisas > 0 && (
-                      <p className="text-[10px] text-amber-600">
-                        {item.quantity_bcv} BCV + {item.quantity_divisas} Divisas
-                      </p>
+              {order.items.map((item) => {
+                const unitPrice = Number(item.unit_price_usd);
+                const origUnitPrice = item.originalUnitPrice != null ? Number(item.originalUnitPrice) : null;
+                const hasItemDiscount = origUnitPrice != null && origUnitPrice > unitPrice;
+                return (
+                  <div key={item.id} className="flex items-center gap-3 px-3 sm:px-5 py-3">
+                    {item.variant.product.photos[0] && (
+                      <Image
+                        src={getOptimizedCloudinaryUrl(item.variant.product.photos[0], 400)}
+                        alt={item.variant.product.name}
+                        width={48} height={48}
+                        loading="lazy"
+                        className="h-12 w-12 flex-shrink-0 rounded-lg object-cover"
+                      />
                     )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm">{item.variant.product.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {[item.variant.product.color ?? null, item.variant.size, item.variant.sku].filter(Boolean).join(" · ")}
+                      </p>
+                      {item.promoCampaignName && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                          <Tag size={9} />
+                          {item.promoCampaignName}
+                          {item.promoGroupName ? ` · ${item.promoGroupName}` : ""}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold">${Number(item.subtotal_usd).toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">
+                        {item.quantity} ×{" "}
+                        {hasItemDiscount && (
+                          <span className="line-through">${origUnitPrice!.toFixed(2)}</span>
+                        )}
+                        {hasItemDiscount ? " " : ""}
+                        <span className={hasItemDiscount ? "font-medium text-emerald-700" : ""}>
+                          ${unitPrice.toFixed(2)}
+                        </span>
+                      </p>
+                      {item.quantity_bcv > 0 && item.quantity_divisas > 0 && (
+                        <p className="text-[10px] text-amber-600">
+                          {item.quantity_bcv} BCV + {item.quantity_divisas} Divisas
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-            <div className="border-t bg-gray-50 px-3 sm:px-5 py-3">
+            <div className="border-t bg-gray-50 px-3 sm:px-5 py-3 space-y-1.5">
+              {totalPromoSavings > 0.005 && (
+                <>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Subtotal regular</span>
+                    <span className="text-gray-400 line-through">${originalTotalUsd.toFixed(2)} USD</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-emerald-700 font-medium">
+                      Descuento ({promoCampaigns.join(" · ")})
+                    </span>
+                    <span className="text-emerald-700 font-semibold">
+                      -${totalPromoSavings.toFixed(2)} USD
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Total</span>
                 <span className="text-lg font-bold">

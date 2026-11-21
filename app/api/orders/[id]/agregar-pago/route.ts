@@ -149,8 +149,10 @@ export async function POST(
 
       const today = getVenezuelaDateString();
 
-      // Cash is immediately verified — no admin confirmation needed
-      const paymentStatus = isEfectivo ? "verificado" : "pendiente";
+      // Only tienda (in-person POS) cash is immediately verified; online/web cash
+      // stays pending so it goes through payment verification once before embalaje.
+      const shouldAutoVerifyCash = isEfectivo && order.channel === "tienda";
+      const paymentStatus = shouldAutoVerifyCash ? "verificado" : "pendiente";
 
       // Resolve exchange rate: prefer client-supplied ID, fall back to today's in DB
       let resolvedRateId: string | null = exchange_rate_id ?? null;
@@ -191,19 +193,18 @@ export async function POST(
         },
       });
 
-      // For cash payments, auto-update order status based on new paid total
-      if (isEfectivo) {
-        // isFullyPaid gates advancing to pago_verificado/completada (i.e. "ready for embalaje")
-        // so it must only count VERIFIED money — this cash payment (verified on arrival) plus
-        // whatever was already verified. An older pending transferencia still awaiting manual
-        // verification must not silently get treated as confirmed just because the totals add up.
+      // For tienda cash payments, auto-update order status based on new verified paid total
+      if (shouldAutoVerifyCash) {
+        // isFullyPaid gates advancing to completada so it must only count VERIFIED money —
+        // this cash payment (verified on arrival) plus whatever was already verified.
+        // An older pending transferencia still awaiting manual verification must not
+        // silently get treated as confirmed just because the totals add up.
         const isFullyPaid = verifiedPaid + amt >= effectiveOrderTotal - 0.005;
         let newOrderStatus: string | null = null;
 
         if (isFullyPaid) {
           // Tienda is direct sale → completada immediately
-          // Online still needs shipping → pago_verificado
-          newOrderStatus = order.channel === "tienda" ? "completada" : "pago_verificado";
+          newOrderStatus = "completada";
         } else if (order.status === "pendiente_pago") {
           newOrderStatus = "pago_parcial";
         }
@@ -259,7 +260,7 @@ export async function POST(
             payment_type,
             amount_usd: amt,
             reference: isEfectivo ? "EFECTIVO" : reference,
-            auto_verified: isEfectivo,
+            auto_verified: shouldAutoVerifyCash,
           },
           ip_address: ip,
         },

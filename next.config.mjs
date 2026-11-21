@@ -7,6 +7,15 @@ const nextConfig = {
       dynamic: 0,
     },
   },
+  async redirects() {
+    return [
+      {
+        source: "/promociones",
+        destination: "/dashboard/promociones",
+        permanent: false,
+      },
+    ];
+  },
   images: {
     unoptimized: true,
     remotePatterns: [

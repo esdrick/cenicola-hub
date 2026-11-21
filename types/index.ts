@@ -180,6 +180,10 @@ export type OrderItemJSON = {
   subtotal_bcv_usd: number;
   subtotal_divisas_usd: number;
   variant_snapshot: unknown;
+  promo_campaign_name?: string | null;
+  promo_group_name?: string | null;
+  promo_tier?: number | null;
+  original_unit_price?: number | null;
   variant?: {
     id: string;
     size: string;

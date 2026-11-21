@@ -8,6 +8,11 @@ import { getVenezuelaDateString } from "@/lib/date-utils";
 import { getTasa } from "@/lib/tasa-cambio";
 import { getSetting } from "@/lib/settings";
 import { paymentTypeToPricingMethod } from "@/lib/pricing";
+import {
+  getActivePromoForChannel,
+  resolvePromoPriceForProduct,
+  type ActivePromoContext,
+} from "@/lib/promotions";
 import type { PaymentType } from "@/app/generated/prisma/client";
 
 function parsePaymentType(paymentMethodRaw: string): PaymentType {
@@ -66,6 +71,79 @@ function getOfficialCatalogUnitPrice(
   }
 }
 
+type OfficialPriceWithPromo = {
+  unitPrice: number;
+  originalUnitPrice: number | null;
+  promoCampaignName: string | null;
+  promoGroupName: string | null;
+  promoTier: number | null;
+};
+
+function resolveWhatsAppOfficialPrice(
+  v: Parameters<typeof getOfficialCatalogUnitPrice>[0],
+  productType: string | null | undefined,
+  totalOrderQty: number,
+  tierTag: string | null | undefined,
+  paymentType: PaymentType,
+  bundleThreshold: number,
+  mayorThreshold: number,
+  activePromo: ActivePromoContext | null
+): OfficialPriceWithPromo {
+  const normalUnitPrice = getOfficialCatalogUnitPrice(
+    v,
+    totalOrderQty,
+    tierTag,
+    paymentType,
+    bundleThreshold,
+    mayorThreshold
+  );
+
+  if (!activePromo) {
+    return {
+      unitPrice: normalUnitPrice,
+      originalUnitPrice: null,
+      promoCampaignName: null,
+      promoGroupName: null,
+      promoTier: null,
+    };
+  }
+
+  const tag = (tierTag || "").toLowerCase();
+  const effectiveQty = tag.includes("mayor")
+    ? Math.max(totalOrderQty, mayorThreshold)
+    : tag.includes("docena") || tag.includes("bundle") || tag.includes("paquete")
+      ? Math.max(totalOrderQty, bundleThreshold)
+      : totalOrderQty;
+
+  const method = paymentTypeToPricingMethod(paymentType);
+  const promo = resolvePromoPriceForProduct(
+    activePromo,
+    productType,
+    method,
+    effectiveQty,
+    mayorThreshold,
+    bundleThreshold
+  );
+
+  if (promo && promo.promoPrice < normalUnitPrice) {
+    return {
+      unitPrice: promo.promoPrice,
+      originalUnitPrice: normalUnitPrice,
+      promoCampaignName: promo.promoCampaignName,
+      promoGroupName: promo.promoGroupName,
+      promoTier: promo.promoTier,
+    };
+  }
+
+  return {
+    unitPrice: normalUnitPrice,
+    originalUnitPrice: null,
+    promoCampaignName: null,
+    promoGroupName: null,
+    promoTier: null,
+  };
+}
+
 // POST /api/orders/parse-whatsapp
 export async function POST(request: NextRequest) {
   // Allowed for admin, inventario, and vendedoras
@@ -86,10 +164,12 @@ export async function POST(request: NextRequest) {
 
   const cust = body.customer || parsed.customer;
   const paymentType = parsePaymentType(cust.payment_method);
+  const totalOrderQty = parsed.items.reduce((sum, i) => sum + i.quantity, 0);
 
-  const [mayorThreshold, bundleThreshold] = await Promise.all([
+  const [mayorThreshold, bundleThreshold, activePromo] = await Promise.all([
     getSetting("mayor_threshold"),
     getSetting("bundle_threshold"),
+    getActivePromoForChannel(channel),
   ]);
 
   // Process items and match against DB products & variants
@@ -101,18 +181,21 @@ export async function POST(request: NextRequest) {
       if (clientOverrideVariantId) {
         const overrideVar = await prisma.productVariant.findUnique({
           where: { id: clientOverrideVariantId },
-          include: { product: { select: { id: true, name: true, color: true, photos: true } } },
+          include: { product: { select: { id: true, name: true, type: true, color: true, photos: true } } },
         });
         if (overrideVar) {
           const stock = channel === "online" ? overrideVar.stock_online : overrideVar.stock_store;
-          const officialUnitPrice = getOfficialCatalogUnitPrice(
+          const resolved = resolveWhatsAppOfficialPrice(
             overrideVar,
-            item.quantity,
+            overrideVar.product.type,
+            totalOrderQty,
             item.tierTag,
             paymentType,
             bundleThreshold,
-            mayorThreshold
+            mayorThreshold,
+            activePromo
           );
+          const officialUnitPrice = resolved.unitPrice;
           const officialSubtotal = parseFloat((officialUnitPrice * item.quantity).toFixed(2));
           const isTampered = Math.abs(officialSubtotal - item.subtotalUsd) > 0.10;
 
@@ -122,6 +205,10 @@ export async function POST(request: NextRequest) {
             subtotalUsd: officialSubtotal,
             officialUnitPrice,
             officialSubtotalUsd: officialSubtotal,
+            originalUnitPrice: resolved.originalUnitPrice,
+            promoCampaignName: resolved.promoCampaignName,
+            promoGroupName: resolved.promoGroupName,
+            promoTier: resolved.promoTier,
             parsedUnitPrice: item.unitPriceUsd,
             parsedSubtotalUsd: item.subtotalUsd,
             isPriceTampered: isTampered,
@@ -177,6 +264,12 @@ export async function POST(request: NextRequest) {
 
       let matchStatus: "exact" | "partial" | "price_tampered" | "not_found" = "not_found";
       let officialUnitPrice = 0;
+      let matchedPromoMeta: Omit<OfficialPriceWithPromo, "unitPrice"> = {
+        originalUnitPrice: null,
+        promoCampaignName: null,
+        promoGroupName: null,
+        promoTier: null,
+      };
       let isTampered = false;
 
       const candidateList: Array<{
@@ -193,14 +286,17 @@ export async function POST(request: NextRequest) {
       for (const p of candidateProducts) {
         for (const v of p.variants) {
           const stock = channel === "online" ? v.stock_online : v.stock_store;
-          const candidateOfficialPrice = getOfficialCatalogUnitPrice(
+          const candidateResolved = resolveWhatsAppOfficialPrice(
             v,
-            item.quantity,
+            p.type,
+            totalOrderQty,
             item.tierTag,
             paymentType,
             bundleThreshold,
-            mayorThreshold
+            mayorThreshold,
+            activePromo
           );
+          const candidateOfficialPrice = candidateResolved.unitPrice;
 
           const candidateObj = {
             id: v.id,
@@ -228,6 +324,12 @@ export async function POST(request: NextRequest) {
               photo: p.photos[0],
             };
             officialUnitPrice = candidateOfficialPrice;
+            matchedPromoMeta = {
+              originalUnitPrice: candidateResolved.originalUnitPrice,
+              promoCampaignName: candidateResolved.promoCampaignName,
+              promoGroupName: candidateResolved.promoGroupName,
+              promoTier: candidateResolved.promoTier,
+            };
             const officialSubtotal = parseFloat((officialUnitPrice * item.quantity).toFixed(2));
             isTampered = Math.abs(officialSubtotal - item.subtotalUsd) > 0.10;
             matchStatus = isTampered ? "price_tampered" : "exact";
@@ -238,6 +340,12 @@ export async function POST(request: NextRequest) {
               photo: p.photos[0],
             };
             officialUnitPrice = candidateOfficialPrice;
+            matchedPromoMeta = {
+              originalUnitPrice: candidateResolved.originalUnitPrice,
+              promoCampaignName: candidateResolved.promoCampaignName,
+              promoGroupName: candidateResolved.promoGroupName,
+              promoTier: candidateResolved.promoTier,
+            };
             const officialSubtotal = parseFloat((officialUnitPrice * item.quantity).toFixed(2));
             isTampered = Math.abs(officialSubtotal - item.subtotalUsd) > 0.10;
             matchStatus = "partial";
@@ -255,6 +363,10 @@ export async function POST(request: NextRequest) {
         subtotalUsd: officialSubtotalUsd,
         officialUnitPrice,
         officialSubtotalUsd,
+        originalUnitPrice: matchedPromoMeta.originalUnitPrice,
+        promoCampaignName: matchedPromoMeta.promoCampaignName,
+        promoGroupName: matchedPromoMeta.promoGroupName,
+        promoTier: matchedPromoMeta.promoTier,
         parsedUnitPrice: item.unitPriceUsd,
         parsedSubtotalUsd: item.subtotalUsd,
         isPriceTampered: isTampered,
@@ -378,6 +490,10 @@ export async function POST(request: NextRequest) {
           quantity_divisas: number;
           subtotal_divisas_usd: number;
           variant_snapshot: object;
+          promoCampaignName: string | null;
+          promoGroupName: string | null;
+          promoTier: number | null;
+          originalUnitPrice: number | null;
         }> = [];
 
         for (const item of validItems) {
@@ -414,6 +530,10 @@ export async function POST(request: NextRequest) {
               size: variant.size,
               sku: variant.sku,
             },
+            promoCampaignName: item.promoCampaignName ?? null,
+            promoGroupName: item.promoGroupName ?? null,
+            promoTier: item.promoTier ?? null,
+            originalUnitPrice: item.originalUnitPrice ?? null,
           });
 
           // Deduct stock strictly
@@ -456,21 +576,24 @@ export async function POST(request: NextRequest) {
         let paymentData = undefined;
 
         if (hasPaymentRef) {
+          const isEfectivo = paymentType === "efectivo_bs" || paymentType === "efectivo_usd";
           const refValidation = validatePaymentReference(paymentType, rawPaymentRef);
           if (!refValidation.valid) {
             throw new Error(refValidation.error || "Referencia de pago inválida");
           }
-          const hash = normalizeReference(rawPaymentRef);
-          const dup = await tx.orderPayment.findFirst({
-            where: {
-              reference_hash: hash,
-              payment_type: paymentType,
-              status: { not: "rechazado" },
-            },
-            include: { order: { select: { order_number: true } } },
-          });
-          if (dup) {
-            throw new Error(`La referencia de pago ya fue utilizada en la orden ${dup.order.order_number}`);
+          const hash = isEfectivo ? null : normalizeReference(rawPaymentRef);
+          if (hash) {
+            const dup = await tx.orderPayment.findFirst({
+              where: {
+                reference_hash: hash,
+                payment_type: paymentType,
+                status: { not: "rechazado" },
+              },
+              include: { order: { select: { order_number: true } } },
+            });
+            if (dup) {
+              throw new Error(`La referencia de pago ya fue utilizada en la orden ${dup.order.order_number}`);
+            }
           }
 
           paymentData = {
