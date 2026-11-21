@@ -212,7 +212,33 @@ export function validatePromoSettings(
 
 export function generatePromoPreviewToken(): { token: string; previewUrl: string } {
   const secret = process.env.PROMO_PREVIEW_SECRET || "cenicola_promo_preview_secret_key_2026";
-  const storeUrl = (process.env.STORE_URL || "https://cenicolas.com").replace(/\/+$/, "");
+  const rawStoreUrl = process.env.STORE_URL?.trim();
+
+  if (!rawStoreUrl) {
+    throw new Error(
+      "La variable de entorno STORE_URL no está configurada en el servidor."
+    );
+  }
+
+  let parsedStoreUrl: URL;
+  try {
+    parsedStoreUrl = new URL(rawStoreUrl);
+  } catch {
+    throw new Error(
+      `STORE_URL tiene un formato inválido ("${rawStoreUrl}"). Debe incluir protocolo, ej: https://www.quefranelas.com.`
+    );
+  }
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    (parsedStoreUrl.hostname === "localhost" || parsedStoreUrl.hostname === "127.0.0.1")
+  ) {
+    throw new Error(
+      "STORE_URL apunta a localhost en producción. Configura el dominio público de la tienda."
+    );
+  }
+
+  const storeUrl = rawStoreUrl.replace(/\/+$/, "");
 
   const payload = {
     exp: Math.floor(Date.now() / 1000) + 2 * 60 * 60, // 2 horas de validez
